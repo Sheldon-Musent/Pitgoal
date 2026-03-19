@@ -12,12 +12,12 @@ const TABS = [
 export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
   return (
     <div
-      className="fixed bottom-0 left-0 right-0 z-40"
+      className="fixed bottom-0 left-0 right-0 z-40 safe-bottom"
       style={{
         background: "rgba(6,10,18,0.97)",
         backdropFilter: "blur(16px)",
         borderTop: "1px solid var(--border-light)",
-        paddingBottom: "env(safe-area-inset-bottom, 0px)",
+        
       }}
     >
       <div
