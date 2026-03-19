@@ -48,7 +48,9 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-capable" content="yes" />
       </head>
       <body>
-        {children}
+        <div style={{ paddingTop: 59, paddingBottom: 34, background: "#060a12", minHeight: "100vh" }}>
+          {children}
+        </div>
         <PWARegister />
       </body>
     </html>

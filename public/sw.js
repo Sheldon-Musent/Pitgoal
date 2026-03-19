@@ -1,5 +1,5 @@
-const CACHE_NAME = 'doit-v6';
-const STATIC_CACHE = 'doit-static-v6';
+const CACHE_NAME = 'doit-v7';
+const STATIC_CACHE = 'doit-static-v7';
 const APP_SHELL = ['/', '/manifest.json'];
 
 self.addEventListener('install', (event) => {
