@@ -26,11 +26,12 @@ export default function Home() {
   return (
     <div className="max-w-[520px] mx-auto relative">
       <div className="scanline" />
+      <div className="pwa-top-spacer" />
       {store.saving && <div className="save-dot" />}
 
       {/* Header */}
       <div
-        className="sticky top-0 z-40"
+        className="sticky top-0 z-40 pwa-header-push"
         style={{
           background: "rgba(6,10,18,0.97)",
           backdropFilter: "blur(16px)",
