@@ -1,17 +1,14 @@
 "use client";
-
 interface BottomNavProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
 }
-
 const TABS = [
   { id: "mission", icon: "◈", label: "MISSION", desc: "Phase goals" },
   { id: "details", icon: "◫", label: "DETAILS", desc: "Overviews" },
   { id: "connect", icon: "◎", label: "CONNECT", desc: "Social" },
   { id: "ai", icon: "◆", label: "AI", desc: "Premium" },
 ];
-
 export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
   return (
     <div
@@ -20,6 +17,7 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
         background: "rgba(6,10,18,0.97)",
         backdropFilter: "blur(16px)",
         borderTop: "1px solid var(--border-light)",
+        paddingBottom: "env(safe-area-inset-bottom, 0px)",
       }}
     >
       <div
@@ -36,7 +34,6 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
               : t.id === "connect"
               ? "var(--pink)"
               : "var(--orange)";
-
           return (
             <button
               key={t.id}
@@ -46,7 +43,7 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
                 background: "none",
                 border: "none",
                 fontFamily: "inherit",
-                padding: "10px 4px 12px",
+                padding: "10px 4px 8px",
                 cursor: "pointer",
                 textAlign: "center",
                 borderTop: active
