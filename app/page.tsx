@@ -35,7 +35,7 @@ export default function Home() {
           background: "rgba(6,10,18,0.97)",
           backdropFilter: "blur(16px)",
           borderBottom: "1px solid var(--bg-surface)",
-          padding: "calc(14px + var(--sat, 0px)) 16px 10px",
+          padding: "73px 16px 10px",
         }}
       >
         <div className="flex justify-between items-start mb-2">

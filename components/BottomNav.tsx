@@ -17,7 +17,7 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
         background: "rgba(6,10,18,0.97)",
         backdropFilter: "blur(16px)",
         borderTop: "1px solid var(--border-light)",
-        paddingBottom: "var(--sab, 0px)",
+        paddingBottom: "34px",
         
       }}
     >
