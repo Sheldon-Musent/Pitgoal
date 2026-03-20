@@ -210,7 +210,7 @@ export default function Home() {
   const PILL_H = 62;
 
   return (
-    <div style={{ background: "#0e0e12", minHeight: "100vh", fontFamily: BODY, color: "#c0c0c0", maxWidth: 430, margin: "0 auto", position: "relative", paddingBottom: hasActivePopup ? 190 : 110 }}>
+    <div style={{ background: "#0e0e12", minHeight: "100vh", fontFamily: BODY, color: "#c0c0c0", maxWidth: 430, margin: "0 auto", position: "relative", paddingBottom: hasActivePopup ? 190 : 110, paddingTop: "env(safe-area-inset-top, 0px)" }}>
       <div style={{ padding: "16px 14px 0" }}>
 
         {/* ═══ ZONE 1: STATS ═══ */}
@@ -507,7 +507,7 @@ export default function Home() {
       {(popupState === "working" || popupState === "resting") && activeTask && (() => {
         const isW = popupState === "working"; const pc = isW ? "#5DCAA5" : "#7F77DD"; const pcBg = isW ? "#063d30" : "#1e1a4d"; const pcLight = isW ? "#E1F5EE" : "#EEEDFE";
         return (
-          <div style={{ position: "fixed", bottom: 76, left: "50%", transform: "translateX(-50%)", width: "calc(100% - 28px)", maxWidth: 402, zIndex: 90 }}>
+          <div style={{ position: "fixed", bottom: "calc(76px + env(safe-area-inset-bottom, 0px))", left: "50%", transform: "translateX(-50%)", width: "calc(100% - 28px)", maxWidth: 402, zIndex: 90 }}>
             <div style={{ background: "#0c0c14", borderRadius: 20, padding: "20px", border: `1.5px solid ${pc}35` }}>
               <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
                 {/* Progress ring */}
@@ -540,7 +540,7 @@ export default function Home() {
       })()}
 
       {popupState === "upcoming" && upcoming && (
-        <div style={{ position: "fixed", bottom: 76, left: "50%", transform: "translateX(-50%)", width: "calc(100% - 28px)", maxWidth: 402, zIndex: 90 }}>
+        <div style={{ position: "fixed", bottom: "calc(76px + env(safe-area-inset-bottom, 0px))", left: "50%", transform: "translateX(-50%)", width: "calc(100% - 28px)", maxWidth: 402, zIndex: 90 }}>
           <div style={{ background: "#0c0c14", borderRadius: 20, padding: "20px", border: "1.5px solid #EF9F2735" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
               <div style={{ position: "relative", width: 52, height: 52, flexShrink: 0 }}>
@@ -646,7 +646,7 @@ export default function Home() {
       )}
 
       {/* ═══ BOTTOM NAV — pill style ═══ */}
-      <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, padding: "0 12px 12px", zIndex: 100 }}>
+      <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, padding: "0 12px calc(12px + env(safe-area-inset-bottom, 0px))", zIndex: 100 }}>
         <div style={{ background: "#18181f", borderRadius: 50, padding: "6px 8px", display: "flex", alignItems: "center", justifyContent: "space-around", border: "1px solid #222230" }}>
           {[
             { id: "cat", label: "Home", icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> },
