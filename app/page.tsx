@@ -142,8 +142,39 @@ export default function Home() {
   const dateScrollRef = useRef<HTMLDivElement>(null);
   const today = useMemo(() => new Date(), []);
 
-  useEffect(() => { try { const raw = localStorage.getItem(STORAGE_KEY); if (raw) { const d = JSON.parse(raw); setTasks(d.tasks || []); setDayLog(d.dayLog || []); setEnergyUsed(d.energyUsed || 0); setEnergyCharged(d.energyCharged || 0); setActiveTask(d.activeTask || null); setCustomGroups(d.customGroups || []); } } catch(e) {} setLoaded(true); }, []);
-  const persist = useCallback((data: any) => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch(e) {} }, []);
+  // Get today's date string in Malaysia timezone (GMT+8)
+  const getMYDate = (): string => {
+    return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kuala_Lumpur" });
+  };
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const d = JSON.parse(raw);
+        const todayMY = getMYDate();
+        const savedDate = d.savedDate || "";
+        // If new day in Malaysia, reset daily data but keep tasks/groups
+        if (savedDate !== todayMY) {
+          setTasks((d.tasks || []).map((t: any) => ({ ...t, status: "pending" })));
+          setDayLog([]);
+          setEnergyUsed(0);
+          setEnergyCharged(0);
+          setActiveTask(null);
+          setCustomGroups(d.customGroups || []);
+        } else {
+          setTasks(d.tasks || []);
+          setDayLog(d.dayLog || []);
+          setEnergyUsed(d.energyUsed || 0);
+          setEnergyCharged(d.energyCharged || 0);
+          setActiveTask(d.activeTask || null);
+          setCustomGroups(d.customGroups || []);
+        }
+      }
+    } catch(e) {}
+    setLoaded(true);
+  }, []);
+  const persist = useCallback((data: any) => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...data, savedDate: getMYDate() })); } catch(e) {} }, []);
   const save = useCallback((t: any, log: any, eu: number, ec: number, at: any, cg: any) => { persist({ tasks: t, dayLog: log, energyUsed: eu, energyCharged: ec, activeTask: at, customGroups: cg }); }, [persist]);
   useEffect(() => { const id = setInterval(() => setTick(t => t + 1), 1000); return () => clearInterval(id); }, []);
   useEffect(() => { if (!activeTask) return; const elapsed = (Date.now() - activeTask.startedAt) / 60000; if (activeTask.type === "work") setEnergyUsed(activeTask.baseUsed + elapsed); else setEnergyCharged(activeTask.baseCharged + elapsed); }, [tick, activeTask]);
@@ -442,8 +473,7 @@ export default function Home() {
                 {showCompleted && (
                   <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                     {doneTasks.map((task, i) => { const isWork = task.type === "work"; const bg = isWork ? "#063d30" : "#1e1a4d"; const accent = isWork ? "#5DCAA5" : "#7F77DD"; const light = isWork ? "#E1F5EE" : "#EEEDFE"; const isExp = expandedTask === task.id; return (
-                      <SwipeDone key={task.id} onUndone={() => markUndone(task)}>
-                        <div>
+                      <div key={task.id}>
                           <div className="tap" onClick={() => setExpandedTask(isExp ? null : task.id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", background: bg, borderRadius: isExp ? "12px 12px 0 0" : 12, border: `1px solid ${accent}30`, borderBottom: isExp ? "none" : undefined, animation: `fadeUp 0.2s ease ${i * 0.03}s both` }}>
                             <div style={{ fontSize: 10, color: accent, fontFamily: MONO, minWidth: 38, fontWeight: 600 }}>{task.time}</div>
                             <div style={{ fontSize: 13, color: light, fontWeight: 700, flex: 1, textDecoration: "line-through", textDecorationColor: `${accent}60`, fontFamily: DISPLAY }}>{task.name}</div>
@@ -457,8 +487,7 @@ export default function Home() {
                               </div>
                             </div>
                           )}
-                        </div>
-                      </SwipeDone>
+                      </div>
                     ); })}
                     <div className="tap" onClick={() => setShowCompleted(false)} style={{ textAlign: "center", padding: 8 }}><div style={{ fontSize: 10, color: "#333" }}>{"\u25B2"}</div></div>
                   </div>
@@ -646,8 +675,8 @@ export default function Home() {
       )}
 
       {/* ═══ BOTTOM NAV — pill style ═══ */}
-      <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, padding: "0 12px calc(12px + env(safe-area-inset-bottom, 0px))", zIndex: 100 }}>
-        <div style={{ background: "#18181f", borderRadius: 50, padding: "6px 8px", display: "flex", alignItems: "center", justifyContent: "space-around", border: "1px solid #222230" }}>
+      <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, padding: "0 28px calc(12px + env(safe-area-inset-bottom, 0px))", zIndex: 100 }}>
+        <div style={{ background: "#18181f", borderRadius: 50, padding: "5px 6px", display: "flex", alignItems: "center", justifyContent: "space-around", border: "1px solid #222230" }}>
           {[
             { id: "cat", label: "Home", icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> },
             { id: "det", label: "Details", icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> },
