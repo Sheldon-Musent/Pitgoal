@@ -115,9 +115,9 @@ function Divider() {
 }
 
 export default function Home() {
-  const [tasks, setTasks] = useState([]);
-  const [activeTask, setActiveTask] = useState(null);
-  const [dayLog, setDayLog] = useState([]);
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [activeTask, setActiveTask] = useState<any>(null);
+  const [dayLog, setDayLog] = useState<any[]>([]);
   const [energyUsed, setEnergyUsed] = useState(0);
   const [energyCharged, setEnergyCharged] = useState(0);
   const [powerExpanded, setPowerExpanded] = useState(false);
@@ -128,18 +128,18 @@ export default function Home() {
   const [viewYear, setViewYear] = useState(new Date().getFullYear());
   const [monthPickerOpen, setMonthPickerOpen] = useState(false);
   const [cmdInput, setCmdInput] = useState("");
-  const [customGroups, setCustomGroups] = useState([]);
-  const [expandedTask, setExpandedTask] = useState(null);
+  const [customGroups, setCustomGroups] = useState<string[]>([]);
+  const [expandedTask, setExpandedTask] = useState<string | null>(null);
   const [showCompleted, setShowCompleted] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [tick, setTick] = useState(0);
   const [bottomTab, setBottomTab] = useState("cat");
-  const [editModal, setEditModal] = useState(null); // task being edited
+  const [editModal, setEditModal] = useState<any>(null);
   const [editFields, setEditFields] = useState({ name: "", time: "", duration: "", type: "work", desc: "", rate: "" });
   const [groupInput, setGroupInput] = useState("");
   const [showGroupModal, setShowGroupModal] = useState(false);
-  const monthScrollRef = useRef(null);
-  const dateScrollRef = useRef(null);
+  const monthScrollRef = useRef<HTMLDivElement>(null);
+  const dateScrollRef = useRef<HTMLDivElement>(null);
   const today = useMemo(() => new Date(), []);
 
   useEffect(() => { try { const raw = localStorage.getItem(STORAGE_KEY); if (raw) { const d = JSON.parse(raw); setTasks(d.tasks || []); setDayLog(d.dayLog || []); setEnergyUsed(d.energyUsed || 0); setEnergyCharged(d.energyCharged || 0); setActiveTask(d.activeTask || null); setCustomGroups(d.customGroups || []); } } catch(e) {} setLoaded(true); }, []);
