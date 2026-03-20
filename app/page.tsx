@@ -32,13 +32,13 @@ const EVENTS = {
   "2026-10-20": "Deepavali", "2026-12-25": "Christmas", "2026-12-31": "Year review",
 };
 
-function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
-function pad(n) { return String(n).padStart(2, "0"); }
-function fmtTime(h, m) { return `${pad(h)}:${pad(m)}`; }
-function fmtDur(mins) { if (mins < 60) return `${Math.round(mins)}m`; const h = Math.floor(mins / 60); const mn = Math.round(mins % 60); return mn > 0 ? `${h}h ${mn}m` : `${h}h`; }
-function dateKey(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
+function genId(): string { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+function pad(n: number): string { return String(n).padStart(2, "0"); }
+function fmtTime(h: number, m: number): string { return `${pad(h)}:${pad(m)}`; }
+function fmtDur(mins: number): string { if (mins < 60) return `${Math.round(mins)}m`; const h = Math.floor(mins / 60); const mn = Math.round(mins % 60); return mn > 0 ? `${h}h ${mn}m` : `${h}h`; }
+function dateKey(d: Date): string { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
 
-function parseCmd(input) {
+function parseCmd(input: string) {
   let text = input.trim(); if (!text) return null;
   let type = "work";
   if (/\brest\b/i.test(text)) { type = "rest"; text = text.replace(/\brest\b/i, ""); }
@@ -60,28 +60,28 @@ function parseCmd(input) {
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS_SHORT = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
-const isSameDay = (a, b) => a.getDate() === b.getDate() && a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear();
+const isSameDay = (a: Date, b: Date) => a.getDate() === b.getDate() && a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear();
 
-function getAllDatesInMonth(year, month) {
+function getAllDatesInMonth(year: number, month: number) {
   const days = new Date(year, month + 1, 0).getDate();
   const arr = [];
   for (let i = 1; i <= days; i++) arr.push(new Date(year, month, i));
   return arr;
 }
 
-function PlayIcon({ size = 18, color = "#5DCAA5" }) {
+function PlayIcon({ size = 18, color = "#5DCAA5" }: { size?: number; color?: string }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none"><path d="M8 5.14v13.72a1 1 0 001.5.86l11.04-6.86a1 1 0 000-1.72L9.5 4.28A1 1 0 008 5.14z" fill={color} /></svg>;
 }
 
-function StopIcon({ size = 18, color = "#E24B4A" }) {
+function StopIcon({ size = 18, color = "#E24B4A" }: { size?: number; color?: string }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none"><rect x="6" y="6" width="12" height="12" rx="2" fill={color} /></svg>;
 }
 
-function SwipeTask({ task, children, onSwipeLeft, onSwipeRight }) {
+function SwipeTask({ task, children, onSwipeLeft, onSwipeRight }: { task: any; children: React.ReactNode; onSwipeLeft: () => void; onSwipeRight: () => void }) {
   const startX = useRef(0); const currentX = useRef(0); const swiping = useRef(false); const [offset, setOffset] = useState(0);
   const threshold = 80; const maxSwipe = 120;
-  const onTouchStart = (e) => { startX.current = e.touches[0].clientX; currentX.current = 0; swiping.current = true; };
-  const onTouchMove = (e) => { if (!swiping.current) return; currentX.current = e.touches[0].clientX - startX.current; setOffset(Math.max(-maxSwipe, Math.min(maxSwipe, currentX.current))); };
+  const onTouchStart = (e: React.TouchEvent) => { startX.current = e.touches[0].clientX; currentX.current = 0; swiping.current = true; };
+  const onTouchMove = (e: React.TouchEvent) => { if (!swiping.current) return; currentX.current = e.touches[0].clientX - startX.current; setOffset(Math.max(-maxSwipe, Math.min(maxSwipe, currentX.current))); };
   const onTouchEnd = () => { swiping.current = false; if (currentX.current < -threshold) onSwipeLeft(); else if (currentX.current > threshold) onSwipeRight(); setOffset(0); };
   const isWork = task.type === "work"; const accent = isWork ? "#5DCAA5" : "#7F77DD";
   return (
@@ -97,10 +97,10 @@ function SwipeTask({ task, children, onSwipeLeft, onSwipeRight }) {
   );
 }
 
-function SwipeDone({ children, onUndone }) {
+function SwipeDone({ children, onUndone }: { children: React.ReactNode; onUndone: () => void }) {
   const startX = useRef(0); const currentX = useRef(0); const swiping = useRef(false); const [offset, setOffset] = useState(0);
-  const onTouchStart = (e) => { startX.current = e.touches[0].clientX; swiping.current = true; };
-  const onTouchMove = (e) => { if (!swiping.current) return; currentX.current = e.touches[0].clientX - startX.current; setOffset(Math.max(-120, Math.min(120, currentX.current))); };
+  const onTouchStart = (e: React.TouchEvent) => { startX.current = e.touches[0].clientX; swiping.current = true; };
+  const onTouchMove = (e: React.TouchEvent) => { if (!swiping.current) return; currentX.current = e.touches[0].clientX - startX.current; setOffset(Math.max(-120, Math.min(120, currentX.current))); };
   const onTouchEnd = () => { swiping.current = false; if (currentX.current > 80) onUndone(); setOffset(0); };
   return (
     <div style={{ position: "relative", overflow: "hidden", borderRadius: 10, marginBottom: 4 }}>
@@ -144,7 +144,7 @@ export default function Home() {
 
   useEffect(() => { try { const raw = localStorage.getItem(STORAGE_KEY); if (raw) { const d = JSON.parse(raw); setTasks(d.tasks || []); setDayLog(d.dayLog || []); setEnergyUsed(d.energyUsed || 0); setEnergyCharged(d.energyCharged || 0); setActiveTask(d.activeTask || null); setCustomGroups(d.customGroups || []); } } catch(e) {} setLoaded(true); }, []);
   const persist = useCallback((data: any) => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch(e) {} }, []);
-  const save = useCallback((t, log, eu, ec, at, cg) => { persist({ tasks: t, dayLog: log, energyUsed: eu, energyCharged: ec, activeTask: at, customGroups: cg }); }, [persist]);
+  const save = useCallback((t: any, log: any, eu: number, ec: number, at: any, cg: any) => { persist({ tasks: t, dayLog: log, energyUsed: eu, energyCharged: ec, activeTask: at, customGroups: cg }); }, [persist]);
   useEffect(() => { const id = setInterval(() => setTick(t => t + 1), 1000); return () => clearInterval(id); }, []);
   useEffect(() => { if (!activeTask) return; const elapsed = (Date.now() - activeTask.startedAt) / 60000; if (activeTask.type === "work") setEnergyUsed(activeTask.baseUsed + elapsed); else setEnergyCharged(activeTask.baseCharged + elapsed); }, [tick, activeTask]);
 
@@ -175,15 +175,15 @@ export default function Home() {
   const hasTasks = pendingTasks.length > 0 || doneTasks.length > 0;
 
   const addTask = () => { const p = parseCmd(cmdInput); if (!p) return; const n = [...tasks, p]; setTasks(n); setCmdInput(""); save(n, dayLog, energyUsed, energyCharged, activeTask, customGroups); };
-  const startTask = (task) => { if (activeTask) stopTask(); const at = { ...task, startedAt: Date.now(), baseUsed: energyUsed, baseCharged: energyCharged }; setActiveTask(at); const u = tasks.map(t => t.id === task.id ? { ...t, status: "active" } : t); setTasks(u); setExpandedTask(null); save(u, dayLog, energyUsed, energyCharged, at, customGroups); };
+  const startTask = (task: any) => { if (activeTask) stopTask(); const at = { ...task, startedAt: Date.now(), baseUsed: energyUsed, baseCharged: energyCharged }; setActiveTask(at); const u = tasks.map(t => t.id === task.id ? { ...t, status: "active" } : t); setTasks(u); setExpandedTask(null); save(u, dayLog, energyUsed, energyCharged, at, customGroups); };
   const stopTask = () => { if (!activeTask) return; const elapsed = Math.round((Date.now() - activeTask.startedAt) / 60000); const entry = { id: genId(), name: activeTask.name, type: activeTask.type, duration: elapsed, startTime: new Date(activeTask.startedAt).toTimeString().slice(0, 5), endTime: new Date().toTimeString().slice(0, 5) }; const newLog = [...dayLog, entry]; const u = tasks.map(t => t.id === activeTask.id ? { ...t, status: "done" } : t); setDayLog(newLog); setTasks(u); setActiveTask(null); save(u, newLog, energyUsed, energyCharged, null, customGroups); };
-  const markDone = (task) => { const entry = { id: genId(), name: task.name, type: task.type, duration: task.duration, startTime: task.time, endTime: fmtTime(Math.floor((task.timeMin + task.duration) / 60), (task.timeMin + task.duration) % 60) }; const newLog = [...dayLog, entry]; const u = tasks.map(t => t.id === task.id ? { ...t, status: "done" } : t); setDayLog(newLog); setTasks(u); setExpandedTask(null); if (task.type === "work") setEnergyUsed(prev => prev + task.duration); else setEnergyCharged(prev => prev + task.duration); save(u, newLog, task.type === "work" ? energyUsed + task.duration : energyUsed, task.type === "rest" ? energyCharged + task.duration : energyCharged, activeTask, customGroups); };
-  const markUndone = (task) => { const u = tasks.map(t => t.id === task.id ? { ...t, status: "pending" } : t); const newLog = dayLog.filter(e => e.name !== task.name || e.startTime !== task.time); setTasks(u); setDayLog(newLog); if (task.type === "work") setEnergyUsed(prev => Math.max(0, prev - task.duration)); else setEnergyCharged(prev => Math.max(0, prev - task.duration)); save(u, newLog, task.type === "work" ? Math.max(0, energyUsed - task.duration) : energyUsed, task.type === "rest" ? Math.max(0, energyCharged - task.duration) : energyCharged, activeTask, customGroups); };
-  const toggleRest = (task) => { const u = tasks.map(t => t.id === task.id ? { ...t, type: t.type === "work" ? "rest" : "work" } : t); setTasks(u); save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups); };
+  const markDone = (task: any) => { const entry = { id: genId(), name: task.name, type: task.type, duration: task.duration, startTime: task.time, endTime: fmtTime(Math.floor((task.timeMin + task.duration) / 60), (task.timeMin + task.duration) % 60) }; const newLog = [...dayLog, entry]; const u = tasks.map(t => t.id === task.id ? { ...t, status: "done" } : t); setDayLog(newLog); setTasks(u); setExpandedTask(null); if (task.type === "work") setEnergyUsed(prev => prev + task.duration); else setEnergyCharged(prev => prev + task.duration); save(u, newLog, task.type === "work" ? energyUsed + task.duration : energyUsed, task.type === "rest" ? energyCharged + task.duration : energyCharged, activeTask, customGroups); };
+  const markUndone = (task: any) => { const u = tasks.map(t => t.id === task.id ? { ...t, status: "pending" } : t); const newLog = dayLog.filter(e => e.name !== task.name || e.startTime !== task.time); setTasks(u); setDayLog(newLog); if (task.type === "work") setEnergyUsed(prev => Math.max(0, prev - task.duration)); else setEnergyCharged(prev => Math.max(0, prev - task.duration)); save(u, newLog, task.type === "work" ? Math.max(0, energyUsed - task.duration) : energyUsed, task.type === "rest" ? Math.max(0, energyCharged - task.duration) : energyCharged, activeTask, customGroups); };
+  const toggleRest = (task: any) => { const u = tasks.map(t => t.id === task.id ? { ...t, type: t.type === "work" ? "rest" : "work" } : t); setTasks(u); save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups); };
   const addGroup = () => { setGroupInput(""); setShowGroupModal(true); };
   const confirmAddGroup = () => { if (groupInput.trim()) { const x = [...customGroups, groupInput.trim()]; setCustomGroups(x); save(tasks, dayLog, energyUsed, energyCharged, activeTask, x); } setShowGroupModal(false); setGroupInput(""); };
-  const deleteTask = (task) => { const u = tasks.filter(t => t.id !== task.id); setTasks(u); setExpandedTask(null); save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups); };
-  const openEditModal = (task) => {
+  const deleteTask = (task: any) => { const u = tasks.filter(t => t.id !== task.id); setTasks(u); setExpandedTask(null); save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups); };
+  const openEditModal = (task: any) => {
     setEditFields({ name: task.name, time: task.time, duration: String(task.duration), type: task.type, desc: task.desc || "", rate: task.rate || "" });
     setEditModal(task); setExpandedTask(null);
   };
@@ -193,7 +193,7 @@ export default function Home() {
     const u = tasks.map(t => t.id === editModal.id ? { ...t, name: editFields.name.trim(), time: fmtTime(h, m), timeMin: h * 60 + m, duration: parseInt(editFields.duration) || 60, type: editFields.type, desc: editFields.desc, rate: editFields.rate } : t);
     setTasks(u); save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups); setEditModal(null);
   };
-  const pickMonth = (m) => { setViewMonth(m); setMonthPickerOpen(false); const isCur = m === today.getMonth() && viewYear === today.getFullYear(); setSelectedDate(isCur ? new Date(today) : new Date(viewYear, m, 1)); };
+  const pickMonth = (m: number) => { setViewMonth(m); setMonthPickerOpen(false); const isCur = m === today.getMonth() && viewYear === today.getFullYear(); setSelectedDate(isCur ? new Date(today) : new Date(viewYear, m, 1)); };
 
   const allDates = useMemo(() => getAllDatesInMonth(viewYear, viewMonth), [viewYear, viewMonth]);
 
