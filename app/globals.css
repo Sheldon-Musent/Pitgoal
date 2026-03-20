@@ -1,3 +1,30 @@
+@import "tailwindcss";
+
+@layer utilities {
+  .safe-top { padding-top: calc(14px + env(safe-area-inset-top, 0px)); }
+  .safe-bottom { padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px)); }
+}
+
+:root {
+  --bg-primary: #0e0e12;
+  --bg-card: #13131a;
+  --bg-surface: #1e1e24;
+  --border: #1e1e24;
+  --text-primary: #e6edf3;
+  --text-secondary: #c9d1d9;
+  --text-muted: #6b7280;
+  --text-dim: #4a5568;
+  --text-ghost: #2a3040;
+  --green: #5DCAA5;
+  --cyan: #00d4ff;
+  --purple: #7F77DD;
+  --pink: #D4537E;
+  --orange: #EF9F27;
+  --coral: #F0997B;
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -57,4 +84,23 @@ input::placeholder {
 
 .pulse-dot {
   animation: pulseDot 2s ease infinite;
+}
+
+@media (display-mode: standalone) {
+  .pwa-top-spacer {
+    height: 54px;
+    background: #0e0e12;
+    width: 100%;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 45;
+  }
+  .pwa-header-push {
+    padding-top: 54px !important;
+  }
+  .pwa-bottom-push {
+    padding-bottom: 28px !important;
+  }
 }
