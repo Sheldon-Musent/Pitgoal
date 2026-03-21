@@ -4,8 +4,9 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 const DISPLAY = "'Sora', sans-serif";
 const BODY = "'Plus Jakarta Sans', sans-serif";
 const MONO = "'IBM Plex Mono', monospace";
-const STORAGE_KEY = "doit-v7-full";
+const STORAGE_KEY = "doit-v8-shift";
 const DEFAULT_ENERGY = 17;
+const GRACE_PERIOD_MS = 15 * 60 * 1000; // 15 minutes
 
 const PHASE_CARDS = [
   { id: "p1", label: "PHASE 1", title: "Pre-Piscine prep", bg: "#063d30", accent: "#5DCAA5", light: "#E1F5EE", mid: "#9FE1CB", dim: "#0F6E56", pct: 43, done: 3, total: 7 },
@@ -37,6 +38,7 @@ function pad(n: number): string { return String(n).padStart(2, "0"); }
 function fmtTime(h: number, m: number): string { return `${pad(h)}:${pad(m)}`; }
 function fmtDur(mins: number): string { if (mins < 60) return `${Math.round(mins)}m`; const h = Math.floor(mins / 60); const mn = Math.round(mins % 60); return mn > 0 ? `${h}h ${mn}m` : `${h}h`; }
 function dateKey(d: Date): string { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
+function nowMinutes(): number { const n = new Date(); return n.getHours() * 60 + n.getMinutes(); }
 
 function parseCmd(input: string) {
   let text = input.trim(); if (!text) return null;
@@ -55,7 +57,29 @@ function parseCmd(input: string) {
   else if (t24) { hour = parseInt(t24[1]); minute = parseInt(t24[2]); text = text.replace(t24[0], ""); }
   const name = text.replace(/\s+/g, " ").trim(); if (!name) return null;
   if (hour === null) { const now = new Date(); hour = now.getHours(); minute = Math.ceil(now.getMinutes() / 5) * 5; if (minute >= 60) { hour++; minute = 0; } }
-  return { name, time: fmtTime(hour, minute), timeMin: hour * 60 + minute, duration, type, id: genId(), status: "pending" };
+  return { name, time: fmtTime(hour, minute), timeMin: hour * 60 + minute, duration, type, id: genId(), status: "pending", adjustedTimeMin: null as number | null, skippedAt: null as number | null };
+}
+
+// ═══ AUTO-SHIFT ENGINE ═══
+// When a disruption happens (skip, late start, pause overrun), recalculate all future task times
+function autoShift(tasks: any[], fromTimeMin: number, delayMinutes: number): any[] {
+  return tasks.map(t => {
+    if (t.status === "done" || t.status === "skipped" || t.status === "active") return t;
+    const effectiveTime = t.adjustedTimeMin ?? t.timeMin;
+    if (effectiveTime >= fromTimeMin) {
+      return { ...t, adjustedTimeMin: effectiveTime + delayMinutes };
+    }
+    return t;
+  });
+}
+
+// Get the display time for a task (adjusted or original)
+function getDisplayTime(task: any): string {
+  const mins = task.adjustedTimeMin ?? task.timeMin;
+  return fmtTime(Math.floor(mins / 60) % 24, mins % 60);
+}
+function getDisplayTimeMin(task: any): number {
+  return task.adjustedTimeMin ?? task.timeMin;
 }
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -77,37 +101,16 @@ function StopIcon({ size = 18, color = "#E24B4A" }: { size?: number; color?: str
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none"><rect x="6" y="6" width="12" height="12" rx="2" fill={color} /></svg>;
 }
 
-function SwipeTask({ task, children, onSwipeLeft, onSwipeRight }: { task: any; children: React.ReactNode; onSwipeLeft: () => void; onSwipeRight: () => void }) {
-  const startX = useRef(0); const currentX = useRef(0); const swiping = useRef(false); const [offset, setOffset] = useState(0);
-  const threshold = 80; const maxSwipe = 120;
-  const onTouchStart = (e: React.TouchEvent) => { startX.current = e.touches[0].clientX; currentX.current = 0; swiping.current = true; };
-  const onTouchMove = (e: React.TouchEvent) => { if (!swiping.current) return; currentX.current = e.touches[0].clientX - startX.current; setOffset(Math.max(-maxSwipe, Math.min(maxSwipe, currentX.current))); };
-  const onTouchEnd = () => { swiping.current = false; if (currentX.current < -threshold) onSwipeLeft(); else if (currentX.current > threshold) onSwipeRight(); setOffset(0); };
-  const isWork = task.type === "work"; const accent = isWork ? "#5DCAA5" : "#7F77DD";
-  return (
-    <div style={{ position: "relative", overflow: "hidden", borderRadius: 16, marginBottom: 8 }}>
-      <div style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: maxSwipe, background: accent, borderRadius: "0 16px 16px 0", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ textAlign: "center" }}><div style={{ fontSize: 16, color: isWork ? "#063d30" : "#1e1a4d" }}>{"\u25B6"}</div><div style={{ fontSize: 10, fontWeight: 700, color: isWork ? "#063d30" : "#1e1a4d", fontFamily: MONO, letterSpacing: 1, marginTop: 2 }}>START</div></div>
-      </div>
-      <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: maxSwipe, background: "#1e1e24", borderRadius: "16px 0 0 16px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ textAlign: "center" }}><div style={{ fontSize: 16, color: "#888" }}>{"\u2713"}</div><div style={{ fontSize: 10, fontWeight: 700, color: "#888", fontFamily: MONO, letterSpacing: 1, marginTop: 2 }}>DONE</div></div>
-      </div>
-      <div onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} style={{ transform: `translateX(${offset}px)`, transition: swiping.current ? "none" : "transform 0.3s ease", position: "relative", zIndex: 2 }}>{children}</div>
-    </div>
-  );
+function PauseIcon({ size = 18, color = "#EF9F27" }: { size?: number; color?: string }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none"><rect x="6" y="5" width="4" height="14" rx="1" fill={color} /><rect x="14" y="5" width="4" height="14" rx="1" fill={color} /></svg>;
 }
 
-function SwipeDone({ children, onUndone }: { children: React.ReactNode; onUndone: () => void }) {
-  const startX = useRef(0); const currentX = useRef(0); const swiping = useRef(false); const [offset, setOffset] = useState(0);
-  const onTouchStart = (e: React.TouchEvent) => { startX.current = e.touches[0].clientX; swiping.current = true; };
-  const onTouchMove = (e: React.TouchEvent) => { if (!swiping.current) return; currentX.current = e.touches[0].clientX - startX.current; setOffset(Math.max(-120, Math.min(120, currentX.current))); };
-  const onTouchEnd = () => { swiping.current = false; if (currentX.current > 80) onUndone(); setOffset(0); };
-  return (
-    <div style={{ position: "relative", overflow: "hidden", borderRadius: 10, marginBottom: 4 }}>
-      <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: 120, background: "#EF9F27", borderRadius: "10px 0 0 10px", display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ fontSize: 10, fontWeight: 700, color: "#351c02", fontFamily: MONO, letterSpacing: 1 }}>UNDO</div></div>
-      <div onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} style={{ transform: `translateX(${offset}px)`, transition: swiping.current ? "none" : "transform 0.3s ease", position: "relative", zIndex: 2 }}>{children}</div>
-    </div>
-  );
+function SkipIcon({ size = 18, color = "#888" }: { size?: number; color?: string }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none"><path d="M5 4l10 8-10 8V4z" fill={color} /><rect x="17" y="5" width="3" height="14" rx="1" fill={color} /></svg>;
+}
+
+function SwitchIcon({ size = 18, color = "#D4537E" }: { size?: number; color?: string }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9" /><path d="M3 11V9a4 4 0 014-4h14" /><polyline points="7 23 3 19 7 15" /><path d="M21 13v2a4 4 0 01-4 4H3" /></svg>;
 }
 
 function Divider() {
@@ -117,6 +120,8 @@ function Divider() {
 export default function Home() {
   const [tasks, setTasks] = useState<any[]>([]);
   const [activeTask, setActiveTask] = useState<any>(null);
+  const [pausedTask, setPausedTask] = useState<any>(null); // NEW: paused task state
+  const [switchingFrom, setSwitchingFrom] = useState<any>(null); // NEW: task we switched away from
   const [dayLog, setDayLog] = useState<any[]>([]);
   const [energyUsed, setEnergyUsed] = useState(0);
   const [energyCharged, setEnergyCharged] = useState(0);
@@ -133,16 +138,17 @@ export default function Home() {
   const [showCompleted, setShowCompleted] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [tick, setTick] = useState(0);
-  const [bottomTab, setBottomTab] = useState("cat");
+  const [bottomTab, setBottomTab] = useState("today");
   const [editModal, setEditModal] = useState<any>(null);
   const [editFields, setEditFields] = useState({ name: "", time: "", duration: "", type: "work", desc: "", rate: "" });
   const [groupInput, setGroupInput] = useState("");
   const [showGroupModal, setShowGroupModal] = useState(false);
+  const [showSwitchInput, setShowSwitchInput] = useState(false);
+  const [switchInput, setSwitchInput] = useState("");
   const monthScrollRef = useRef<HTMLDivElement>(null);
   const dateScrollRef = useRef<HTMLDivElement>(null);
   const today = useMemo(() => new Date(), []);
 
-  // Get today's date string in Malaysia timezone (GMT+8)
   const getMYDate = (): string => {
     return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kuala_Lumpur" });
   };
@@ -154,13 +160,21 @@ export default function Home() {
         const d = JSON.parse(raw);
         const todayMY = getMYDate();
         const savedDate = d.savedDate || "";
-        // If new day in Malaysia, reset daily data but keep tasks/groups
         if (savedDate !== todayMY) {
-          setTasks((d.tasks || []).map((t: any) => ({ ...t, status: "pending" })));
+          // New day: reset statuses, carry over skipped tasks as pending
+          const resetTasks = (d.tasks || []).map((t: any) => ({
+            ...t,
+            status: "pending",
+            adjustedTimeMin: null,
+            skippedAt: null,
+          }));
+          setTasks(resetTasks);
           setDayLog([]);
           setEnergyUsed(0);
           setEnergyCharged(0);
           setActiveTask(null);
+          setPausedTask(null);
+          setSwitchingFrom(null);
           setCustomGroups(d.customGroups || []);
         } else {
           setTasks(d.tasks || []);
@@ -168,22 +182,66 @@ export default function Home() {
           setEnergyUsed(d.energyUsed || 0);
           setEnergyCharged(d.energyCharged || 0);
           setActiveTask(d.activeTask || null);
+          setPausedTask(d.pausedTask || null);
+          setSwitchingFrom(d.switchingFrom || null);
           setCustomGroups(d.customGroups || []);
         }
       }
-    } catch(e) {}
+    } catch (e) {}
     setLoaded(true);
   }, []);
-  const persist = useCallback((data: any) => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...data, savedDate: getMYDate() })); } catch(e) {} }, []);
-  const save = useCallback((t: any, log: any, eu: number, ec: number, at: any, cg: any) => { persist({ tasks: t, dayLog: log, energyUsed: eu, energyCharged: ec, activeTask: at, customGroups: cg }); }, [persist]);
+
+  const persist = useCallback((data: any) => {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...data, savedDate: getMYDate() })); } catch (e) {}
+  }, []);
+
+  const save = useCallback((t: any, log: any, eu: number, ec: number, at: any, cg: any, pt?: any, sf?: any) => {
+    persist({ tasks: t, dayLog: log, energyUsed: eu, energyCharged: ec, activeTask: at, customGroups: cg, pausedTask: pt ?? null, switchingFrom: sf ?? null });
+  }, [persist]);
+
   useEffect(() => { const id = setInterval(() => setTick(t => t + 1), 1000); return () => clearInterval(id); }, []);
   useEffect(() => { if (!activeTask) return; const elapsed = (Date.now() - activeTask.startedAt) / 60000; if (activeTask.type === "work") setEnergyUsed(activeTask.baseUsed + elapsed); else setEnergyCharged(activeTask.baseCharged + elapsed); }, [tick, activeTask]);
+
+  // ═══ GRACE PERIOD AUTO-SKIP ═══
+  useEffect(() => {
+    if (activeTask) return; // don't auto-skip while something is running
+    const now = nowMinutes();
+    const nowMs = Date.now();
+    let shifted = false;
+    let updatedTasks = [...tasks];
+
+    updatedTasks = updatedTasks.map(t => {
+      if (t.status !== "pending") return t;
+      const taskTime = getDisplayTimeMin(t);
+      const overdueMs = (now - taskTime) * 60 * 1000;
+      // If task is more than 15 minutes overdue and not yet skipped
+      if (overdueMs >= GRACE_PERIOD_MS && taskTime < now) {
+        shifted = true;
+        return { ...t, status: "skipped", skippedAt: nowMs };
+      }
+      return t;
+    });
+
+    if (shifted) {
+      // Auto-shift remaining tasks
+      const skippedTasks = updatedTasks.filter(t => t.status === "skipped" && t.skippedAt === nowMs);
+      let totalDelay = 0;
+      for (const st of skippedTasks) {
+        totalDelay += st.duration;
+      }
+      if (totalDelay > 0) {
+        updatedTasks = autoShift(updatedTasks, now, 0); // just re-sort, delay already baked in by time passing
+      }
+      setTasks(updatedTasks);
+      save(updatedTasks, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom);
+    }
+  }, [tick, tasks, activeTask, dayLog, energyUsed, energyCharged, customGroups, pausedTask, switchingFrom, save]);
 
   // Scroll to selected date
   useEffect(() => {
     if (!dateScrollRef.current) return;
     const selIdx = selectedDate.getDate() - 1;
-    const pillW = 52; // pill width + gap
+    const pillW = 52;
     const container = dateScrollRef.current;
     const scrollTo = selIdx * pillW - container.clientWidth / 2 + pillW / 2;
     container.scrollTo({ left: Math.max(0, scrollTo), behavior: "smooth" });
@@ -194,35 +252,190 @@ export default function Home() {
   const ePct = Math.round((eRemain / eTotal) * 100);
   const eHrs = (eRemain / 60).toFixed(1);
   const usedHrs = (energyUsed / 60).toFixed(1);
-  const sorted = useMemo(() => [...tasks].sort((a, b) => a.timeMin - b.timeMin), [tasks]);
-  const pendingTasks = sorted.filter(t => t.status !== "done");
+  const sorted = useMemo(() => [...tasks].sort((a, b) => getDisplayTimeMin(a) - getDisplayTimeMin(b)), [tasks]);
+  const pendingTasks = sorted.filter(t => t.status === "pending" || t.status === "active");
+  const skippedTasks = sorted.filter(t => t.status === "skipped");
   const doneTasks = sorted.filter(t => t.status === "done");
   const tasksDoneCount = dayLog.filter(e => e.type === "work").length;
   const restsDoneCount = dayLog.filter(e => e.type === "rest").length;
   const totalTracked = dayLog.reduce((s, e) => s + e.duration, 0);
   const idleMins = Math.max(0, Math.round(((Date.now() - new Date().setHours(6, 30, 0, 0)) / 60000) - totalTracked - (activeTask ? (Date.now() - activeTask.startedAt) / 60000 : 0)));
-  const upcoming = sorted.find(t => { if (t.status !== "pending") return false; const now = new Date(); const diff = t.timeMin - (now.getHours() * 60 + now.getMinutes()); return diff > 0 && diff <= 60; });
-  const popupState = activeTask ? (activeTask.type === "work" ? "working" : "resting") : upcoming ? "upcoming" : "idle";
-  const hasTasks = pendingTasks.length > 0 || doneTasks.length > 0;
+  const upcoming = sorted.find(t => { if (t.status !== "pending") return false; const now = new Date(); const diff = getDisplayTimeMin(t) - (now.getHours() * 60 + now.getMinutes()); return diff > 0 && diff <= 60; });
 
-  const addTask = () => { const p = parseCmd(cmdInput); if (!p) return; const n = [...tasks, p]; setTasks(n); setCmdInput(""); save(n, dayLog, energyUsed, energyCharged, activeTask, customGroups); };
-  const startTask = (task: any) => { if (activeTask) stopTask(); const at = { ...task, startedAt: Date.now(), baseUsed: energyUsed, baseCharged: energyCharged }; setActiveTask(at); const u = tasks.map(t => t.id === task.id ? { ...t, status: "active" } : t); setTasks(u); setExpandedTask(null); save(u, dayLog, energyUsed, energyCharged, at, customGroups); };
-  const stopTask = () => { if (!activeTask) return; const elapsed = Math.round((Date.now() - activeTask.startedAt) / 60000); const entry = { id: genId(), name: activeTask.name, type: activeTask.type, duration: elapsed, startTime: new Date(activeTask.startedAt).toTimeString().slice(0, 5), endTime: new Date().toTimeString().slice(0, 5) }; const newLog = [...dayLog, entry]; const u = tasks.map(t => t.id === activeTask.id ? { ...t, status: "done" } : t); setDayLog(newLog); setTasks(u); setActiveTask(null); save(u, newLog, energyUsed, energyCharged, null, customGroups); };
-  const markDone = (task: any) => { const entry = { id: genId(), name: task.name, type: task.type, duration: task.duration, startTime: task.time, endTime: fmtTime(Math.floor((task.timeMin + task.duration) / 60), (task.timeMin + task.duration) % 60) }; const newLog = [...dayLog, entry]; const u = tasks.map(t => t.id === task.id ? { ...t, status: "done" } : t); setDayLog(newLog); setTasks(u); setExpandedTask(null); if (task.type === "work") setEnergyUsed(prev => prev + task.duration); else setEnergyCharged(prev => prev + task.duration); save(u, newLog, task.type === "work" ? energyUsed + task.duration : energyUsed, task.type === "rest" ? energyCharged + task.duration : energyCharged, activeTask, customGroups); };
-  const markUndone = (task: any) => { const u = tasks.map(t => t.id === task.id ? { ...t, status: "pending" } : t); const newLog = dayLog.filter(e => e.name !== task.name || e.startTime !== task.time); setTasks(u); setDayLog(newLog); if (task.type === "work") setEnergyUsed(prev => Math.max(0, prev - task.duration)); else setEnergyCharged(prev => Math.max(0, prev - task.duration)); save(u, newLog, task.type === "work" ? Math.max(0, energyUsed - task.duration) : energyUsed, task.type === "rest" ? Math.max(0, energyCharged - task.duration) : energyCharged, activeTask, customGroups); };
-  const toggleRest = (task: any) => { const u = tasks.map(t => t.id === task.id ? { ...t, type: t.type === "work" ? "rest" : "work" } : t); setTasks(u); save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups); };
+  // Overdue task: pending and past its time but within grace period
+  const overdueTask = sorted.find(t => {
+    if (t.status !== "pending") return false;
+    const taskTime = getDisplayTimeMin(t);
+    const now = nowMinutes();
+    return taskTime <= now && (now - taskTime) < 15;
+  });
+
+  const popupState = activeTask
+    ? (activeTask.type === "work" ? "working" : "resting")
+    : pausedTask
+      ? "paused"
+      : overdueTask
+        ? "grace"
+        : upcoming
+          ? "upcoming"
+          : "idle";
+  const hasTasks = pendingTasks.length > 0 || doneTasks.length > 0 || skippedTasks.length > 0;
+
+  // ═══ TASK ACTIONS ═══
+  const addTask = () => { const p = parseCmd(cmdInput); if (!p) return; const n = [...tasks, p]; setTasks(n); setCmdInput(""); save(n, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom); };
+
+  const startTask = (task: any) => {
+    // If something is running, stop it first
+    if (activeTask) stopAndComplete();
+    // If resuming from pause, clear paused state
+    if (pausedTask && pausedTask.id === task.id) {
+      const at = { ...task, startedAt: Date.now(), baseUsed: energyUsed, baseCharged: energyCharged, resumedFrom: pausedTask.elapsedMs || 0 };
+      setActiveTask(at);
+      setPausedTask(null);
+      const u = tasks.map(t => t.id === task.id ? { ...t, status: "active" } : t);
+      setTasks(u);
+      save(u, dayLog, energyUsed, energyCharged, at, customGroups, null, switchingFrom);
+      return;
+    }
+    const at = { ...task, startedAt: Date.now(), baseUsed: energyUsed, baseCharged: energyCharged };
+    setActiveTask(at);
+    const u = tasks.map(t => t.id === task.id ? { ...t, status: "active" } : t);
+    setTasks(u);
+    setExpandedTask(null);
+    save(u, dayLog, energyUsed, energyCharged, at, customGroups, pausedTask, switchingFrom);
+  };
+
+  // Complete a task (stop timer, log it, mark done)
+  const stopAndComplete = () => {
+    if (!activeTask) return;
+    const elapsed = Math.round((Date.now() - activeTask.startedAt) / 60000);
+    const entry = { id: genId(), name: activeTask.name, type: activeTask.type, duration: elapsed, startTime: new Date(activeTask.startedAt).toTimeString().slice(0, 5), endTime: new Date().toTimeString().slice(0, 5) };
+    const newLog = [...dayLog, entry];
+    const u = tasks.map(t => t.id === activeTask.id ? { ...t, status: "done" } : t);
+    setDayLog(newLog);
+    setTasks(u);
+    setActiveTask(null);
+
+    // If we were switching, resume the original task
+    if (switchingFrom) {
+      const origTask = u.find(t => t.id === switchingFrom.id);
+      if (origTask && origTask.status !== "done") {
+        setPausedTask(switchingFrom);
+        setSwitchingFrom(null);
+        save(u, newLog, energyUsed, energyCharged, null, customGroups, switchingFrom, null);
+        return;
+      }
+      setSwitchingFrom(null);
+    }
+    save(u, newLog, energyUsed, energyCharged, null, customGroups, pausedTask, null);
+  };
+
+  // ═══ PAUSE — freeze timer, remind in 30 min ═══
+  const pauseTask = () => {
+    if (!activeTask) return;
+    const elapsedMs = Date.now() - activeTask.startedAt;
+    const pt = { ...activeTask, elapsedMs, pausedAt: Date.now() };
+    setPausedTask(pt);
+    const u = tasks.map(t => t.id === activeTask.id ? { ...t, status: "pending" } : t);
+    setTasks(u);
+    setActiveTask(null);
+    // Shift remaining tasks by 30 min (expected pause duration)
+    const shifted = autoShift(u, getDisplayTimeMin(activeTask), 30);
+    setTasks(shifted);
+    save(shifted, dayLog, energyUsed, energyCharged, null, customGroups, pt, switchingFrom);
+  };
+
+  // ═══ SKIP — log partial time, mark skipped, shift everything ═══
+  const skipTask = () => {
+    if (!activeTask) return;
+    const elapsed = Math.round((Date.now() - activeTask.startedAt) / 60000);
+    const remaining = Math.max(0, activeTask.duration - elapsed);
+    // Log partial time
+    if (elapsed > 0) {
+      const entry = { id: genId(), name: activeTask.name, type: activeTask.type, duration: elapsed, startTime: new Date(activeTask.startedAt).toTimeString().slice(0, 5), endTime: new Date().toTimeString().slice(0, 5), partial: true };
+      const newLog = [...dayLog, entry];
+      setDayLog(newLog);
+      const u = tasks.map(t => t.id === activeTask.id ? { ...t, status: "skipped", skippedAt: Date.now() } : t);
+      // Shift remaining tasks forward — they already lost the elapsed time, but the remaining planned time is freed
+      const shifted = autoShift(u, nowMinutes(), 0);
+      setTasks(shifted);
+      setActiveTask(null);
+      save(shifted, newLog, energyUsed, energyCharged, null, customGroups, pausedTask, switchingFrom);
+    } else {
+      const u = tasks.map(t => t.id === activeTask.id ? { ...t, status: "skipped", skippedAt: Date.now() } : t);
+      const shifted = autoShift(u, nowMinutes(), 0);
+      setTasks(shifted);
+      setActiveTask(null);
+      save(shifted, dayLog, energyUsed, energyCharged, null, customGroups, pausedTask, switchingFrom);
+    }
+  };
+
+  // Skip a pending task (from grace period or manual)
+  const skipPendingTask = (task: any) => {
+    const u = tasks.map(t => t.id === task.id ? { ...t, status: "skipped", skippedAt: Date.now() } : t);
+    setTasks(u);
+    save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom);
+  };
+
+  // ═══ SWITCH — pause current, open command bar for urgent task ═══
+  const switchTask = () => {
+    if (!activeTask) return;
+    const elapsedMs = Date.now() - activeTask.startedAt;
+    const sf = { ...activeTask, elapsedMs, pausedAt: Date.now() };
+    setSwitchingFrom(sf);
+    const u = tasks.map(t => t.id === activeTask.id ? { ...t, status: "pending" } : t);
+    setTasks(u);
+    setActiveTask(null);
+    setShowSwitchInput(true);
+    setSwitchInput("");
+    save(u, dayLog, energyUsed, energyCharged, null, customGroups, null, sf);
+  };
+
+  const addSwitchTask = () => {
+    const p = parseCmd(switchInput);
+    if (!p) return;
+    p.status = "pending";
+    const n = [...tasks, p];
+    setTasks(n);
+    setSwitchInput("");
+    setShowSwitchInput(false);
+    // Start the urgent task immediately
+    const at = { ...p, startedAt: Date.now(), baseUsed: energyUsed, baseCharged: energyCharged };
+    setActiveTask(at);
+    const u = n.map(t => t.id === p.id ? { ...t, status: "active" } : t);
+    setTasks(u);
+    save(u, dayLog, energyUsed, energyCharged, at, customGroups, null, switchingFrom);
+  };
+
+  // Resume paused task
+  const resumePaused = () => {
+    if (!pausedTask) return;
+    const task = tasks.find(t => t.id === pausedTask.id);
+    if (task) startTask(task);
+  };
+
+  // Dismiss paused task
+  const dismissPaused = () => {
+    if (!pausedTask) return;
+    setPausedTask(null);
+    save(tasks, dayLog, energyUsed, energyCharged, activeTask, customGroups, null, switchingFrom);
+  };
+
+  const markDone = (task: any) => { const entry = { id: genId(), name: task.name, type: task.type, duration: task.duration, startTime: getDisplayTime(task), endTime: fmtTime(Math.floor((getDisplayTimeMin(task) + task.duration) / 60) % 24, (getDisplayTimeMin(task) + task.duration) % 60) }; const newLog = [...dayLog, entry]; const u = tasks.map(t => t.id === task.id ? { ...t, status: "done" } : t); setDayLog(newLog); setTasks(u); setExpandedTask(null); if (task.type === "work") setEnergyUsed(prev => prev + task.duration); else setEnergyCharged(prev => prev + task.duration); save(u, newLog, task.type === "work" ? energyUsed + task.duration : energyUsed, task.type === "rest" ? energyCharged + task.duration : energyCharged, activeTask, customGroups, pausedTask, switchingFrom); };
+  const markUndone = (task: any) => { const u = tasks.map(t => t.id === task.id ? { ...t, status: "pending" } : t); const newLog = dayLog.filter(e => e.name !== task.name || e.startTime !== getDisplayTime(task)); setTasks(u); setDayLog(newLog); if (task.type === "work") setEnergyUsed(prev => Math.max(0, prev - task.duration)); else setEnergyCharged(prev => Math.max(0, prev - task.duration)); save(u, newLog, task.type === "work" ? Math.max(0, energyUsed - task.duration) : energyUsed, task.type === "rest" ? Math.max(0, energyCharged - task.duration) : energyCharged, activeTask, customGroups, pausedTask, switchingFrom); };
+  const toggleRest = (task: any) => { const u = tasks.map(t => t.id === task.id ? { ...t, type: t.type === "work" ? "rest" : "work" } : t); setTasks(u); save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom); };
   const addGroup = () => { setGroupInput(""); setShowGroupModal(true); };
-  const confirmAddGroup = () => { if (groupInput.trim()) { const x = [...customGroups, groupInput.trim()]; setCustomGroups(x); save(tasks, dayLog, energyUsed, energyCharged, activeTask, x); } setShowGroupModal(false); setGroupInput(""); };
-  const deleteTask = (task: any) => { const u = tasks.filter(t => t.id !== task.id); setTasks(u); setExpandedTask(null); save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups); };
+  const confirmAddGroup = () => { if (groupInput.trim()) { const x = [...customGroups, groupInput.trim()]; setCustomGroups(x); save(tasks, dayLog, energyUsed, energyCharged, activeTask, x, pausedTask, switchingFrom); } setShowGroupModal(false); setGroupInput(""); };
+  const deleteTask = (task: any) => { const u = tasks.filter(t => t.id !== task.id); setTasks(u); setExpandedTask(null); save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom); };
   const openEditModal = (task: any) => {
-    setEditFields({ name: task.name, time: task.time, duration: String(task.duration), type: task.type, desc: task.desc || "", rate: task.rate || "" });
+    setEditFields({ name: task.name, time: getDisplayTime(task), duration: String(task.duration), type: task.type, desc: task.desc || "", rate: task.rate || "" });
     setEditModal(task); setExpandedTask(null);
   };
   const saveEdit = () => {
     if (!editModal || !editFields.name.trim()) return;
     const timeParts = editFields.time.split(":"); const h = parseInt(timeParts[0]) || 0; const m = parseInt(timeParts[1]) || 0;
-    const u = tasks.map(t => t.id === editModal.id ? { ...t, name: editFields.name.trim(), time: fmtTime(h, m), timeMin: h * 60 + m, duration: parseInt(editFields.duration) || 60, type: editFields.type, desc: editFields.desc, rate: editFields.rate } : t);
-    setTasks(u); save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups); setEditModal(null);
+    const u = tasks.map(t => t.id === editModal.id ? { ...t, name: editFields.name.trim(), time: fmtTime(h, m), timeMin: h * 60 + m, adjustedTimeMin: null, duration: parseInt(editFields.duration) || 60, type: editFields.type, desc: editFields.desc, rate: editFields.rate } : t);
+    setTasks(u); save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom); setEditModal(null);
   };
   const pickMonth = (m: number) => { setViewMonth(m); setMonthPickerOpen(false); const isCur = m === today.getMonth() && viewYear === today.getFullYear(); setSelectedDate(isCur ? new Date(today) : new Date(viewYear, m, 1)); };
 
@@ -231,10 +444,22 @@ export default function Home() {
   const activeElapsed = activeTask ? Math.floor((Date.now() - activeTask.startedAt) / 1000) : 0;
   const activeElapsedMin = Math.floor(activeElapsed / 60);
   const activeTimerStr = `${pad(Math.floor(activeElapsed / 3600))}:${pad(Math.floor((activeElapsed % 3600) / 60))}:${pad(activeElapsed % 60)}`;
-  const upcomingMins = upcoming ? Math.max(0, Math.round(upcoming.timeMin - (new Date().getHours() * 60 + new Date().getMinutes()))) : 0;
+  const upcomingMins = upcoming ? Math.max(0, Math.round(getDisplayTimeMin(upcoming) - (new Date().getHours() * 60 + new Date().getMinutes()))) : 0;
   const hasActivePopup = popupState !== "idle";
 
+  // Grace period remaining for overdue task
+  const graceRemainingSec = overdueTask ? Math.max(0, Math.round((GRACE_PERIOD_MS - (nowMinutes() - getDisplayTimeMin(overdueTask)) * 60000) / 1000)) : 0;
+  const graceRemainingMin = Math.ceil(graceRemainingSec / 60);
+
+  // Pause timer
+  const pauseElapsedSec = pausedTask ? Math.floor((Date.now() - pausedTask.pausedAt) / 1000) : 0;
+  const pauseTimerStr = pausedTask ? `${pad(Math.floor(pauseElapsedSec / 3600))}:${pad(Math.floor((pauseElapsedSec % 3600) / 60))}:${pad(pauseElapsedSec % 60)}` : "00:00:00";
+
   useEffect(() => { if (monthPickerOpen && monthScrollRef.current) { const el = monthScrollRef.current.querySelector('[data-active="true"]'); if (el) el.scrollIntoView({ block: "center", behavior: "auto" }); } }, [monthPickerOpen]);
+
+  // Day summary counts
+  const skippedCount = skippedTasks.length;
+  const doneCount = doneTasks.length;
 
   if (!loaded) return (<div style={{ background: "#0e0e12", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ fontSize: 11, letterSpacing: 4, color: "#5DCAA5", fontFamily: MONO, animation: "pulse 1.5s infinite" }}>LOADING...</div></div>);
 
@@ -242,6 +467,20 @@ export default function Home() {
 
   return (
     <div style={{ background: "#0e0e12", minHeight: "100vh", fontFamily: BODY, color: "#c0c0c0", maxWidth: 430, margin: "0 auto", position: "relative", paddingBottom: hasActivePopup ? 190 : 110, paddingTop: "env(safe-area-inset-top, 0px)" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+        @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+        @keyframes graceFlash { 0%,100% { border-color: #EF9F2740; } 50% { border-color: #EF9F2780; } }
+        .tap:active { opacity: 0.65; transform: scale(0.97); }
+        .no-scroll::-webkit-scrollbar { display: none; }
+        .no-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+        .pulse-dot { animation: pulse 2s infinite; }
+        input:focus { outline: none; }
+      `}</style>
+
       <div style={{ padding: "16px 14px 0" }}>
 
         {/* ═══ ZONE 1: STATS ═══ */}
@@ -268,7 +507,11 @@ export default function Home() {
           {recordExpanded ? (
             <div>
               <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                {[{ v: tasksDoneCount, l: "TASKS", c: "#5DCAA5", bg: "#063d30", lt: "#E1F5EE", dur: fmtDur(dayLog.filter(e => e.type === "work").reduce((s, e) => s + e.duration, 0)) }, { v: restsDoneCount, l: "RESTS", c: "#7F77DD", bg: "#1e1a4d", lt: "#EEEDFE", dur: fmtDur(dayLog.filter(e => e.type === "rest").reduce((s, e) => s + e.duration, 0)) }, { v: idleMins, l: "MINS", c: "#EF9F27", bg: "#351c02", lt: "#FAEEDA", dur: "idle" }].map((s, i) => (
+                {[
+                  { v: tasksDoneCount, l: "TASKS", c: "#5DCAA5", bg: "#063d30", lt: "#E1F5EE", dur: fmtDur(dayLog.filter(e => e.type === "work").reduce((s, e) => s + e.duration, 0)) },
+                  { v: restsDoneCount, l: "RESTS", c: "#7F77DD", bg: "#1e1a4d", lt: "#EEEDFE", dur: fmtDur(dayLog.filter(e => e.type === "rest").reduce((s, e) => s + e.duration, 0)) },
+                  { v: skippedCount, l: "MOVED", c: "#EF9F27", bg: "#351c02", lt: "#FAEEDA", dur: "tmrw" },
+                ].map((s, i) => (
                   <div key={i} style={{ flex: 1, background: s.bg, borderRadius: 16, padding: "14px 12px", textAlign: "center" }}>
                     <div style={{ fontSize: 26, fontWeight: 800, color: s.lt, lineHeight: 1, fontFamily: DISPLAY }}>{s.v}</div>
                     <div style={{ fontSize: 10, color: s.c, marginTop: 4, fontFamily: MONO, letterSpacing: 1 }}>{s.l}</div>
@@ -284,7 +527,7 @@ export default function Home() {
           ) : (
             <div style={{ background: "#13131a", borderRadius: 14, padding: "10px 14px", border: "1px solid #1e1e24", display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{ display: "flex", gap: 10 }}>
-                {[{ v: tasksDoneCount, l: "TASKS", c: "#5DCAA5" }, { v: restsDoneCount, l: "RESTS", c: "#7F77DD" }, { v: `${idleMins}m`, l: "IDLE", c: "#EF9F27" }].map((s, i) => (
+                {[{ v: tasksDoneCount, l: "TASKS", c: "#5DCAA5" }, { v: restsDoneCount, l: "RESTS", c: "#7F77DD" }, { v: skippedCount, l: "MOVED", c: "#EF9F27" }].map((s, i) => (
                   <div key={i} style={{ textAlign: "center" }}><div style={{ fontSize: 16, fontWeight: 800, color: "#E1F5EE", lineHeight: 1, fontFamily: DISPLAY }}>{s.v}</div><div style={{ fontSize: 8, color: s.c, fontFamily: MONO, letterSpacing: 1, marginTop: 2 }}>{s.l}</div></div>
                 ))}
               </div>
@@ -297,10 +540,8 @@ export default function Home() {
         <Divider />
 
         {/* ═══ ZONE 2: NAVIGATION ═══ */}
-        {/* Date row: month pill + scrollable dates (all same size, selected = enlarged) */}
         <div style={{ position: "relative", marginBottom: 12 }}>
           <div style={{ display: "flex", gap: 5, alignItems: "stretch" }}>
-            {/* Month pill */}
             <div style={{ position: "relative", flexShrink: 0, zIndex: monthPickerOpen ? 20 : 1 }}>
               {!monthPickerOpen ? (
                 <div className="tap" onClick={() => setMonthPickerOpen(true)} style={{ textAlign: "center", padding: "8px 4px", borderRadius: 12, width: 48, height: PILL_H, background: "#13131a", border: "1px solid #1e1e24", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2 }}>
@@ -318,7 +559,6 @@ export default function Home() {
               )}
             </div>
 
-            {/* Scrollable date strip */}
             <div ref={dateScrollRef} style={{ display: "flex", gap: 5, overflowX: "auto", overflowY: "hidden", flex: 1, scrollbarWidth: "none", msOverflowStyle: "none", WebkitOverflowScrolling: "touch" }} className="no-scroll">
               {allDates.map((d) => {
                 const isT = isSameDay(d, today);
@@ -355,7 +595,7 @@ export default function Home() {
             <div key={t} className="tap" onClick={() => setActiveTab(t)} style={{ padding: "7px 16px", borderRadius: 100, fontFamily: MONO, fontSize: 11, fontWeight: 700, letterSpacing: 1, background: activeTab === t ? "#5DCAA5" : "#1e1e24", color: activeTab === t ? "#063d30" : "#555" }}>{t.toUpperCase()}</div>
           ))}
           <div className="tap" onClick={addGroup} style={{ width: 30, height: 30, borderRadius: "50%", background: "#1e1e24", display: "flex", alignItems: "center", justifyContent: "center", border: "1px dashed #444" }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
           </div>
         </div>
 
@@ -377,17 +617,25 @@ export default function Home() {
               </div>
             )}
 
-            {/* Pending tasks — play button on right, tap center for details */}
+            {/* Pending tasks */}
             {hasTasks && pendingTasks.map((task, i) => {
               const isWork = task.type === "work"; const accent = isWork ? "#5DCAA5" : "#7F77DD";
               const isActive = task.status === "active"; const isExpanded = expandedTask === task.id;
+              const displayTime = getDisplayTime(task);
+              const displayTimeMin = getDisplayTimeMin(task);
+              const endTimeMin = displayTimeMin + task.duration;
+              const endTime = fmtTime(Math.floor(endTimeMin / 60) % 24, endTimeMin % 60);
+              const isAdjusted = task.adjustedTimeMin !== null && task.adjustedTimeMin !== task.timeMin;
 
               if (isActive) return (
                 <div key={task.id} style={{ marginBottom: 8, animation: `fadeUp 0.3s ease ${i * 0.04}s both` }}>
                   <div style={{ background: "#13131a", borderRadius: 16, padding: "16px 18px", border: `1px solid ${accent}50` }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 10, color: accent, fontFamily: MONO, letterSpacing: 1, marginBottom: 4 }}>{task.time} — {fmtTime(Math.floor((task.timeMin + task.duration) / 60), (task.timeMin + task.duration) % 60)}</div>
+                        <div style={{ fontSize: 10, color: accent, fontFamily: MONO, letterSpacing: 1, marginBottom: 4 }}>
+                          {displayTime} — {endTime}
+                          {isAdjusted && <span style={{ marginLeft: 6, fontSize: 8, color: "#EF9F27", background: "#EF9F2715", padding: "1px 5px", borderRadius: 3 }}>SHIFTED</span>}
+                        </div>
                         <div style={{ fontSize: 16, color: "#eee", fontWeight: 700, fontFamily: DISPLAY }}>{task.name}</div>
                         <div style={{ display: "flex", gap: 6, marginTop: 6 }}><span style={{ fontSize: 9, color: "#666", background: "#ffffff08", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{task.type.toUpperCase()}</span><span style={{ fontSize: 9, color: "#666", background: "#ffffff08", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{fmtDur(task.duration)}</span></div>
                       </div>
@@ -401,13 +649,14 @@ export default function Home() {
                 <div key={task.id} style={{ marginBottom: 8, animation: `fadeUp 0.3s ease ${i * 0.04}s both` }}>
                   <div style={{ background: "#13131a", borderRadius: isExpanded ? "16px 16px 0 0" : 16, border: "1px solid #1e1e24", borderBottom: isExpanded ? "none" : undefined }}>
                     <div style={{ display: "flex", alignItems: "center" }}>
-                      {/* Main content — tap for details */}
                       <div className="tap" onClick={() => setExpandedTask(isExpanded ? null : task.id)} style={{ flex: 1, padding: "16px 0 16px 18px" }}>
-                        <div style={{ fontSize: 10, color: accent, fontFamily: MONO, letterSpacing: 1, marginBottom: 4 }}>{task.time} — {fmtTime(Math.floor((task.timeMin + task.duration) / 60), (task.timeMin + task.duration) % 60)}</div>
+                        <div style={{ fontSize: 10, color: accent, fontFamily: MONO, letterSpacing: 1, marginBottom: 4 }}>
+                          {displayTime} — {endTime}
+                          {isAdjusted && <span style={{ marginLeft: 6, fontSize: 8, color: "#EF9F27", background: "#EF9F2715", padding: "1px 5px", borderRadius: 3 }}>SHIFTED</span>}
+                        </div>
                         <div style={{ fontSize: 16, color: "#ccc", fontWeight: 700, fontFamily: DISPLAY }}>{task.name}</div>
                         <div style={{ display: "flex", gap: 6, marginTop: 6 }}><span style={{ fontSize: 9, color: "#666", background: "#ffffff08", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{task.type.toUpperCase()}</span><span style={{ fontSize: 9, color: "#666", background: "#ffffff08", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{fmtDur(task.duration)}</span></div>
                       </div>
-                      {/* Play button */}
                       <div className="tap" onClick={(e) => { e.stopPropagation(); startTask(task); }} style={{ padding: "16px 18px 16px 12px", display: "flex", alignItems: "center", justifyContent: "center" }}>
                         <div style={{ width: 36, height: 36, borderRadius: 10, background: `${accent}15`, border: `1px solid ${accent}30`, display: "flex", alignItems: "center", justifyContent: "center" }}>
                           <PlayIcon size={16} color={accent} />
@@ -416,34 +665,26 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* 4 action blocks */}
                   {isExpanded && (
                     <div style={{ background: "#13131a", borderRadius: "0 0 16px 16px", padding: "12px 14px 14px", border: "1px solid #1e1e24", borderTop: "1px dashed #2a2a30" }}>
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                        {/* Set as rest / work */}
                         <div className="tap" onClick={() => toggleRest(task)} style={{ background: task.type === "rest" ? "#1e1a4d" : "#0d2a3a", borderRadius: 14, padding: "14px 12px", textAlign: "center" }}>
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={task.type === "rest" ? "#AFA9EC" : "#5DCAA5"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ margin: "0 auto 6px" }}><path d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/></svg>
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={task.type === "rest" ? "#AFA9EC" : "#5DCAA5"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ margin: "0 auto 6px" }}><path d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z" /></svg>
                           <div style={{ fontSize: 13, fontWeight: 700, color: task.type === "rest" ? "#EEEDFE" : "#E1F5EE", fontFamily: DISPLAY }}>{task.type === "rest" ? "Set as work" : "Set as rest"}</div>
                           <div style={{ fontSize: 10, color: task.type === "rest" ? "#AFA9EC" : "#9FE1CB", fontFamily: MONO, marginTop: 3 }}>{task.type === "rest" ? "drains energy" : "charges energy"}</div>
                         </div>
-
-                        {/* Mark as done */}
                         <div className="tap" onClick={() => markDone(task)} style={{ background: "#063d30", borderRadius: 14, padding: "14px 12px", textAlign: "center" }}>
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9FE1CB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ margin: "0 auto 6px" }}><polyline points="20 6 9 17 4 12"/></svg>
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9FE1CB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ margin: "0 auto 6px" }}><polyline points="20 6 9 17 4 12" /></svg>
                           <div style={{ fontSize: 13, fontWeight: 700, color: "#E1F5EE", fontFamily: DISPLAY }}>Mark as done</div>
                           <div style={{ fontSize: 10, color: "#9FE1CB", fontFamily: MONO, marginTop: 3 }}>complete task</div>
                         </div>
-
-                        {/* Edit */}
                         <div className="tap" onClick={() => openEditModal(task)} style={{ background: "#1e1a4d", borderRadius: 14, padding: "14px 12px", textAlign: "center" }}>
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#AFA9EC" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ margin: "0 auto 6px" }}><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#AFA9EC" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ margin: "0 auto 6px" }}><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
                           <div style={{ fontSize: 13, fontWeight: 700, color: "#EEEDFE", fontFamily: DISPLAY }}>Edit</div>
                           <div style={{ fontSize: 10, color: "#AFA9EC", fontFamily: MONO, marginTop: 3 }}>rename task</div>
                         </div>
-
-                        {/* Delete */}
                         <div className="tap" onClick={() => deleteTask(task)} style={{ background: "#3a140a", borderRadius: 14, padding: "14px 12px", textAlign: "center" }}>
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F5C4B3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ margin: "0 auto 6px" }}><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F5C4B3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ margin: "0 auto 6px" }}><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
                           <div style={{ fontSize: 13, fontWeight: 700, color: "#FAECE7", fontFamily: DISPLAY }}>Delete</div>
                           <div style={{ fontSize: 10, color: "#F5C4B3", fontFamily: MONO, marginTop: 3 }}>remove task</div>
                         </div>
@@ -454,6 +695,28 @@ export default function Home() {
               );
             })}
 
+            {/* ═══ SKIPPED TASKS — subtle, not guilt-inducing ═══ */}
+            {skippedTasks.length > 0 && (
+              <div style={{ marginTop: 8 }}>
+                <div style={{ fontSize: 10, color: "#3a3a42", fontFamily: MONO, letterSpacing: 2, marginBottom: 6, padding: "0 4px" }}>
+                  {skippedTasks.length} MOVED TO TOMORROW
+                </div>
+                {skippedTasks.map((task) => {
+                  const isWork = task.type === "work";
+                  const accent = isWork ? "#5DCAA5" : "#7F77DD";
+                  return (
+                    <div key={task.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", marginBottom: 4, borderRadius: 12, background: "#13131a08", border: "1px solid #1a1a20", opacity: 0.4 }}>
+                      <div style={{ fontSize: 10, color: "#3a3a42", fontFamily: MONO, minWidth: 38 }}>{getDisplayTime(task)}</div>
+                      <div style={{ fontSize: 13, color: "#3a3a42", flex: 1, fontFamily: DISPLAY }}>{task.name}</div>
+                      <div className="tap" onClick={() => { const u = tasks.map(t => t.id === task.id ? { ...t, status: "pending", skippedAt: null } : t); setTasks(u); save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom); }} style={{ fontSize: 9, color: "#555", fontFamily: MONO, padding: "4px 8px", borderRadius: 6, border: "1px solid #2a2a30" }}>
+                        UNDO
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
             {/* Completed stack */}
             {doneTasks.length > 0 && (
               <div style={{ marginTop: 12 }}>
@@ -462,7 +725,7 @@ export default function Home() {
                     <div style={{ position: "relative", height: Math.min(doneTasks.length, 3) * 6 + 48 }}>
                       {doneTasks.slice(-3).map((t, i, arr) => { const isWork = t.type === "work"; const bg = isWork ? "#063d30" : "#1e1a4d"; const accent = isWork ? "#5DCAA5" : "#7F77DD"; const light = isWork ? "#E1F5EE" : "#EEEDFE"; const off = (arr.length - 1 - i) * 6; return (
                         <div key={t.id} style={{ position: i === arr.length - 1 ? "relative" : "absolute", top: off, left: 0, right: 0, background: bg, borderRadius: 12, padding: "12px 14px", border: `1px solid ${accent}30`, display: "flex", alignItems: "center", gap: 10, zIndex: i }}>
-                          <div style={{ fontSize: 10, color: accent, fontFamily: MONO, minWidth: 38, fontWeight: 600 }}>{t.time}</div>
+                          <div style={{ fontSize: 10, color: accent, fontFamily: MONO, minWidth: 38, fontWeight: 600 }}>{getDisplayTime(t)}</div>
                           <div style={{ fontSize: 13, color: light, fontWeight: 700, flex: 1, textDecoration: "line-through", textDecorationColor: `${accent}60`, fontFamily: DISPLAY }}>{t.name}</div>
                           <div style={{ fontSize: 9, color: accent, fontFamily: MONO, fontWeight: 600 }}>{fmtDur(t.duration)}</div>
                         </div>
@@ -474,19 +737,19 @@ export default function Home() {
                   <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                     {doneTasks.map((task, i) => { const isWork = task.type === "work"; const bg = isWork ? "#063d30" : "#1e1a4d"; const accent = isWork ? "#5DCAA5" : "#7F77DD"; const light = isWork ? "#E1F5EE" : "#EEEDFE"; const isExp = expandedTask === task.id; return (
                       <div key={task.id}>
-                          <div className="tap" onClick={() => setExpandedTask(isExp ? null : task.id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", background: bg, borderRadius: isExp ? "12px 12px 0 0" : 12, border: `1px solid ${accent}30`, borderBottom: isExp ? "none" : undefined, animation: `fadeUp 0.2s ease ${i * 0.03}s both` }}>
-                            <div style={{ fontSize: 10, color: accent, fontFamily: MONO, minWidth: 38, fontWeight: 600 }}>{task.time}</div>
-                            <div style={{ fontSize: 13, color: light, fontWeight: 700, flex: 1, textDecoration: "line-through", textDecorationColor: `${accent}60`, fontFamily: DISPLAY }}>{task.name}</div>
-                            <div style={{ fontSize: 9, color: accent, fontFamily: MONO, fontWeight: 600 }}>{fmtDur(task.duration)}</div>
-                          </div>
-                          {isExp && (
-                            <div style={{ background: bg, borderRadius: "0 0 12px 12px", padding: "10px 14px", border: `1px solid ${accent}30`, borderTop: `1px dashed ${accent}20`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                              <div style={{ display: "flex", gap: 8, fontSize: 11, color: accent + "aa", fontFamily: MONO }}><span>{task.time} — {fmtTime(Math.floor((task.timeMin + task.duration) / 60), (task.timeMin + task.duration) % 60)}</span><span>{task.type.toUpperCase()}</span><span>{fmtDur(task.duration)}</span></div>
-                              <div className="tap" onClick={(e) => { e.stopPropagation(); markUndone(task); }} style={{ width: 32, height: 32, borderRadius: 8, background: `${accent}20`, border: `1.5px solid ${accent}50`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                              </div>
+                        <div className="tap" onClick={() => setExpandedTask(isExp ? null : task.id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", background: bg, borderRadius: isExp ? "12px 12px 0 0" : 12, border: `1px solid ${accent}30`, borderBottom: isExp ? "none" : undefined, animation: `fadeUp 0.2s ease ${i * 0.03}s both` }}>
+                          <div style={{ fontSize: 10, color: accent, fontFamily: MONO, minWidth: 38, fontWeight: 600 }}>{getDisplayTime(task)}</div>
+                          <div style={{ fontSize: 13, color: light, fontWeight: 700, flex: 1, textDecoration: "line-through", textDecorationColor: `${accent}60`, fontFamily: DISPLAY }}>{task.name}</div>
+                          <div style={{ fontSize: 9, color: accent, fontFamily: MONO, fontWeight: 600 }}>{fmtDur(task.duration)}</div>
+                        </div>
+                        {isExp && (
+                          <div style={{ background: bg, borderRadius: "0 0 12px 12px", padding: "10px 14px", border: `1px solid ${accent}30`, borderTop: `1px dashed ${accent}20`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                            <div style={{ display: "flex", gap: 8, fontSize: 11, color: accent + "aa", fontFamily: MONO }}><span>{getDisplayTime(task)} — {fmtTime(Math.floor((getDisplayTimeMin(task) + task.duration) / 60) % 24, (getDisplayTimeMin(task) + task.duration) % 60)}</span><span>{task.type.toUpperCase()}</span><span>{fmtDur(task.duration)}</span></div>
+                            <div className="tap" onClick={(e) => { e.stopPropagation(); markUndone(task); }} style={{ width: 32, height: 32, borderRadius: 8, background: `${accent}20`, border: `1.5px solid ${accent}50`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
                             </div>
-                          )}
+                          </div>
+                        )}
                       </div>
                     ); })}
                     <div className="tap" onClick={() => setShowCompleted(false)} style={{ textAlign: "center", padding: 8 }}><div style={{ fontSize: 10, color: "#333" }}>{"\u25B2"}</div></div>
@@ -532,42 +795,120 @@ export default function Home() {
         )}
       </div>
 
-      {/* ═══ TASK POPUP — full visible above bottom nav ═══ */}
+      {/* ═══ TASK POPUP — WORKING/RESTING with PAUSE/SKIP/SWITCH ═══ */}
       {(popupState === "working" || popupState === "resting") && activeTask && (() => {
         const isW = popupState === "working"; const pc = isW ? "#5DCAA5" : "#7F77DD"; const pcBg = isW ? "#063d30" : "#1e1a4d"; const pcLight = isW ? "#E1F5EE" : "#EEEDFE";
         return (
           <div style={{ position: "fixed", bottom: "calc(76px + env(safe-area-inset-bottom, 0px))", left: "50%", transform: "translateX(-50%)", width: "calc(100% - 28px)", maxWidth: 402, zIndex: 90 }}>
-            <div style={{ background: "#0c0c14", borderRadius: 20, padding: "20px", border: `1.5px solid ${pc}35` }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <div style={{ background: "#0c0c14", borderRadius: 20, padding: "18px 20px", border: `1.5px solid ${pc}35` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14 }}>
                 {/* Progress ring */}
-                <div style={{ position: "relative", width: 52, height: 52, flexShrink: 0 }}>
-                  <svg width="52" height="52" viewBox="0 0 52 52"><circle cx="26" cy="26" r="22" fill="none" stroke="#1e1e24" strokeWidth="3" /><circle cx="26" cy="26" r="22" fill="none" stroke={pc} strokeWidth="3" strokeDasharray="138.2" strokeDashoffset={isW ? 138.2 - (138.2 * Math.min(1, activeElapsedMin / Math.max(1, activeTask.duration))) : 138.2 * 0.3} strokeLinecap="round" transform="rotate(-90 26 26)" /></svg>
-                  <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", fontSize: 11, color: pc, fontWeight: 700, fontFamily: MONO }}>{isW ? `${Math.round((activeElapsedMin / Math.max(1, activeTask.duration)) * 100)}%` : "\u2723"}</div>
+                <div style={{ position: "relative", width: 48, height: 48, flexShrink: 0 }}>
+                  <svg width="48" height="48" viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" fill="none" stroke="#1e1e24" strokeWidth="3" /><circle cx="24" cy="24" r="20" fill="none" stroke={pc} strokeWidth="3" strokeDasharray="125.7" strokeDashoffset={isW ? 125.7 - (125.7 * Math.min(1, activeElapsedMin / Math.max(1, activeTask.duration))) : 125.7 * 0.3} strokeLinecap="round" transform="rotate(-90 24 24)" /></svg>
+                  <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", fontSize: 10, color: pc, fontWeight: 700, fontFamily: MONO }}>{isW ? `${Math.round((activeElapsedMin / Math.max(1, activeTask.duration)) * 100)}%` : "\u2723"}</div>
                 </div>
 
                 {/* Info */}
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                    <div className="pulse-dot" style={{ width: 7, height: 7, borderRadius: "50%", background: pc, flexShrink: 0 }} />
-                    <div style={{ fontSize: 11, color: pc, fontWeight: 700, fontFamily: MONO, letterSpacing: 1.5 }}>{isW ? "WORKING" : "RESTING"}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                    <div className="pulse-dot" style={{ width: 6, height: 6, borderRadius: "50%", background: pc, flexShrink: 0 }} />
+                    <div style={{ fontSize: 10, color: pc, fontWeight: 700, fontFamily: MONO, letterSpacing: 1.5 }}>{isW ? "WORKING" : "RESTING"}</div>
                   </div>
-                  <div style={{ fontSize: 15, color: pcLight, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{activeTask.name}</div>
-                  <div style={{ fontSize: 10, color: "#555", fontFamily: MONO, marginTop: 3 }}>{isW ? `draining \u2022 ${fmtDur(activeTask.duration)} planned` : `+${(activeElapsedMin / 60).toFixed(1)}h recharged`}</div>
+                  <div style={{ fontSize: 14, color: pcLight, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{activeTask.name}</div>
                 </div>
 
-                {/* Timer + stop */}
+                {/* Timer */}
                 <div style={{ textAlign: "center", flexShrink: 0 }}>
-                  <div style={{ fontSize: 20, color: pcLight, fontWeight: 800, fontFamily: MONO, lineHeight: 1 }}>{activeTimerStr}</div>
-                  <div className="tap" onClick={stopTask} style={{ width: 36, height: 36, borderRadius: 10, background: "#E24B4A18", border: "1px solid #E24B4A30", display: "flex", alignItems: "center", justifyContent: "center", margin: "8px auto 0" }}>
-                    <StopIcon size={16} color="#E24B4A" />
-                  </div>
+                  <div style={{ fontSize: 18, color: pcLight, fontWeight: 800, fontFamily: MONO, lineHeight: 1 }}>{activeTimerStr}</div>
+                  <div style={{ fontSize: 9, color: "#555", fontFamily: MONO, marginTop: 2 }}>{fmtDur(activeTask.duration)} planned</div>
                 </div>
+              </div>
+
+              {/* ═══ 3 ACTION BUTTONS: PAUSE / SKIP / SWITCH ═══ */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                <div className="tap" onClick={pauseTask} style={{ background: "#EF9F2712", border: "1px solid #EF9F2730", borderRadius: 12, padding: "10px 8px", textAlign: "center" }}>
+                  <PauseIcon size={16} color="#EF9F27" />
+                  <div style={{ fontSize: 9, fontWeight: 700, color: "#EF9F27", fontFamily: MONO, marginTop: 4, letterSpacing: 1 }}>PAUSE</div>
+                </div>
+                <div className="tap" onClick={skipTask} style={{ background: "#ffffff06", border: "1px solid #2a2a30", borderRadius: 12, padding: "10px 8px", textAlign: "center" }}>
+                  <SkipIcon size={16} color="#888" />
+                  <div style={{ fontSize: 9, fontWeight: 700, color: "#888", fontFamily: MONO, marginTop: 4, letterSpacing: 1 }}>SKIP</div>
+                </div>
+                <div className="tap" onClick={switchTask} style={{ background: "#D4537E12", border: "1px solid #D4537E30", borderRadius: 12, padding: "10px 8px", textAlign: "center" }}>
+                  <SwitchIcon size={16} color="#D4537E" />
+                  <div style={{ fontSize: 9, fontWeight: 700, color: "#D4537E", fontFamily: MONO, marginTop: 4, letterSpacing: 1 }}>SWITCH</div>
+                </div>
+              </div>
+
+              {/* Stop / Complete button below */}
+              <div className="tap" onClick={stopAndComplete} style={{ marginTop: 10, background: `${pc}15`, border: `1px solid ${pc}30`, borderRadius: 12, padding: "10px", textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                <StopIcon size={14} color={pc} />
+                <div style={{ fontSize: 11, fontWeight: 700, color: pc, fontFamily: MONO, letterSpacing: 1 }}>DONE</div>
               </div>
             </div>
           </div>
         );
       })()}
 
+      {/* ═══ PAUSED POPUP ═══ */}
+      {popupState === "paused" && pausedTask && (
+        <div style={{ position: "fixed", bottom: "calc(76px + env(safe-area-inset-bottom, 0px))", left: "50%", transform: "translateX(-50%)", width: "calc(100% - 28px)", maxWidth: 402, zIndex: 90 }}>
+          <div style={{ background: "#0c0c14", borderRadius: 20, padding: "18px 20px", border: "1.5px solid #EF9F2735" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{ position: "relative", width: 48, height: 48, flexShrink: 0 }}>
+                <svg width="48" height="48" viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" fill="none" stroke="#1e1e24" strokeWidth="3" /><circle cx="24" cy="24" r="20" fill="none" stroke="#EF9F27" strokeWidth="3" strokeDasharray="125.7" strokeDashoffset="62.85" strokeLinecap="round" transform="rotate(-90 24 24)" /></svg>
+                <PauseIcon size={16} color="#EF9F27" />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                  <div style={{ fontSize: 10, color: "#EF9F27", fontWeight: 700, fontFamily: MONO, letterSpacing: 1.5 }}>PAUSED</div>
+                </div>
+                <div style={{ fontSize: 14, color: "#FAEEDA", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{pausedTask.name}</div>
+                <div style={{ fontSize: 9, color: "#555", fontFamily: MONO, marginTop: 2 }}>paused {fmtDur(Math.round(pauseElapsedSec / 60))} ago</div>
+              </div>
+              <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                <div className="tap" onClick={resumePaused} style={{ width: 40, height: 40, borderRadius: 10, background: "#5DCAA518", border: "1px solid #5DCAA530", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <PlayIcon size={16} color="#5DCAA5" />
+                </div>
+                <div className="tap" onClick={dismissPaused} style={{ width: 40, height: 40, borderRadius: 10, background: "#ffffff08", border: "1px solid #2a2a30", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <SkipIcon size={14} color="#666" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ GRACE PERIOD POPUP — overdue task within 15 min ═══ */}
+      {popupState === "grace" && overdueTask && (
+        <div style={{ position: "fixed", bottom: "calc(76px + env(safe-area-inset-bottom, 0px))", left: "50%", transform: "translateX(-50%)", width: "calc(100% - 28px)", maxWidth: 402, zIndex: 90 }}>
+          <div style={{ background: "#0c0c14", borderRadius: 20, padding: "18px 20px", border: "1.5px solid #EF9F2740", animation: "graceFlash 2s infinite" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{ position: "relative", width: 48, height: 48, flexShrink: 0 }}>
+                <svg width="48" height="48" viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" fill="none" stroke="#1e1e24" strokeWidth="3" /><circle cx="24" cy="24" r="20" fill="none" stroke="#EF9F27" strokeWidth="3" strokeDasharray="125.7" strokeDashoffset={125.7 * (1 - graceRemainingSec / 900)} strokeLinecap="round" transform="rotate(-90 24 24)" /></svg>
+                <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", fontSize: 11, color: "#EF9F27", fontWeight: 700, fontFamily: MONO }}>{graceRemainingMin}m</div>
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                  <div style={{ fontSize: 10, color: "#EF9F27", fontWeight: 700, fontFamily: MONO, letterSpacing: 1.5 }}>OVERDUE</div>
+                </div>
+                <div style={{ fontSize: 14, color: "#FAEEDA", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{overdueTask.name}</div>
+                <div style={{ fontSize: 9, color: "#555", fontFamily: MONO, marginTop: 2 }}>auto-skips in {graceRemainingMin}m</div>
+              </div>
+              <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                <div className="tap" onClick={() => startTask(overdueTask)} style={{ width: 40, height: 40, borderRadius: 10, background: "#5DCAA518", border: "1px solid #5DCAA530", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <PlayIcon size={16} color="#5DCAA5" />
+                </div>
+                <div className="tap" onClick={() => skipPendingTask(overdueTask)} style={{ width: 40, height: 40, borderRadius: 10, background: "#ffffff08", border: "1px solid #2a2a30", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <SkipIcon size={14} color="#666" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ UPCOMING POPUP ═══ */}
       {popupState === "upcoming" && upcoming && (
         <div style={{ position: "fixed", bottom: "calc(76px + env(safe-area-inset-bottom, 0px))", left: "50%", transform: "translateX(-50%)", width: "calc(100% - 28px)", maxWidth: 402, zIndex: 90 }}>
           <div style={{ background: "#0c0c14", borderRadius: 20, padding: "20px", border: "1.5px solid #EF9F2735" }}>
@@ -592,26 +933,49 @@ export default function Home() {
         </div>
       )}
 
+      {/* ═══ SWITCH INPUT MODAL ═══ */}
+      {showSwitchInput && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+          <div onClick={() => { setShowSwitchInput(false); }} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)" }} />
+          <div style={{ position: "relative", width: "100%", maxWidth: 430, background: "#13131a", borderRadius: "24px 24px 0 0", padding: "24px 20px 36px", zIndex: 201, border: "1px solid #D4537E30", borderBottom: "none" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+              <SwitchIcon size={18} color="#D4537E" />
+              <div style={{ fontSize: 16, fontWeight: 700, color: "#FBEAF0", fontFamily: DISPLAY }}>Urgent task</div>
+              <div style={{ flex: 1 }} />
+              <div className="tap" onClick={() => setShowSwitchInput(false)} style={{ width: 32, height: 32, borderRadius: 10, background: "#1e1e24", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+              </div>
+            </div>
+            {switchingFrom && (
+              <div style={{ fontSize: 10, color: "#D4537E", fontFamily: MONO, marginBottom: 12, padding: "8px 12px", background: "#D4537E10", borderRadius: 8, border: "1px solid #D4537E20" }}>
+                ⏸ {switchingFrom.name} paused — will resume after
+              </div>
+            )}
+            <div style={{ background: "#0e0e12", borderRadius: 14, padding: "12px 14px", border: "1px solid #D4537E30", display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 16, color: "#D4537E" }}>⚡</span>
+              <input autoFocus value={switchInput} onChange={e => setSwitchInput(e.target.value)} onKeyDown={e => e.key === "Enter" && addSwitchTask()} placeholder="urgent task 30m work" style={{ flex: 1, background: "none", border: "none", color: "#ccc", fontSize: 13, fontFamily: BODY, outline: "none" }} />
+              {switchInput && <div className="tap" onClick={addSwitchTask} style={{ background: "#D4537E", borderRadius: 8, padding: "6px 14px", fontSize: 11, color: "#fff", fontWeight: 700, fontFamily: MONO }}>GO</div>}
+            </div>
+            <div style={{ fontSize: 10, color: "#333", marginTop: 5, fontFamily: MONO }}>name + duration + work/rest</div>
+          </div>
+        </div>
+      )}
+
       {/* ═══ EDIT TASK MODAL ═══ */}
       {editModal && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
           <div onClick={() => setEditModal(null)} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)" }} />
           <div style={{ position: "relative", width: "100%", maxWidth: 430, background: "#13131a", borderRadius: "24px 24px 0 0", padding: "24px 20px 36px", zIndex: 201, border: "1px solid #1e1e24", borderBottom: "none" }}>
-            {/* Header */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
               <div style={{ fontSize: 18, fontWeight: 700, color: "#E1F5EE", fontFamily: DISPLAY }}>Edit task</div>
               <div className="tap" onClick={() => setEditModal(null)} style={{ width: 32, height: 32, borderRadius: 10, background: "#1e1e24", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
               </div>
             </div>
-
-            {/* Title */}
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontSize: 10, color: "#5DCAA5", fontFamily: MONO, letterSpacing: 2, marginBottom: 6 }}>TITLE</div>
               <input value={editFields.name} onChange={e => setEditFields({ ...editFields, name: e.target.value })} style={{ width: "100%", background: "#0e0e12", border: "1px solid #2a2a30", borderRadius: 12, padding: "12px 14px", color: "#ccc", fontSize: 14, fontFamily: BODY, outline: "none" }} />
             </div>
-
-            {/* Time + Duration row */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
               <div>
                 <div style={{ fontSize: 10, color: "#5DCAA5", fontFamily: MONO, letterSpacing: 2, marginBottom: 6 }}>TIME</div>
@@ -622,14 +986,10 @@ export default function Home() {
                 <input type="number" value={editFields.duration} onChange={e => setEditFields({ ...editFields, duration: e.target.value })} style={{ width: "100%", background: "#0e0e12", border: "1px solid #2a2a30", borderRadius: 12, padding: "12px 14px", color: "#ccc", fontSize: 14, fontFamily: MONO, outline: "none" }} />
               </div>
             </div>
-
-            {/* Description */}
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontSize: 10, color: "#5DCAA5", fontFamily: MONO, letterSpacing: 2, marginBottom: 6 }}>DESCRIPTION</div>
               <input value={editFields.desc} onChange={e => setEditFields({ ...editFields, desc: e.target.value })} placeholder="Optional notes..." style={{ width: "100%", background: "#0e0e12", border: "1px solid #2a2a30", borderRadius: 12, padding: "12px 14px", color: "#ccc", fontSize: 14, fontFamily: BODY, outline: "none" }} />
             </div>
-
-            {/* Tags + Hour rate row */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
               <div>
                 <div style={{ fontSize: 10, color: "#5DCAA5", fontFamily: MONO, letterSpacing: 2, marginBottom: 6 }}>TYPE</div>
@@ -649,8 +1009,6 @@ export default function Home() {
                 <input type="number" value={editFields.rate} onChange={e => setEditFields({ ...editFields, rate: e.target.value })} placeholder="0" style={{ width: "100%", background: "#0e0e12", border: "1px solid #2a2a30", borderRadius: 12, padding: "12px 14px", color: "#ccc", fontSize: 14, fontFamily: MONO, outline: "none" }} />
               </div>
             </div>
-
-            {/* Save button */}
             <div className="tap" onClick={saveEdit} style={{ background: "#5DCAA5", borderRadius: 14, padding: "14px", textAlign: "center", fontSize: 14, fontWeight: 700, color: "#063d30", fontFamily: DISPLAY }}>Save changes</div>
           </div>
         </div>
@@ -664,7 +1022,7 @@ export default function Home() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
               <div style={{ fontSize: 18, fontWeight: 700, color: "#E1F5EE", fontFamily: DISPLAY }}>New group</div>
               <div className="tap" onClick={() => setShowGroupModal(false)} style={{ width: 32, height: 32, borderRadius: 10, background: "#1e1e24", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
               </div>
             </div>
             <div style={{ fontSize: 10, color: "#5DCAA5", fontFamily: MONO, letterSpacing: 2, marginBottom: 6 }}>GROUP NAME</div>
@@ -674,27 +1032,25 @@ export default function Home() {
         </div>
       )}
 
-      {/* ═══ BOTTOM NAV — pill style ═══ */}
+      {/* ═══ BOTTOM NAV — 2 tabs: Today + Plan ═══ */}
       <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, padding: "0 28px calc(12px + env(safe-area-inset-bottom, 0px))", zIndex: 100 }}>
-        <div style={{ background: "#18181f", borderRadius: 50, padding: "5px 6px", display: "flex", alignItems: "center", justifyContent: "space-around", border: "1px solid #222230" }}>
+        <div style={{ background: "#18181f", borderRadius: 50, padding: "5px 6px", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, border: "1px solid #222230" }}>
           {[
-            { id: "cat", label: "Home", icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> },
-            { id: "det", label: "Details", icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> },
-            { id: "con", label: "Connect", icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg> },
-            { id: "ai", label: "AI", icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> },
+            { id: "today", label: "Today", icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg> },
+            { id: "plan", label: "Plan", icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg> },
           ].map(item => {
             const active = bottomTab === item.id;
             return (
               <div key={item.id} className="tap" onClick={() => setBottomTab(item.id)} style={{
                 display: "flex", alignItems: "center", gap: 6,
-                padding: active ? "10px 18px" : "10px 12px",
+                padding: active ? "10px 24px" : "10px 18px",
                 borderRadius: 50,
                 background: active ? "#252530" : "transparent",
                 color: active ? "#f0f0f0" : "#3a3a42",
                 transition: "all 0.2s ease",
               }}>
                 <div style={{ color: "inherit" }}>{item.icon}</div>
-                {active && <span style={{ fontSize: 11, fontWeight: 700, fontFamily: MONO, letterSpacing: 0.5 }}>{item.label}</span>}
+                <span style={{ fontSize: 11, fontWeight: 700, fontFamily: MONO, letterSpacing: 0.5, opacity: active ? 1 : 0 }}>{item.label}</span>
               </div>
             );
           })}
@@ -703,5 +1059,3 @@ export default function Home() {
     </div>
   );
 }
-
-
