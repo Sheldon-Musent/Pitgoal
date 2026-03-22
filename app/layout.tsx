@@ -3,8 +3,8 @@ import "./globals.css";
 import PWARegister from "@/components/PWARegister";
 
 export const metadata: Metadata = {
-  title: "Doit — Goal Tracker",
-  description: "Just track it. Just Doit.",
+  title: "Pitgoal",
+  description: "A predictable app that keeps you forward without thinking.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,

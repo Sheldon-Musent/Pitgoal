@@ -1,6 +1,6 @@
 {
-  "name": "Doit - Goal Tracker",
-  "short_name": "Doit",
+  "name": "Pitgoal",
+  "short_name": "Pitgoal",
   "description": "Just track it. Just Doit.",
   "start_url": "/",
   "display": "standalone",

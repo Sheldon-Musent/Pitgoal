@@ -1,5 +1,5 @@
-const CACHE_NAME = 'doit-v8';
-const STATIC_CACHE = 'doit-static-v8';
+const CACHE_NAME = 'pitgoal-v1';
+const STATIC_CACHE = 'pitgoal-static-v1';
 const APP_SHELL = ['/', '/manifest.json'];
 
 self.addEventListener('install', (event) => {
