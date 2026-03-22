@@ -477,6 +477,10 @@ export default function Home() {
   }, [bottomTab]);
 
   // ═══ POWER BAR — drain rate calculation ═══
+  const activeElapsed = activeTask ? Math.floor((Date.now() - activeTask.startedAt) / 1000) : 0;
+  const activeElapsedMin = Math.floor(activeElapsed / 60);
+  const activeTimerStr = `${pad(Math.floor(activeElapsed / 3600))}:${pad(Math.floor((activeElapsed % 3600) / 60))}:${pad(activeElapsed % 60)}`;
+
   const wakeTimeMin = drainRates.wakeHour * 60 + drainRates.wakeMinute;
   const eTotal = drainRates.maxEnergyHours * 60;
   const minutesSinceWake = Math.max(0, nowMinutes() - wakeTimeMin);
@@ -696,9 +700,6 @@ export default function Home() {
 
   const allDates = useMemo(() => getAllDatesInMonth(viewYear, viewMonth), [viewYear, viewMonth]);
 
-  const activeElapsed = activeTask ? Math.floor((Date.now() - activeTask.startedAt) / 1000) : 0;
-  const activeElapsedMin = Math.floor(activeElapsed / 60);
-  const activeTimerStr = `${pad(Math.floor(activeElapsed / 3600))}:${pad(Math.floor((activeElapsed % 3600) / 60))}:${pad(activeElapsed % 60)}`;
   const upcomingMins = upcoming ? Math.max(0, Math.round(getDisplayTimeMin(upcoming) - (new Date().getHours() * 60 + new Date().getMinutes()))) : 0;
   const hasActivePopup = popupState !== "idle";
 
