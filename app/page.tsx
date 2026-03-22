@@ -1,6 +1,17 @@
 "use client";
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 
+import {
+  initNotifications,
+  scheduleTaskNotifications,
+  schedulePauseReminder,
+  cancelPauseReminder,
+  scheduleDaySummary,
+  onTaskDone,
+  clearAllNotifications,
+  getPermissionStatus,
+} from "./notifications";
+
 const DISPLAY = "'Sora', sans-serif";
 const BODY = "'Plus Jakarta Sans', sans-serif";
 const MONO = "'IBM Plex Mono', monospace";
@@ -205,6 +216,8 @@ export default function Home() {
   const powerTapTimer = useRef<any>(null);
   const [recordExpanded, setRecordExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState("today");
+  const [notifEnabled, setNotifEnabled] = useState(false);
+  const [notifBanner, setNotifBanner] = useState(false); // show permission prompt
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [viewMonth, setViewMonth] = useState(new Date().getMonth());
   const [viewYear, setViewYear] = useState(new Date().getFullYear());
@@ -244,6 +257,26 @@ export default function Home() {
   };
 
   useEffect(() => {
+
+    if (!("serviceWorker" in navigator)) return;
+      const handler = (event: MessageEvent) => {
+        if (event.data?.type === "NOTIFICATION_CLICK") {
+          const { action, taskId } = event.data;
+          if (action === "start" && taskId) {
+            const task = tasks.find((t) => t.id === taskId);
+            if (task && task.status === "pending") {
+              startTask(task);
+            }
+          } else if (action === "resume") {
+            if (pausedTask) resumePaused();
+          }
+          // "focus" action — just focusing the window is enough, already handled by SW
+        }
+      };
+      navigator.serviceWorker.addEventListener("message", handler);
+      return () => navigator.serviceWorker.removeEventListener("message", handler);
+    }, [tasks, pausedTask]);
+
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       const planRaw = localStorage.getItem(PLAN_KEY);
@@ -350,6 +383,31 @@ export default function Home() {
     } catch (e) {}
     setLoaded(true);
   }, []);
+
+    // ═══ NOTIFICATION INIT ═══
+  useEffect(() => {
+    if (!loaded) return;
+    const status = getPermissionStatus();
+    if (status === "granted") {
+      initNotifications().then((ok) => setNotifEnabled(ok));
+    } else if (status === "default") {
+      // Show permission banner after 3 seconds (not immediately — feels less pushy)
+      const t = setTimeout(() => setNotifBanner(true), 3000);
+      return () => clearTimeout(t);
+    }
+  }, [loaded]);
+
+    // ═══ RESCHEDULE ON TASK CHANGE ═══
+  useEffect(() => {
+    if (!notifEnabled) return;
+    scheduleTaskNotifications(tasks);
+  }, [tasks, notifEnabled]);
+
+  // Schedule day summary on load
+  useEffect(() => {
+    if (!notifEnabled) return;
+    scheduleDaySummary(drainRates.sleepHour, drainRates.sleepMinute);
+  }, [notifEnabled, drainRates.sleepHour, drainRates.sleepMinute]);
 
   const persist = useCallback((data: any) => {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...data, savedDate: getMYDate() })); } catch (e) {}
@@ -572,6 +630,7 @@ export default function Home() {
     setDayLog(newLog);
     setTasks(u);
     setActiveTask(null);
+    if (notifEnabled) onTaskDone(activeTask.id);
 
     // If we were switching, resume the original task
     if (switchingFrom) {
@@ -600,6 +659,8 @@ export default function Home() {
     const shifted = autoShift(u, getDisplayTimeMin(activeTask), 30);
     setTasks(shifted);
     save(shifted, dayLog, energyUsed, energyCharged, null, customGroups, pt, switchingFrom);
+    // Notify to resume in 30 min
+    if (notifEnabled) schedulePauseReminder(activeTask.name, activeTask.id);
   };
 
   // ═══ SKIP — log partial time, mark skipped, shift everything ═══
@@ -617,12 +678,14 @@ export default function Home() {
       const shifted = autoShift(u, nowMinutes(), 0);
       setTasks(shifted);
       setActiveTask(null);
+      if (notifEnabled) onTaskDone(activeTask.id);
       save(shifted, newLog, energyUsed, energyCharged, null, customGroups, pausedTask, switchingFrom);
     } else {
       const u = tasks.map(t => t.id === activeTask.id ? { ...t, status: "skipped", skippedAt: Date.now() } : t);
       const shifted = autoShift(u, nowMinutes(), 0);
       setTasks(shifted);
       setActiveTask(null);
+      if (notifEnabled) onTaskDone(activeTask.id);
       save(shifted, dayLog, energyUsed, energyCharged, null, customGroups, pausedTask, switchingFrom);
     }
   };
@@ -632,6 +695,7 @@ export default function Home() {
     const u = tasks.map(t => t.id === task.id ? { ...t, status: "skipped", skippedAt: Date.now() } : t);
     setTasks(u);
     save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom);
+    if (notifEnabled) onTaskDone(task.id);
   };
 
   // ═══ SWITCH — pause current, open command bar for urgent task ═══
@@ -670,6 +734,7 @@ export default function Home() {
     if (!pausedTask) return;
     const task = tasks.find(t => t.id === pausedTask.id);
     if (task) startTask(task);
+    if (notifEnabled) cancelPauseReminder();
   };
 
   // Dismiss paused task
@@ -677,9 +742,11 @@ export default function Home() {
     if (!pausedTask) return;
     setPausedTask(null);
     save(tasks, dayLog, energyUsed, energyCharged, activeTask, customGroups, null, switchingFrom);
+    if (notifEnabled) cancelPauseReminder();
   };
 
-  const markDone = (task: any) => { const entry = { id: genId(), name: task.name, type: task.type, urgent: task.urgent || false, duration: task.duration, startTime: getDisplayTime(task), endTime: fmtTime(Math.floor((getDisplayTimeMin(task) + task.duration) / 60) % 24, (getDisplayTimeMin(task) + task.duration) % 60) }; const newLog = [...dayLog, entry]; const u = tasks.map(t => t.id === task.id ? { ...t, status: "done" } : t); setDayLog(newLog); setTasks(u); setExpandedTask(null); if (task.type === "work") setEnergyUsed(prev => prev + task.duration); else setEnergyCharged(prev => prev + task.duration); save(u, newLog, task.type === "work" ? energyUsed + task.duration : energyUsed, task.type === "rest" ? energyCharged + task.duration : energyCharged, activeTask, customGroups, pausedTask, switchingFrom); };
+  const markDone = (task: any) => { const entry = { id: genId(), name: task.name, type: task.type, urgent: task.urgent || false, duration: task.duration, startTime: getDisplayTime(task), endTime: fmtTime(Math.floor((getDisplayTimeMin(task) + task.duration) / 60) % 24, (getDisplayTimeMin(task) + task.duration) % 60) }; const newLog = [...dayLog, entry]; const u = tasks.map(t => t.id === task.id ? { ...t, status: "done" } : t); setDayLog(newLog); setTasks(u); setExpandedTask(null); if (task.type === "work") setEnergyUsed(prev => prev + task.duration); else setEnergyCharged(prev => prev + task.duration); save(u, newLog, task.type === "work" ? energyUsed + task.duration : energyUsed, task.type === "rest" ? energyCharged + task.duration : energyCharged, activeTask, customGroups, pausedTask, switchingFrom); if (notifEnabled) onTaskDone(task.id);};
+
   const markUndone = (task: any) => { const u = tasks.map(t => t.id === task.id ? { ...t, status: "pending" } : t); const newLog = dayLog.filter(e => e.name !== task.name || e.startTime !== getDisplayTime(task)); setTasks(u); setDayLog(newLog); if (task.type === "work") setEnergyUsed(prev => Math.max(0, prev - task.duration)); else setEnergyCharged(prev => Math.max(0, prev - task.duration)); save(u, newLog, task.type === "work" ? Math.max(0, energyUsed - task.duration) : energyUsed, task.type === "rest" ? Math.max(0, energyCharged - task.duration) : energyCharged, activeTask, customGroups, pausedTask, switchingFrom); };
   const toggleRest = (task: any) => { const u = tasks.map(t => t.id === task.id ? { ...t, type: t.type === "work" ? "rest" : "work" } : t); setTasks(u); save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom); };
   const toggleUrgent = (task: any) => { const u = tasks.map(t => t.id === task.id ? { ...t, urgent: !t.urgent } : t); setTasks(u); save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom); };
@@ -783,6 +850,9 @@ export default function Home() {
               <div style={{ flex: 1, height: 8, background: "#1a2a22", borderRadius: 100, overflow: "hidden" }}><div style={{ width: `${ePct}%`, height: "100%", background: ePct > 30 ? "#5DCAA5" : ePct > 10 ? "#EF9F27" : "#E24B4A", borderRadius: 100, transition: "width 1s" }} /></div>
               <div style={{ fontSize: 11, color: "#555", fontFamily: MONO }}>{eHrs}h</div>
             </div>
+            {notifEnabled && (
+                <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#5DCAA5", flexShrink: 0 }} title="Notifications on" />
+            )}
           )}
         </div>
 
@@ -1756,6 +1826,86 @@ export default function Home() {
             <div style={{ fontSize: 10, color: "#5DCAA5", fontFamily: MONO, letterSpacing: 2, marginBottom: 6 }}>GROUP NAME</div>
             <input autoFocus value={groupInput} onChange={e => setGroupInput(e.target.value)} onKeyDown={e => e.key === "Enter" && confirmAddGroup()} placeholder="e.g. PERSONAL, FITNESS..." style={{ width: "100%", background: "#0e0e12", border: "1px solid #2a2a30", borderRadius: 12, padding: "12px 14px", color: "#ccc", fontSize: 14, fontFamily: BODY, outline: "none", marginBottom: 20 }} />
             <div className="tap" onClick={confirmAddGroup} style={{ background: "#5DCAA5", borderRadius: 14, padding: "14px", textAlign: "center", fontSize: 14, fontWeight: 700, color: "#063d30", fontFamily: DISPLAY }}>Add group</div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ NOTIFICATION PERMISSION BANNER ═══ */}
+      {notifBanner && !notifEnabled && (
+        <div style={{
+          position: "fixed",
+          bottom: "calc(80px + env(safe-area-inset-bottom, 0px))",
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: "calc(100% - 28px)",
+          maxWidth: 402,
+          zIndex: 95,
+          animation: "fadeUp 0.3s ease",
+        }}>
+          <div style={{
+            background: "#13131a",
+            borderRadius: 20,
+            padding: "18px 20px",
+            border: "1.5px solid #5DCAA530",
+            display: "flex",
+            alignItems: "center",
+            gap: 14,
+          }}>
+            <div style={{
+              width: 40, height: 40, borderRadius: 12,
+              background: "#5DCAA515",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              flexShrink: 0,
+            }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5DCAA5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.73 21a2 2 0 01-3.46 0" />
+              </svg>
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "#E1F5EE", marginBottom: 2 }}>
+                Enable autopilot?
+              </div>
+              <div style={{ fontSize: 11, color: "#555" }}>
+                Get task reminders when the app is closed
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+              <div
+                className="tap"
+                onClick={() => setNotifBanner(false)}
+                style={{
+                  padding: "8px 12px", borderRadius: 10,
+                  background: "#1e1e24", border: "1px solid #2a2a30",
+                  fontSize: 11, fontWeight: 600, color: "#555",
+                  fontFamily: "'IBM Plex Mono', monospace",
+                  cursor: "pointer",
+                }}
+              >
+                LATER
+              </div>
+              <div
+                className="tap"
+                onClick={async () => {
+                  const ok = await initNotifications();
+                  setNotifEnabled(ok);
+                  setNotifBanner(false);
+                  if (ok) {
+                    scheduleTaskNotifications(tasks);
+                    scheduleDaySummary(drainRates.sleepHour, drainRates.sleepMinute);
+                  }
+                }}
+                style={{
+                  padding: "8px 14px", borderRadius: 10,
+                  background: "#5DCAA5", border: "none",
+                  fontSize: 11, fontWeight: 700, color: "#063d30",
+                  fontFamily: "'IBM Plex Mono', monospace",
+                  cursor: "pointer",
+                }}
+              >
+                YES
+              </div>
+            </div>
           </div>
         </div>
       )}

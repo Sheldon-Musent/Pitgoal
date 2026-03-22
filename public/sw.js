@@ -1,51 +1,90 @@
-const CACHE_NAME = 'pitgoal-v1';
-const STATIC_CACHE = 'pitgoal-static-v1';
-const APP_SHELL = ['/', '/manifest.json'];
+// ═══ PITGOAL SERVICE WORKER ═══
+// Handles: offline caching, notification clicks, background events
 
-self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
+const CACHE_NAME = "pitgoal-v1";
+const OFFLINE_URLS = [
+  "/",
+  "/manifest.json",
+];
+
+// ─── INSTALL ───
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(OFFLINE_URLS))
+  );
   self.skipWaiting();
 });
 
-self.addEventListener('activate', (event) => {
+// ─── ACTIVATE ───
+self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME && k !== STATIC_CACHE).map((k) => caches.delete(k)))
+    caches.keys().then((names) =>
+      Promise.all(
+        names.filter((n) => n !== CACHE_NAME).map((n) => caches.delete(n))
+      )
     )
   );
   self.clients.claim();
 });
 
-self.addEventListener('fetch', (event) => {
-  const { request } = event;
-  if (request.method !== 'GET') return;
-  const url = new URL(request.url);
-  if (!url.protocol.startsWith('http')) return;
-
-  if (
-    request.destination === 'script' || request.destination === 'style' ||
-    request.destination === 'font' || request.destination === 'image' ||
-    url.pathname.startsWith('/icons/') || url.pathname.startsWith('/_next/static/')
-  ) {
-    event.respondWith(
-      caches.open(STATIC_CACHE).then((cache) =>
-        cache.match(request).then((cached) => {
-          if (cached) return cached;
-          return fetch(request).then((res) => { if (res.ok) cache.put(request, res.clone()); return res; });
-        })
-      )
-    );
-    return;
-  }
+// ─── FETCH — network first, cache fallback ───
+self.addEventListener("fetch", (event) => {
+  // Skip non-GET and chrome-extension requests
+  if (event.request.method !== "GET") return;
+  if (event.request.url.startsWith("chrome-extension://")) return;
 
   event.respondWith(
-    fetch(request)
-      .then((res) => {
-        if (res.ok && request.destination === 'document') {
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, res.clone()));
+    fetch(event.request)
+      .then((response) => {
+        // Cache successful responses
+        if (response.status === 200) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, clone);
+          });
         }
-        return res;
+        return response;
       })
-      .catch(() => caches.match(request).then((c) => c || (request.destination === 'document' ? caches.match('/') : new Response('Offline', { status: 503 }))))
+      .catch(() => caches.match(event.request))
   );
+});
+
+// ═══ NOTIFICATION CLICK HANDLER ═══
+// When user taps a notification, open/focus the app
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+
+  const data = event.notification.data || {};
+
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      // If app is already open, focus it and send a message
+      for (const client of clients) {
+        if (client.url.includes(self.location.origin)) {
+          client.focus();
+          // Send action to the app so it can respond
+          client.postMessage({
+            type: "NOTIFICATION_CLICK",
+            action: data.action || "focus",
+            taskId: data.taskId || null,
+          });
+          return;
+        }
+      }
+      // Otherwise open a new window
+      return self.clients.openWindow("/");
+    })
+  );
+});
+
+// ─── NOTIFICATION CLOSE (dismissed without clicking) ───
+self.addEventListener("notificationclose", (event) => {
+  // Optional: track dismissals for analytics later
+});
+
+// ─── MESSAGE HANDLER — for future use ───
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
 });
