@@ -6,10 +6,41 @@ const BODY = "'Plus Jakarta Sans', sans-serif";
 const MONO = "'IBM Plex Mono', monospace";
 const STORAGE_KEY = "doit-v8-shift";
 const PLAN_KEY = "doit-v8-plan";
+const SETTINGS_KEY = "doit-v8-settings";
 const DEFAULT_ENERGY = 17;
 const GRACE_PERIOD_MS = 15 * 60 * 1000; // 15 minutes
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const DAY_SHORT = ["S", "M", "T", "W", "T", "F", "S"];
+
+// Power bar drain rates (per real minute)
+interface DrainRates {
+  idle: number;     // Low consume when doing nothing
+  work: number;     // Normal consume during tasks
+  urgent: number;   // Faster consume during urgent tasks
+  rest: number;     // Recharge rate (negative = recharge)
+  wakeHour: number;
+  wakeMinute: number;
+  sleepHour: number;
+  sleepMinute: number;
+  maxEnergyHours: number;
+}
+
+const DEFAULT_RATES: DrainRates = {
+  idle: 0.5,
+  work: 1.0,
+  urgent: 1.5,
+  rest: 0.3,  // recharge per minute
+  wakeHour: 6, wakeMinute: 30,
+  sleepHour: 23, sleepMinute: 30,
+  maxEnergyHours: 17,
+};
+
+const RATE_LIMITS = {
+  idle: { min: 0.1, max: 1.0 },
+  work: { min: 0.5, max: 2.0 },
+  urgent: { min: 1.0, max: 3.0 },
+  rest: { min: 0.1, max: 1.0 },
+};
 
 interface Template {
   id: string;
@@ -84,6 +115,8 @@ function nowMinutes(): number { const n = new Date(); return n.getHours() * 60 +
 function parseCmd(input: string) {
   let text = input.trim(); if (!text) return null;
   let type = "work";
+  let urgent = false;
+  if (/\burgent\b/i.test(text)) { urgent = true; text = text.replace(/\burgent\b/i, ""); }
   if (/\brest\b/i.test(text)) { type = "rest"; text = text.replace(/\brest\b/i, ""); }
   else if (/\bwork\b/i.test(text)) { text = text.replace(/\bwork\b/i, ""); }
   let duration = 60;
@@ -98,7 +131,7 @@ function parseCmd(input: string) {
   else if (t24) { hour = parseInt(t24[1]); minute = parseInt(t24[2]); text = text.replace(t24[0], ""); }
   const name = text.replace(/\s+/g, " ").trim(); if (!name) return null;
   if (hour === null) { const now = new Date(); hour = now.getHours(); minute = Math.ceil(now.getMinutes() / 5) * 5; if (minute >= 60) { hour++; minute = 0; } }
-  return { name, time: fmtTime(hour, minute), timeMin: hour * 60 + minute, duration, type, id: genId(), status: "pending", adjustedTimeMin: null as number | null, skippedAt: null as number | null };
+  return { name, time: fmtTime(hour, minute), timeMin: hour * 60 + minute, duration, type, urgent, id: genId(), status: "pending", adjustedTimeMin: null as number | null, skippedAt: null as number | null };
 }
 
 // ═══ AUTO-SHIFT ENGINE ═══
@@ -167,6 +200,9 @@ export default function Home() {
   const [energyUsed, setEnergyUsed] = useState(0);
   const [energyCharged, setEnergyCharged] = useState(0);
   const [powerExpanded, setPowerExpanded] = useState(false);
+  const [showPowerSettings, setShowPowerSettings] = useState(false);
+  const [drainRates, setDrainRates] = useState<DrainRates>(DEFAULT_RATES);
+  const powerTapTimer = useRef<any>(null);
   const [recordExpanded, setRecordExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState("today");
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -225,6 +261,12 @@ export default function Home() {
         setHistory(loadedHistory);
         setStreak(loadedStreak);
       }
+
+      // Load drain rate settings
+      try {
+        const settingsRaw = localStorage.getItem(SETTINGS_KEY);
+        if (settingsRaw) setDrainRates({ ...DEFAULT_RATES, ...JSON.parse(settingsRaw) });
+      } catch (e) {}
 
       if (raw) {
         const d = JSON.parse(raw);
@@ -321,6 +363,11 @@ export default function Home() {
     try { localStorage.setItem(PLAN_KEY, JSON.stringify({ templates: tpls, history: hist, streak: str })); } catch (e) {}
   }, []);
 
+  const saveDrainRates = useCallback((rates: DrainRates) => {
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(rates)); } catch (e) {}
+    setDrainRates(rates);
+  }, []);
+
   // Template CRUD
   const openNewTemplate = () => {
     setEditingTemplate(null);
@@ -407,11 +454,57 @@ export default function Home() {
     container.scrollTo({ left: Math.max(0, scrollTo), behavior: "smooth" });
   }, [selectedDate, viewMonth]);
 
-  const eTotal = DEFAULT_ENERGY * 60;
-  const eRemain = Math.max(0, eTotal - energyUsed + energyCharged);
+  // Auto-scroll back to today when user returns to app or switches to Today tab
+  useEffect(() => {
+    const resetToToday = () => {
+      if (document.visibilityState === "visible") {
+        const now = new Date();
+        setSelectedDate(now);
+        setViewMonth(now.getMonth());
+        setViewYear(now.getFullYear());
+      }
+    };
+    document.addEventListener("visibilitychange", resetToToday);
+    return () => document.removeEventListener("visibilitychange", resetToToday);
+  }, []);
+  useEffect(() => {
+    if (bottomTab === "today") {
+      const now = new Date();
+      setSelectedDate(now);
+      setViewMonth(now.getMonth());
+      setViewYear(now.getFullYear());
+    }
+  }, [bottomTab]);
+
+  // ═══ POWER BAR — drain rate calculation ═══
+  const wakeTimeMin = drainRates.wakeHour * 60 + drainRates.wakeMinute;
+  const eTotal = drainRates.maxEnergyHours * 60;
+  const minutesSinceWake = Math.max(0, nowMinutes() - wakeTimeMin);
+
+  // Sum tracked time from dayLog by type
+  const workMinsLogged = dayLog.filter(e => e.type === "work" && !e.urgent).reduce((s, e) => s + e.duration, 0);
+  const urgentMinsLogged = dayLog.filter(e => e.urgent || e.type === "urgent").reduce((s, e) => s + e.duration, 0);
+  const restMinsLogged = dayLog.filter(e => e.type === "rest").reduce((s, e) => s + e.duration, 0);
+
+  // Add active task elapsed time
+  const activeIsUrgent = activeTask?.urgent || activeTask?.type === "urgent";
+  const activeWorkNow = activeTask && activeTask.type === "work" && !activeIsUrgent ? activeElapsedMin : 0;
+  const activeUrgentNow = activeTask && activeIsUrgent ? activeElapsedMin : 0;
+  const activeRestNow = activeTask && activeTask.type === "rest" ? activeElapsedMin : 0;
+
+  const totalWorkMins = workMinsLogged + activeWorkNow;
+  const totalUrgentMins = urgentMinsLogged + activeUrgentNow;
+  const totalRestMins = restMinsLogged + activeRestNow;
+  const totalTrackedMins = totalWorkMins + totalUrgentMins + totalRestMins;
+  const idleMins2 = Math.max(0, minutesSinceWake - totalTrackedMins);
+
+  // Calculate drain
+  const totalDrain = (idleMins2 * drainRates.idle) + (totalWorkMins * drainRates.work) + (totalUrgentMins * drainRates.urgent);
+  const totalRecharge = totalRestMins * drainRates.rest;
+  const eRemain = Math.max(0, Math.min(eTotal, eTotal - totalDrain + totalRecharge));
   const ePct = Math.round((eRemain / eTotal) * 100);
   const eHrs = (eRemain / 60).toFixed(1);
-  const usedHrs = (energyUsed / 60).toFixed(1);
+  const usedHrs = ((totalDrain - totalRecharge) / 60).toFixed(1);
   const sorted = useMemo(() => [...tasks].sort((a, b) => getDisplayTimeMin(a) - getDisplayTimeMin(b)), [tasks]);
   const pendingTasks = sorted.filter(t => t.status === "pending" || t.status === "active");
   const skippedTasks = sorted.filter(t => t.status === "skipped");
@@ -449,7 +542,7 @@ export default function Home() {
     if (activeTask) stopAndComplete();
     // If resuming from pause, clear paused state
     if (pausedTask && pausedTask.id === task.id) {
-      const at = { ...task, startedAt: Date.now(), baseUsed: energyUsed, baseCharged: energyCharged, resumedFrom: pausedTask.elapsedMs || 0 };
+      const at = { ...task, startedAt: Date.now() - (pausedTask.elapsedMs || 0), baseUsed: energyUsed, baseCharged: energyCharged };
       setActiveTask(at);
       setPausedTask(null);
       const u = tasks.map(t => t.id === task.id ? { ...t, status: "active" } : t);
@@ -469,7 +562,7 @@ export default function Home() {
   const stopAndComplete = () => {
     if (!activeTask) return;
     const elapsed = Math.round((Date.now() - activeTask.startedAt) / 60000);
-    const entry = { id: genId(), name: activeTask.name, type: activeTask.type, duration: elapsed, startTime: new Date(activeTask.startedAt).toTimeString().slice(0, 5), endTime: new Date().toTimeString().slice(0, 5) };
+    const entry = { id: genId(), name: activeTask.name, type: activeTask.type, urgent: activeTask.urgent || false, duration: elapsed, startTime: new Date(activeTask.startedAt).toTimeString().slice(0, 5), endTime: new Date().toTimeString().slice(0, 5) };
     const newLog = [...dayLog, entry];
     const u = tasks.map(t => t.id === activeTask.id ? { ...t, status: "done" } : t);
     setDayLog(newLog);
@@ -512,7 +605,7 @@ export default function Home() {
     const remaining = Math.max(0, activeTask.duration - elapsed);
     // Log partial time
     if (elapsed > 0) {
-      const entry = { id: genId(), name: activeTask.name, type: activeTask.type, duration: elapsed, startTime: new Date(activeTask.startedAt).toTimeString().slice(0, 5), endTime: new Date().toTimeString().slice(0, 5), partial: true };
+      const entry = { id: genId(), name: activeTask.name, type: activeTask.type, urgent: activeTask.urgent || false, duration: elapsed, startTime: new Date(activeTask.startedAt).toTimeString().slice(0, 5), endTime: new Date().toTimeString().slice(0, 5), partial: true };
       const newLog = [...dayLog, entry];
       setDayLog(newLog);
       const u = tasks.map(t => t.id === activeTask.id ? { ...t, status: "skipped", skippedAt: Date.now() } : t);
@@ -555,14 +648,15 @@ export default function Home() {
     const p = parseCmd(switchInput);
     if (!p) return;
     p.status = "pending";
+    (p as any).urgent = true; // Auto-tag as urgent from Switch
     const n = [...tasks, p];
     setTasks(n);
     setSwitchInput("");
     setShowSwitchInput(false);
     // Start the urgent task immediately
-    const at = { ...p, startedAt: Date.now(), baseUsed: energyUsed, baseCharged: energyCharged };
+    const at = { ...p, urgent: true, startedAt: Date.now(), baseUsed: energyUsed, baseCharged: energyCharged };
     setActiveTask(at);
-    const u = n.map(t => t.id === p.id ? { ...t, status: "active" } : t);
+    const u = n.map(t => t.id === p.id ? { ...t, status: "active", urgent: true } : t);
     setTasks(u);
     save(u, dayLog, energyUsed, energyCharged, at, customGroups, null, switchingFrom);
   };
@@ -581,9 +675,10 @@ export default function Home() {
     save(tasks, dayLog, energyUsed, energyCharged, activeTask, customGroups, null, switchingFrom);
   };
 
-  const markDone = (task: any) => { const entry = { id: genId(), name: task.name, type: task.type, duration: task.duration, startTime: getDisplayTime(task), endTime: fmtTime(Math.floor((getDisplayTimeMin(task) + task.duration) / 60) % 24, (getDisplayTimeMin(task) + task.duration) % 60) }; const newLog = [...dayLog, entry]; const u = tasks.map(t => t.id === task.id ? { ...t, status: "done" } : t); setDayLog(newLog); setTasks(u); setExpandedTask(null); if (task.type === "work") setEnergyUsed(prev => prev + task.duration); else setEnergyCharged(prev => prev + task.duration); save(u, newLog, task.type === "work" ? energyUsed + task.duration : energyUsed, task.type === "rest" ? energyCharged + task.duration : energyCharged, activeTask, customGroups, pausedTask, switchingFrom); };
+  const markDone = (task: any) => { const entry = { id: genId(), name: task.name, type: task.type, urgent: task.urgent || false, duration: task.duration, startTime: getDisplayTime(task), endTime: fmtTime(Math.floor((getDisplayTimeMin(task) + task.duration) / 60) % 24, (getDisplayTimeMin(task) + task.duration) % 60) }; const newLog = [...dayLog, entry]; const u = tasks.map(t => t.id === task.id ? { ...t, status: "done" } : t); setDayLog(newLog); setTasks(u); setExpandedTask(null); if (task.type === "work") setEnergyUsed(prev => prev + task.duration); else setEnergyCharged(prev => prev + task.duration); save(u, newLog, task.type === "work" ? energyUsed + task.duration : energyUsed, task.type === "rest" ? energyCharged + task.duration : energyCharged, activeTask, customGroups, pausedTask, switchingFrom); };
   const markUndone = (task: any) => { const u = tasks.map(t => t.id === task.id ? { ...t, status: "pending" } : t); const newLog = dayLog.filter(e => e.name !== task.name || e.startTime !== getDisplayTime(task)); setTasks(u); setDayLog(newLog); if (task.type === "work") setEnergyUsed(prev => Math.max(0, prev - task.duration)); else setEnergyCharged(prev => Math.max(0, prev - task.duration)); save(u, newLog, task.type === "work" ? Math.max(0, energyUsed - task.duration) : energyUsed, task.type === "rest" ? Math.max(0, energyCharged - task.duration) : energyCharged, activeTask, customGroups, pausedTask, switchingFrom); };
   const toggleRest = (task: any) => { const u = tasks.map(t => t.id === task.id ? { ...t, type: t.type === "work" ? "rest" : "work" } : t); setTasks(u); save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom); };
+  const toggleUrgent = (task: any) => { const u = tasks.map(t => t.id === task.id ? { ...t, urgent: !t.urgent } : t); setTasks(u); save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom); };
   const addGroup = () => { setGroupInput(""); setShowGroupModal(true); };
   const confirmAddGroup = () => { if (groupInput.trim()) { const x = [...customGroups, groupInput.trim()]; setCustomGroups(x); save(tasks, dayLog, energyUsed, energyCharged, activeTask, x, pausedTask, switchingFrom); } setShowGroupModal(false); setGroupInput(""); };
   const deleteTask = (task: any) => { const u = tasks.filter(t => t.id !== task.id); setTasks(u); setExpandedTask(null); save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom); };
@@ -645,15 +740,41 @@ export default function Home() {
       <div style={{ padding: "16px 14px 0" }}>
 
         {/* ═══ ZONE 1: STATS ═══ */}
-        <div className="tap" onClick={() => setPowerExpanded(!powerExpanded)} style={{ marginBottom: 6 }}>
+        <div onClick={() => {
+          if (powerTapTimer.current) {
+            clearTimeout(powerTapTimer.current);
+            powerTapTimer.current = null;
+            setShowPowerSettings(true); // double tap
+          } else {
+            powerTapTimer.current = setTimeout(() => {
+              powerTapTimer.current = null;
+              setPowerExpanded(!powerExpanded); // single tap
+            }, 280);
+          }
+        }} style={{ marginBottom: 6 }}>
           {powerExpanded ? (
             <div style={{ background: "#13131a", borderRadius: 28, padding: "16px 22px", border: "1px solid #1e1e24" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                <div><div style={{ fontSize: 20, fontWeight: 700, color: "#E1F5EE", lineHeight: 1, fontFamily: DISPLAY }}>{eHrs}<span style={{ fontSize: 13, color: "#5DCAA5", fontWeight: 500 }}>h</span></div><div style={{ fontSize: 10, color: "#555", fontFamily: MONO, marginTop: 2 }}>of {DEFAULT_ENERGY}h energy</div></div>
+                <div><div style={{ fontSize: 20, fontWeight: 700, color: "#E1F5EE", lineHeight: 1, fontFamily: DISPLAY }}>{eHrs}<span style={{ fontSize: 13, color: "#5DCAA5", fontWeight: 500 }}>h</span></div><div style={{ fontSize: 10, color: "#555", fontFamily: MONO, marginTop: 2 }}>of {drainRates.maxEnergyHours}h energy</div></div>
                 <div style={{ fontSize: 28, fontWeight: 800, color: ePct > 30 ? "#5DCAA5" : ePct > 10 ? "#EF9F27" : "#E24B4A", lineHeight: 1, fontFamily: MONO }}>{ePct}%</div>
               </div>
               <div style={{ height: 12, background: "#1a2a22", borderRadius: 100, overflow: "hidden" }}><div style={{ width: `${ePct}%`, height: "100%", background: ePct > 30 ? "linear-gradient(90deg,#0F6E56,#5DCAA5)" : ePct > 10 ? "#EF9F27" : "#E24B4A", borderRadius: 100, transition: "width 1s" }} /></div>
-              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}><div style={{ fontSize: 10, color: "#444", fontFamily: MONO }}>{usedHrs}h used</div><div style={{ fontSize: 10, color: "#5DCAA5", fontFamily: MONO }}>{eHrs}h left</div></div>
+              {/* Drain breakdown */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 6, marginTop: 10 }}>
+                {[
+                  { label: "IDLE", mins: idleMins2, rate: drainRates.idle, color: "#555", drain: Math.round(idleMins2 * drainRates.idle) },
+                  { label: "WORK", mins: totalWorkMins, rate: drainRates.work, color: "#5DCAA5", drain: Math.round(totalWorkMins * drainRates.work) },
+                  { label: "URGENT", mins: totalUrgentMins, rate: drainRates.urgent, color: "#D4537E", drain: Math.round(totalUrgentMins * drainRates.urgent) },
+                  { label: "REST", mins: totalRestMins, rate: drainRates.rest, color: "#7F77DD", drain: -Math.round(totalRestMins * drainRates.rest) },
+                ].map(d => (
+                  <div key={d.label} style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: d.color, fontFamily: MONO }}>{d.drain > 0 ? "-" : "+"}{fmtDur(Math.abs(d.drain))}</div>
+                    <div style={{ fontSize: 8, color: "#3a3a42", fontFamily: MONO, letterSpacing: 1, marginTop: 2 }}>{d.label}</div>
+                    <div style={{ fontSize: 8, color: "#2a2a30", fontFamily: MONO }}>{d.rate}x</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}><div style={{ fontSize: 10, color: "#444", fontFamily: MONO }}>{usedHrs}h drained</div><div style={{ fontSize: 10, color: "#3a3a42", fontFamily: MONO }}>double-tap to edit</div><div style={{ fontSize: 10, color: "#5DCAA5", fontFamily: MONO }}>{eHrs}h left</div></div>
             </div>
           ) : (
             <div style={{ background: "#13131a", borderRadius: 50, padding: "10px 18px", border: "1px solid #1e1e24", display: "flex", alignItems: "center", gap: 10 }}>
@@ -798,7 +919,7 @@ export default function Home() {
                           {isAdjusted && <span style={{ marginLeft: 6, fontSize: 8, color: "#EF9F27", background: "#EF9F2715", padding: "1px 5px", borderRadius: 3 }}>SHIFTED</span>}
                         </div>
                         <div style={{ fontSize: 16, color: "#eee", fontWeight: 700, fontFamily: DISPLAY }}>{task.name}</div>
-                        <div style={{ display: "flex", gap: 6, marginTop: 6 }}><span style={{ fontSize: 9, color: "#666", background: "#ffffff08", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{task.type.toUpperCase()}</span><span style={{ fontSize: 9, color: "#666", background: "#ffffff08", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{fmtDur(task.duration)}</span></div>
+                        <div style={{ display: "flex", gap: 6, marginTop: 6 }}><span style={{ fontSize: 9, color: "#666", background: "#ffffff08", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{task.type.toUpperCase()}</span><span style={{ fontSize: 9, color: "#666", background: "#ffffff08", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{fmtDur(task.duration)}</span>{task.urgent && <span style={{ fontSize: 9, color: "#D4537E", background: "#D4537E15", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>⚡ URGENT</span>}</div>
                       </div>
                       <div className="pulse-dot" style={{ width: 10, height: 10, borderRadius: "50%", background: accent, boxShadow: `0 0 0 3px ${accent}30` }} />
                     </div>
@@ -816,7 +937,7 @@ export default function Home() {
                           {isAdjusted && <span style={{ marginLeft: 6, fontSize: 8, color: "#EF9F27", background: "#EF9F2715", padding: "1px 5px", borderRadius: 3 }}>SHIFTED</span>}
                         </div>
                         <div style={{ fontSize: 16, color: "#ccc", fontWeight: 700, fontFamily: DISPLAY }}>{task.name}</div>
-                        <div style={{ display: "flex", gap: 6, marginTop: 6 }}><span style={{ fontSize: 9, color: "#666", background: "#ffffff08", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{task.type.toUpperCase()}</span><span style={{ fontSize: 9, color: "#666", background: "#ffffff08", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{fmtDur(task.duration)}</span></div>
+                        <div style={{ display: "flex", gap: 6, marginTop: 6 }}><span style={{ fontSize: 9, color: "#666", background: "#ffffff08", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{task.type.toUpperCase()}</span><span style={{ fontSize: 9, color: "#666", background: "#ffffff08", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{fmtDur(task.duration)}</span>{task.urgent && <span style={{ fontSize: 9, color: "#D4537E", background: "#D4537E15", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>⚡ URGENT</span>}</div>
                       </div>
                       <div className="tap" onClick={(e) => { e.stopPropagation(); startTask(task); }} style={{ padding: "16px 18px 16px 12px", display: "flex", alignItems: "center", justifyContent: "center" }}>
                         <div style={{ width: 36, height: 36, borderRadius: 10, background: `${accent}15`, border: `1px solid ${accent}30`, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -828,6 +949,18 @@ export default function Home() {
 
                   {isExpanded && (
                     <div style={{ background: "#13131a", borderRadius: "0 0 16px 16px", padding: "12px 14px 14px", border: "1px solid #1e1e24", borderTop: "1px dashed #2a2a30" }}>
+                      {/* Urgent toggle */}
+                      <div className="tap" onClick={() => toggleUrgent(task)} style={{
+                        display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                        padding: "10px 12px", borderRadius: 10, marginBottom: 8,
+                        background: task.urgent ? "#D4537E18" : "#0e0e12",
+                        border: `1px solid ${task.urgent ? "#D4537E40" : "#2a2a30"}`,
+                      }}>
+                        <span style={{ fontSize: 13 }}>⚡</span>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: task.urgent ? "#D4537E" : "#555", fontFamily: MONO }}>
+                          {task.urgent ? "URGENT — 1.5x drain" : "Mark as urgent"}
+                        </span>
+                      </div>
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                         <div className="tap" onClick={() => toggleRest(task)} style={{ background: task.type === "rest" ? "#1e1a4d" : "#0d2a3a", borderRadius: 14, padding: "14px 12px", textAlign: "center" }}>
                           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={task.type === "rest" ? "#AFA9EC" : "#5DCAA5"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ margin: "0 auto 6px" }}><path d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z" /></svg>
@@ -855,6 +988,15 @@ export default function Home() {
                 </div>
               );
             })}
+
+            {/* ═══ CREATE TASK — between pending and completed ═══ */}
+            {hasTasks && (
+              <div style={{ marginTop: 14, marginBottom: 14, background: "#13131a", borderRadius: 14, padding: "12px 14px", border: "1px solid #5DCAA530", display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 16, color: "#5DCAA5" }}>+</span>
+                <input value={cmdInput} onChange={e => setCmdInput(e.target.value)} onKeyDown={e => e.key === "Enter" && addTask()} placeholder="task name 2pm 1.5h work" style={{ flex: 1, background: "none", border: "none", color: "#ccc", fontSize: 13, fontFamily: BODY, outline: "none" }} />
+                {cmdInput && <div className="tap" onClick={addTask} style={{ background: "#5DCAA5", borderRadius: 8, padding: "6px 14px", fontSize: 11, color: "#063d30", fontWeight: 700, fontFamily: MONO }}>GO</div>}
+              </div>
+            )}
 
             {/* ═══ SKIPPED TASKS — subtle, not guilt-inducing ═══ */}
             {skippedTasks.length > 0 && (
@@ -916,14 +1058,6 @@ export default function Home() {
                     <div className="tap" onClick={() => setShowCompleted(false)} style={{ textAlign: "center", padding: 8 }}><div style={{ fontSize: 10, color: "#333" }}>{"\u25B2"}</div></div>
                   </div>
                 )}
-              </div>
-            )}
-
-            {hasTasks && (
-              <div style={{ marginTop: 14, background: "#13131a", borderRadius: 14, padding: "12px 14px", border: "1px solid #5DCAA530", display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontSize: 16, color: "#5DCAA5" }}>+</span>
-                <input value={cmdInput} onChange={e => setCmdInput(e.target.value)} onKeyDown={e => e.key === "Enter" && addTask()} placeholder="task name 2pm 1.5h work" style={{ flex: 1, background: "none", border: "none", color: "#ccc", fontSize: 13, fontFamily: BODY, outline: "none" }} />
-                {cmdInput && <div className="tap" onClick={addTask} style={{ background: "#5DCAA5", borderRadius: 8, padding: "6px 14px", fontSize: 11, color: "#063d30", fontWeight: 700, fontFamily: MONO }}>GO</div>}
               </div>
             )}
           </>
@@ -1252,6 +1386,79 @@ export default function Home() {
               </div>
             );
           })()}
+        </div>
+      )}
+
+      {/* ═══ POWER SETTINGS MODAL ═══ */}
+      {showPowerSettings && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+          <div onClick={() => setShowPowerSettings(false)} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)" }} />
+          <div style={{ position: "relative", width: "100%", maxWidth: 430, background: "#13131a", borderRadius: "24px 24px 0 0", padding: "24px 20px 36px", zIndex: 201, border: "1px solid #1e1e24", borderBottom: "none", maxHeight: "85vh", overflowY: "auto" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: "#E1F5EE", fontFamily: DISPLAY }}>Power settings</div>
+              <div className="tap" onClick={() => setShowPowerSettings(false)} style={{ width: 32, height: 32, borderRadius: 10, background: "#1e1e24", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+              </div>
+            </div>
+
+            <div style={{ fontSize: 10, color: "#5DCAA5", fontFamily: MONO, letterSpacing: 2, marginBottom: 12 }}>DRAIN RATES</div>
+            <div style={{ fontSize: 11, color: "#444", marginBottom: 16 }}>How fast each state consumes your energy. 1x = 1 min per real min.</div>
+
+            {([
+              { key: "idle" as const, label: "IDLE", desc: "No task running", color: "#555", icon: "○" },
+              { key: "work" as const, label: "WORK", desc: "Normal task drain", color: "#5DCAA5", icon: "▶" },
+              { key: "urgent" as const, label: "URGENT", desc: "Switched / high intensity", color: "#D4537E", icon: "⚡" },
+              { key: "rest" as const, label: "REST", desc: "Recharge rate", color: "#7F77DD", icon: "◆" },
+            ]).map(item => {
+              const val = drainRates[item.key];
+              const limits = RATE_LIMITS[item.key];
+              return (
+                <div key={item.key} style={{ marginBottom: 16, background: "#0e0e12", borderRadius: 14, padding: "14px 16px", border: "1px solid #1e1e24" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                    <span style={{ fontSize: 14 }}>{item.icon}</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: item.color, fontFamily: MONO, letterSpacing: 1 }}>{item.label}</span>
+                    <span style={{ fontSize: 10, color: "#444", flex: 1 }}>{item.desc}</span>
+                    <span style={{ fontSize: 16, fontWeight: 800, color: item.color, fontFamily: MONO }}>{val}x</span>
+                  </div>
+                  <input type="range" min={limits.min * 10} max={limits.max * 10} step="1" value={val * 10}
+                    onChange={e => {
+                      const newVal = parseInt(e.target.value) / 10;
+                      const updated = { ...drainRates, [item.key]: newVal };
+                      saveDrainRates(updated);
+                    }}
+                    style={{ width: "100%", accentColor: item.color, height: 4, WebkitAppearance: "none", appearance: "none", background: "#1e1e24", borderRadius: 2, outline: "none" }}
+                  />
+                  <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+                    <span style={{ fontSize: 9, color: "#333", fontFamily: MONO }}>{limits.min}x</span>
+                    <span style={{ fontSize: 9, color: "#333", fontFamily: MONO }}>{limits.max}x</span>
+                  </div>
+                </div>
+              );
+            })}
+
+            <div style={{ fontSize: 10, color: "#5DCAA5", fontFamily: MONO, letterSpacing: 2, marginBottom: 12, marginTop: 8 }}>MAX ENERGY</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10, marginBottom: 20 }}>
+              <div style={{ background: "#0e0e12", borderRadius: 14, padding: "14px 16px", border: "1px solid #1e1e24" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                  <span style={{ fontSize: 12, color: "#888" }}>Daily energy hours</span>
+                  <span style={{ fontSize: 18, fontWeight: 800, color: "#5DCAA5", fontFamily: MONO }}>{drainRates.maxEnergyHours}h</span>
+                </div>
+                <input type="range" min="10" max="20" step="1" value={drainRates.maxEnergyHours}
+                  onChange={e => {
+                    const updated = { ...drainRates, maxEnergyHours: parseInt(e.target.value) };
+                    saveDrainRates(updated);
+                  }}
+                  style={{ width: "100%", accentColor: "#5DCAA5", height: 4, WebkitAppearance: "none", appearance: "none", background: "#1e1e24", borderRadius: 2, outline: "none" }}
+                />
+                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+                  <span style={{ fontSize: 9, color: "#333", fontFamily: MONO }}>10h</span>
+                  <span style={{ fontSize: 9, color: "#333", fontFamily: MONO }}>20h</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="tap" onClick={() => { saveDrainRates(DEFAULT_RATES); }} style={{ background: "#1e1e24", borderRadius: 14, padding: "12px", textAlign: "center", fontSize: 12, color: "#555", fontFamily: MONO }}>Reset to defaults</div>
+          </div>
         </div>
       )}
 
