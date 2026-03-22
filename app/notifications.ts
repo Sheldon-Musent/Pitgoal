@@ -71,8 +71,6 @@ async function showNotification(title: string, options: NotificationOptions & { 
         icon: "/icons/icon-192.png",
         badge: "/icons/icon-96.png",
         tag: options.tag || "pitgoal",
-        renotify: true,
-        vibrate: [100, 50, 100],
         ...options,
       });
     } else {

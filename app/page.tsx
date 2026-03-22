@@ -277,6 +277,7 @@ export default function Home() {
       return () => navigator.serviceWorker.removeEventListener("message", handler);
     }, [tasks, pausedTask]);
 
+  useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       const planRaw = localStorage.getItem(PLAN_KEY);
@@ -849,10 +850,10 @@ export default function Home() {
               <div style={{ fontSize: 15, fontWeight: 700, color: ePct > 30 ? "#5DCAA5" : ePct > 10 ? "#EF9F27" : "#E24B4A", fontFamily: MONO }}>{ePct}%</div>
               <div style={{ flex: 1, height: 8, background: "#1a2a22", borderRadius: 100, overflow: "hidden" }}><div style={{ width: `${ePct}%`, height: "100%", background: ePct > 30 ? "#5DCAA5" : ePct > 10 ? "#EF9F27" : "#E24B4A", borderRadius: 100, transition: "width 1s" }} /></div>
               <div style={{ fontSize: 11, color: "#555", fontFamily: MONO }}>{eHrs}h</div>
-            </div>
-            {notifEnabled && (
+              {notifEnabled && (
                 <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#5DCAA5", flexShrink: 0 }} title="Notifications on" />
-            )}
+              )}
+            </div>
           )}
         </div>
 
