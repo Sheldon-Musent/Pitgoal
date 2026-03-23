@@ -139,12 +139,36 @@ export async function syncTask(userId: string, task: any) {
 
 export async function syncAllTasks(userId: string, tasks: any[], date: string) {
   const payloads = tasks.map((t, i) => ({
-    ...t,
+    id: t.id,
     user_id: userId,
+    name: t.name,
+    category: t.category || 'task',
+    type: t.type || 'work',
+    urgent: t.urgent || false,
     date,
+    scheduled_time: t.timeMin,
+    adjusted_time: t.adjustedTimeMin ?? null,
     sort_order: i,
+    planned_duration: t.planned_duration || t.duration,
+    actual_duration: t.actual_duration ?? null,
+    status: t.status || 'pending',
+    started_at: t.startedAt ? new Date(t.startedAt).toISOString() : null,
+    completed_at: t.completedAt ? new Date(t.completedAt).toISOString() : null,
+    description: t.desc || null,
+    group_name: t.group || null,
+    from_template_id: t.fromTemplate || null,
     updated_at: new Date().toISOString(),
   }));
+
+  try {
+    const { error } = await supabase.from('tasks').upsert(payloads);
+    if (error) throw error;
+  } catch {
+    for (const p of payloads) {
+      addToQueue({ table: 'tasks', operation: 'upsert', data: p, timestamp: Date.now() });
+    }
+  }
+}
 
   try {
     const { error } = await supabase.from('tasks').upsert(payloads);
