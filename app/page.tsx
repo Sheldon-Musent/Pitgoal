@@ -12,6 +12,8 @@ import {
   getPermissionStatus,
 } from "./notifications";
 
+import { ensureAuth, syncAllTasks, syncDayLog, syncTemplate, saveProfile, loadTasks, loadDayLog, loadTemplates, loadProfile } from '../lib/sync';
+
 const DISPLAY = "'Sora', sans-serif";
 const BODY = "'Plus Jakarta Sans', sans-serif";
 const MONO = "'IBM Plex Mono', monospace";
@@ -123,11 +125,13 @@ function fmtDur(mins: number): string { if (mins < 60) return `${Math.round(mins
 function dateKey(d: Date): string { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
 function nowMinutes(): number { const n = new Date(); return n.getHours() * 60 + n.getMinutes(); }
 
-function parseCmd(input: string) {
+function parseCmd(input: string, category: 'task' | 'rest' | 'life' = 'task') {
   let text = input.trim(); if (!text) return null;
-  let type = "work";
+  // Category → energy type: rest charges, task/life drain
+  let type = category === 'rest' ? 'rest' : 'work';
   let urgent = false;
   if (/\burgent\b/i.test(text)) { urgent = true; text = text.replace(/\burgent\b/i, ""); }
+  // Still allow text override for backward compat
   if (/\brest\b/i.test(text)) { type = "rest"; text = text.replace(/\brest\b/i, ""); }
   else if (/\bwork\b/i.test(text)) { text = text.replace(/\bwork\b/i, ""); }
   let duration = 60;
@@ -142,7 +146,7 @@ function parseCmd(input: string) {
   else if (t24) { hour = parseInt(t24[1]); minute = parseInt(t24[2]); text = text.replace(t24[0], ""); }
   const name = text.replace(/\s+/g, " ").trim(); if (!name) return null;
   if (hour === null) { const now = new Date(); hour = now.getHours(); minute = Math.ceil(now.getMinutes() / 5) * 5; if (minute >= 60) { hour++; minute = 0; } }
-  return { name, time: fmtTime(hour, minute), timeMin: hour * 60 + minute, duration, type, urgent, id: genId(), status: "pending", adjustedTimeMin: null as number | null, skippedAt: null as number | null };
+  return { name, category, time: fmtTime(hour, minute), timeMin: hour * 60 + minute, duration, planned_duration: duration, actual_duration: null as number | null, type, urgent, id: genId(), status: "pending", adjustedTimeMin: null as number | null, skippedAt: null as number | null };
 }
 
 // ═══ AUTO-SHIFT ENGINE ═══
@@ -221,12 +225,16 @@ export default function Home() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [viewMonth, setViewMonth] = useState(new Date().getMonth());
   const [viewYear, setViewYear] = useState(new Date().getFullYear());
+  const [cmdCategory, setCmdCategory] = useState<'task' | 'rest' | 'life'>('task');
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [monthPickerOpen, setMonthPickerOpen] = useState(false);
   const [cmdInput, setCmdInput] = useState("");
   const [customGroups, setCustomGroups] = useState<string[]>([]);
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
   const [showCompleted, setShowCompleted] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
   const [bottomTab, setBottomTab] = useState("today");
   const [editModal, setEditModal] = useState<any>(null);
@@ -382,6 +390,12 @@ export default function Home() {
         setTasks(generatedTasks);
       }
     } catch (e) {}
+
+    // Connect to Supabase (non-blocking)
+    ensureAuth().then(uid => {
+      if (uid) setUserId(uid);
+    });
+
     setLoaded(true);
   }, []);
 
@@ -416,7 +430,22 @@ export default function Home() {
 
   const save = useCallback((t: any, log: any, eu: number, ec: number, at: any, cg: any, pt?: any, sf?: any) => {
     persist({ tasks: t, dayLog: log, energyUsed: eu, energyCharged: ec, activeTask: at, customGroups: cg, pausedTask: pt ?? null, switchingFrom: sf ?? null });
-  }, [persist]);
+    // Background sync to Supabase
+    if (userId) {
+      const today = getMYDate();
+      syncAllTasks(userId, t, today);
+      syncDayLog(userId, today, {
+        tasks_total: t.length,
+        tasks_done: log.filter((e: any) => e.type === 'work' || e.type === 'rest').length,
+        tasks_skipped: t.filter((x: any) => x.status === 'skipped').length,
+        work_minutes: Math.round(log.filter((e: any) => e.type === 'work').reduce((s: number, e: any) => s + e.duration, 0)),
+        rest_minutes: Math.round(log.filter((e: any) => e.type === 'rest').reduce((s: number, e: any) => s + e.duration, 0)),
+        energy_used: eu,
+        energy_charged: ec,
+        log_entries: log,
+      });
+    }
+  }, [persist, userId]);
 
   const savePlan = useCallback((tpls: Template[], hist: { [date: string]: DayHistory }, str: number) => {
     try { localStorage.setItem(PLAN_KEY, JSON.stringify({ templates: tpls, history: hist, streak: str })); } catch (e) {}
@@ -425,7 +454,14 @@ export default function Home() {
   const saveDrainRates = useCallback((rates: DrainRates) => {
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(rates)); } catch (e) {}
     setDrainRates(rates);
-  }, []);
+    if (userId) saveProfile(userId, {
+      drain_idle: rates.idle, drain_work: rates.work,
+      drain_urgent: rates.urgent, drain_rest: rates.rest,
+      wake_hour: rates.wakeHour, wake_minute: rates.wakeMinute,
+      sleep_hour: rates.sleepHour, sleep_minute: rates.sleepMinute,
+      max_energy_h: rates.maxEnergyHours,
+    });
+  }, [userId]);
 
   // Template CRUD
   const openNewTemplate = () => {
@@ -598,7 +634,35 @@ export default function Home() {
   const hasTasks = pendingTasks.length > 0 || doneTasks.length > 0 || skippedTasks.length > 0;
 
   // ═══ TASK ACTIONS ═══
-  const addTask = () => { const p = parseCmd(cmdInput); if (!p) return; const n = [...tasks, p]; setTasks(n); setCmdInput(""); save(n, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom); };
+  const addTask = () => { const p = parseCmd(cmdInput, cmdCategory); if (!p) return; const n = [...tasks, p]; setTasks(n); setCmdInput(""); save(n, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom); };
+
+  // Auto-predict: fetch suggestions as user types
+  const suggestTimer = useRef<any>(null);
+  const fetchSuggestions = useCallback((query: string) => {
+    if (query.length < 2) { setSuggestions([]); setShowSuggestions(false); return; }
+    clearTimeout(suggestTimer.current);
+    suggestTimer.current = setTimeout(async () => {
+      if (!userId) return;
+      const { getPersonalSuggestions, getGlobalSuggestions } = await import('../lib/sync');
+      const personal = await getPersonalSuggestions(userId, query, 3);
+      const global = await getGlobalSuggestions(query, 3);
+      // Merge: personal first, then global (deduplicated)
+      const personalNames = new Set(personal.map((p: any) => p.name.toLowerCase()));
+      const merged = [
+        ...personal.map((p: any) => ({ ...p, source: 'you' })),
+        ...global.filter((g: any) => !personalNames.has(g.name.toLowerCase())).map((g: any) => ({ ...g, source: 'popular' })),
+      ].slice(0, 5);
+      setSuggestions(merged);
+      setShowSuggestions(merged.length > 0);
+    }, 300); // 300ms debounce
+  }, [userId]);
+
+  const pickSuggestion = (s: any) => {
+    setCmdInput(s.name);
+    if (s.category) setCmdCategory(s.category);
+    setSuggestions([]);
+    setShowSuggestions(false);
+  };
 
   const startTask = (task: any) => {
     // If something is running, stop it first
@@ -962,12 +1026,24 @@ export default function Home() {
               <div style={{ border: "1px dashed #2a2a30", borderRadius: 16, padding: "28px 16px 16px", textAlign: "center" }}>
                 <div style={{ fontSize: 14, color: "#555", marginBottom: 4 }}>No tasks yet</div>
                 <div style={{ fontSize: 11, color: "#333", fontFamily: MONO, marginBottom: 16 }}>Type below to add your first task</div>
-                <div style={{ background: "#13131a", borderRadius: 14, padding: "12px 14px", border: "1px solid #5DCAA530", display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ fontSize: 16, color: "#5DCAA5" }}>+</span>
-                  <input value={cmdInput} onChange={e => setCmdInput(e.target.value)} onKeyDown={e => e.key === "Enter" && addTask()} placeholder="task name 2pm 1.5h work" style={{ flex: 1, background: "none", border: "none", color: "#ccc", fontSize: 13, fontFamily: BODY, outline: "none" }} />
-                  {cmdInput && <div className="tap" onClick={addTask} style={{ background: "#5DCAA5", borderRadius: 8, padding: "6px 14px", fontSize: 11, color: "#063d30", fontWeight: 700, fontFamily: MONO }}>GO</div>}
+                <div style={{ position: "relative" }}>
+                  <div style={{ background: "#13131a", borderRadius: 14, padding: "12px 14px", border: "1px solid #5DCAA530", display: "flex", alignItems: "center", gap: 8 }}>
+                    <div className="tap" onClick={() => setCmdCategory(c => c === 'task' ? 'rest' : c === 'rest' ? 'life' : 'task')} style={{ background: cmdCategory === 'task' ? '#5DCAA520' : cmdCategory === 'rest' ? '#7F77DD20' : '#EF9F2720', border: `1px solid ${cmdCategory === 'task' ? '#5DCAA5' : cmdCategory === 'rest' ? '#7F77DD' : '#EF9F27'}`, borderRadius: 8, padding: "5px 10px", fontSize: 9, fontWeight: 700, fontFamily: MONO, color: cmdCategory === 'task' ? '#5DCAA5' : cmdCategory === 'rest' ? '#7F77DD' : '#EF9F27', cursor: "pointer", flexShrink: 0, letterSpacing: 1, userSelect: "none" }}>{cmdCategory.toUpperCase()}</div>
+                    <input value={cmdInput} onChange={e => { setCmdInput(e.target.value); fetchSuggestions(e.target.value); }} onKeyDown={e => e.key === "Enter" && addTask()} onFocus={() => suggestions.length > 0 && setShowSuggestions(true)} onBlur={() => setTimeout(() => setShowSuggestions(false), 200)} placeholder="study C 7pm 1.5h" style={{ flex: 1, background: "none", border: "none", color: "#ccc", fontSize: 13, fontFamily: BODY, outline: "none" }} />
+                    {cmdInput && <div className="tap" onClick={addTask} style={{ background: "#5DCAA5", borderRadius: 8, padding: "6px 14px", fontSize: 11, color: "#063d30", fontWeight: 700, fontFamily: MONO }}>GO</div>}
+                  </div>
+                  {showSuggestions && suggestions.length > 0 && (
+                    <div style={{ position: "absolute", top: "100%", left: 0, right: 0, marginTop: 4, background: "#1a1a24", border: "1px solid #2a2a34", borderRadius: 12, overflow: "hidden", zIndex: 20 }}>
+                      {suggestions.map((s: any, i: number) => (
+                        <div key={i} className="tap" onMouseDown={() => pickSuggestion(s)} style={{ padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: i < suggestions.length - 1 ? "1px solid #1e1e28" : "none", cursor: "pointer" }}>
+                          <span style={{ fontSize: 12, color: "#ccc", fontFamily: BODY }}>{s.name}</span>
+                          <span style={{ fontSize: 9, color: "#555", fontFamily: MONO }}>{s.source === 'you' ? 'YOUR HISTORY' : 'POPULAR'}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <div style={{ fontSize: 10, color: "#333", marginTop: 5, fontFamily: MONO }}>name + time + duration + work/rest</div>
+                <div style={{ fontSize: 10, color: "#333", marginTop: 5, fontFamily: MONO }}>tap category · type name · time · duration</div>
               </div>
             )}
 
@@ -1063,10 +1139,22 @@ export default function Home() {
 
             {/* ═══ CREATE TASK — between pending and completed ═══ */}
             {hasTasks && (
-              <div style={{ marginTop: 14, marginBottom: 14, background: "#13131a", borderRadius: 14, padding: "12px 14px", border: "1px solid #5DCAA530", display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontSize: 16, color: "#5DCAA5" }}>+</span>
-                <input value={cmdInput} onChange={e => setCmdInput(e.target.value)} onKeyDown={e => e.key === "Enter" && addTask()} placeholder="task name 2pm 1.5h work" style={{ flex: 1, background: "none", border: "none", color: "#ccc", fontSize: 13, fontFamily: BODY, outline: "none" }} />
-                {cmdInput && <div className="tap" onClick={addTask} style={{ background: "#5DCAA5", borderRadius: 8, padding: "6px 14px", fontSize: 11, color: "#063d30", fontWeight: 700, fontFamily: MONO }}>GO</div>}
+              <div style={{ marginTop: 14, marginBottom: 14, position: "relative" }}>
+                <div style={{ background: "#13131a", borderRadius: 14, padding: "12px 14px", border: "1px solid #5DCAA530", display: "flex", alignItems: "center", gap: 8 }}>
+                  <div className="tap" onClick={() => setCmdCategory(c => c === 'task' ? 'rest' : c === 'rest' ? 'life' : 'task')} style={{ background: cmdCategory === 'task' ? '#5DCAA520' : cmdCategory === 'rest' ? '#7F77DD20' : '#EF9F2720', border: `1px solid ${cmdCategory === 'task' ? '#5DCAA5' : cmdCategory === 'rest' ? '#7F77DD' : '#EF9F27'}`, borderRadius: 8, padding: "5px 10px", fontSize: 9, fontWeight: 700, fontFamily: MONO, color: cmdCategory === 'task' ? '#5DCAA5' : cmdCategory === 'rest' ? '#7F77DD' : '#EF9F27', cursor: "pointer", flexShrink: 0, letterSpacing: 1, userSelect: "none" }}>{cmdCategory.toUpperCase()}</div>
+                  <input value={cmdInput} onChange={e => { setCmdInput(e.target.value); fetchSuggestions(e.target.value); }} onKeyDown={e => e.key === "Enter" && addTask()} onFocus={() => suggestions.length > 0 && setShowSuggestions(true)} onBlur={() => setTimeout(() => setShowSuggestions(false), 200)} placeholder="study C 7pm 1.5h" style={{ flex: 1, background: "none", border: "none", color: "#ccc", fontSize: 13, fontFamily: BODY, outline: "none" }} />
+                  {cmdInput && <div className="tap" onClick={addTask} style={{ background: "#5DCAA5", borderRadius: 8, padding: "6px 14px", fontSize: 11, color: "#063d30", fontWeight: 700, fontFamily: MONO }}>GO</div>}
+                </div>
+                {showSuggestions && suggestions.length > 0 && (
+                  <div style={{ position: "absolute", top: "100%", left: 0, right: 0, marginTop: 4, background: "#1a1a24", border: "1px solid #2a2a34", borderRadius: 12, overflow: "hidden", zIndex: 20 }}>
+                    {suggestions.map((s: any, i: number) => (
+                      <div key={i} className="tap" onMouseDown={() => pickSuggestion(s)} style={{ padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: i < suggestions.length - 1 ? "1px solid #1e1e28" : "none", cursor: "pointer" }}>
+                        <span style={{ fontSize: 12, color: "#ccc", fontFamily: BODY }}>{s.name}</span>
+                        <span style={{ fontSize: 9, color: "#555", fontFamily: MONO }}>{s.source === 'you' ? 'YOUR HISTORY' : 'POPULAR'}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
