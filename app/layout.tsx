@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Doit",
+    title: "Pitgoal",
   },
   icons: {
     icon: [
@@ -19,6 +19,12 @@ export const metadata: Metadata = {
     apple: [
       { url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
     ],
+  },
+  openGraph: {
+    title: "Pitgoal",
+    description: "A predictable app that keeps you forward without thinking.",
+    url: "https://pitgoal.com",
+    images: [{ url: "/og-image.png", width: 1200, height: 630 }],
   },
 };
 

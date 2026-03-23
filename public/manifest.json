@@ -1,7 +1,7 @@
 {
   "name": "Pitgoal",
   "short_name": "Pitgoal",
-  "description": "Just track it. Just Doit.",
+  "description": "Your autopilot for getting things done.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#060a12",
