@@ -178,7 +178,7 @@ export async function syncAllTasks(userId: string, tasks: any[], date: string) {
       addToQueue({ table: 'tasks', operation: 'upsert', data: p, timestamp: Date.now() });
     }
   }
-}
+
 
 export async function deleteTask(taskId: string) {
   try {
