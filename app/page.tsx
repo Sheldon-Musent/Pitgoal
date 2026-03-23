@@ -12,7 +12,7 @@ import {
   getPermissionStatus,
 } from "./notifications";
 
-import { ensureAuth, syncAllTasks, syncDayLog, syncTemplate, saveProfile, loadTasks, loadDayLog, loadTemplates, loadProfile } from '../lib/sync';
+import { ensureAuth, syncAllTasks, syncDayLog, saveProfile } from '../lib/sync';
 
 const DISPLAY = "'Sora', sans-serif";
 const BODY = "'Plus Jakarta Sans', sans-serif";
@@ -22,8 +22,6 @@ const PLAN_KEY = "doit-v8-plan";
 const SETTINGS_KEY = "doit-v8-settings";
 const DEFAULT_ENERGY = 17;
 const GRACE_PERIOD_MS = 15 * 60 * 1000; // 15 minutes
-const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const DAY_SHORT = ["S", "M", "T", "W", "T", "F", "S"];
 
 // Power bar drain rates (per real minute)
 interface DrainRates {
@@ -72,25 +70,6 @@ interface DayHistory {
   skipped: number;
   totalMin: number;
   log: any[];
-}
-
-function getWeekDates(refDate: Date): Date[] {
-  const d = new Date(refDate);
-  const day = d.getDay();
-  const monday = new Date(d);
-  monday.setDate(d.getDate() - ((day + 6) % 7));
-  const week: Date[] = [];
-  for (let i = 0; i < 7; i++) {
-    const wd = new Date(monday);
-    wd.setDate(monday.getDate() + i);
-    week.push(wd);
-  }
-  return week;
-}
-
-function getWeekNumber(d: Date): number {
-  const onejan = new Date(d.getFullYear(), 0, 1);
-  return Math.ceil(((d.getTime() - onejan.getTime()) / 86400000 + onejan.getDay() + 1) / 7);
 }
 
 const PHASE_CARDS = [
@@ -236,26 +215,16 @@ export default function Home() {
   const [loaded, setLoaded] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
-  const [bottomTab, setBottomTab] = useState("today");
   const [editModal, setEditModal] = useState<any>(null);
   const [editFields, setEditFields] = useState({ name: "", time: "", duration: "", type: "work", desc: "", rate: "" });
   const [groupInput, setGroupInput] = useState("");
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [showSwitchInput, setShowSwitchInput] = useState(false);
   const [switchInput, setSwitchInput] = useState("");
-  // Plan tab state
+  // Plan data (kept for template auto-gen on day rollover)
   const [templates, setTemplates] = useState<Template[]>([]);
   const [history, setHistory] = useState<{ [date: string]: DayHistory }>({});
   const [streak, setStreak] = useState(0);
-  const [planView, setPlanView] = useState<"templates" | "week" | "history">("templates");
-  const [showTemplateModal, setShowTemplateModal] = useState(false);
-  const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
-  const [tplName, setTplName] = useState("");
-  const [tplTime, setTplTime] = useState("09:00");
-  const [tplDuration, setTplDuration] = useState("60");
-  const [tplType, setTplType] = useState("work");
-  const [tplDays, setTplDays] = useState<number[]>([]);
-  const [planWeekOffset, setPlanWeekOffset] = useState(0);
   const monthScrollRef = useRef<HTMLDivElement>(null);
   const dateScrollRef = useRef<HTMLDivElement>(null);
   const today = useMemo(() => new Date(), []);
@@ -464,43 +433,6 @@ export default function Home() {
   }, [userId]);
 
   // Template CRUD
-  const openNewTemplate = () => {
-    setEditingTemplate(null);
-    setTplName(""); setTplTime("09:00"); setTplDuration("60"); setTplType("work"); setTplDays([]);
-    setShowTemplateModal(true);
-  };
-  const openEditTemplate = (tpl: Template) => {
-    setEditingTemplate(tpl);
-    setTplName(tpl.name); setTplTime(tpl.time); setTplDuration(String(tpl.duration)); setTplType(tpl.type); setTplDays([...tpl.days]);
-    setShowTemplateModal(true);
-  };
-  const toggleTplDay = (d: number) => {
-    setTplDays(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]);
-  };
-  const saveTemplate = () => {
-    if (!tplName.trim()) return;
-    const timeParts = tplTime.split(":"); const h = parseInt(timeParts[0]) || 0; const m = parseInt(timeParts[1]) || 0;
-    const tpl: Template = {
-      id: editingTemplate?.id || genId(),
-      name: tplName.trim(), time: fmtTime(h, m), timeMin: h * 60 + m,
-      duration: parseInt(tplDuration) || 60, type: tplType, days: [...tplDays],
-    };
-    let updated: Template[];
-    if (editingTemplate) {
-      updated = templates.map(t => t.id === tpl.id ? tpl : t);
-    } else {
-      updated = [...templates, tpl];
-    }
-    setTemplates(updated);
-    savePlan(updated, history, streak);
-    setShowTemplateModal(false);
-  };
-  const deleteTemplate = (id: string) => {
-    const updated = templates.filter(t => t.id !== id);
-    setTemplates(updated);
-    savePlan(updated, history, streak);
-  };
-
   useEffect(() => { const id = setInterval(() => setTick(t => t + 1), 1000); return () => clearInterval(id); }, []);
   useEffect(() => { if (!activeTask) return; const elapsed = (Date.now() - activeTask.startedAt) / 60000; if (activeTask.type === "work") setEnergyUsed(activeTask.baseUsed + elapsed); else setEnergyCharged(activeTask.baseCharged + elapsed); }, [tick, activeTask]);
 
@@ -562,14 +494,6 @@ export default function Home() {
     document.addEventListener("visibilitychange", resetToToday);
     return () => document.removeEventListener("visibilitychange", resetToToday);
   }, []);
-  useEffect(() => {
-    if (bottomTab === "today") {
-      const now = new Date();
-      setSelectedDate(now);
-      setViewMonth(now.getMonth());
-      setViewYear(now.getFullYear());
-    }
-  }, [bottomTab]);
 
   // ═══ POWER BAR — drain rate calculation ═══
   const activeElapsed = activeTask ? Math.floor((Date.now() - activeTask.startedAt) / 1000) : 0;
@@ -691,7 +615,7 @@ export default function Home() {
     const elapsed = Math.round((Date.now() - activeTask.startedAt) / 60000);
     const entry = { id: genId(), name: activeTask.name, type: activeTask.type, urgent: activeTask.urgent || false, duration: elapsed, startTime: new Date(activeTask.startedAt).toTimeString().slice(0, 5), endTime: new Date().toTimeString().slice(0, 5) };
     const newLog = [...dayLog, entry];
-    const u = tasks.map(t => t.id === activeTask.id ? { ...t, status: "done" } : t);
+    const u = tasks.map(t => t.id === activeTask.id ? { ...t, status: "done", actual_duration: elapsed, completedAt: Date.now(), startedAt: activeTask.startedAt } : t);
     setDayLog(newLog);
     setTasks(u);
     setActiveTask(null);
@@ -738,7 +662,7 @@ export default function Home() {
       const entry = { id: genId(), name: activeTask.name, type: activeTask.type, urgent: activeTask.urgent || false, duration: elapsed, startTime: new Date(activeTask.startedAt).toTimeString().slice(0, 5), endTime: new Date().toTimeString().slice(0, 5), partial: true };
       const newLog = [...dayLog, entry];
       setDayLog(newLog);
-      const u = tasks.map(t => t.id === activeTask.id ? { ...t, status: "skipped", skippedAt: Date.now() } : t);
+      const u = tasks.map(t => t.id === activeTask.id ? { ...t, status: "skipped", skippedAt: Date.now(), actual_duration: elapsed, startedAt: activeTask.startedAt } : t);
       // Shift remaining tasks forward — they already lost the elapsed time, but the remaining planned time is freed
       const shifted = autoShift(u, nowMinutes(), 0);
       setTasks(shifted);
@@ -810,9 +734,9 @@ export default function Home() {
     if (notifEnabled) cancelPauseReminder();
   };
 
-  const markDone = (task: any) => { const entry = { id: genId(), name: task.name, type: task.type, urgent: task.urgent || false, duration: task.duration, startTime: getDisplayTime(task), endTime: fmtTime(Math.floor((getDisplayTimeMin(task) + task.duration) / 60) % 24, (getDisplayTimeMin(task) + task.duration) % 60) }; const newLog = [...dayLog, entry]; const u = tasks.map(t => t.id === task.id ? { ...t, status: "done" } : t); setDayLog(newLog); setTasks(u); setExpandedTask(null); if (task.type === "work") setEnergyUsed(prev => prev + task.duration); else setEnergyCharged(prev => prev + task.duration); save(u, newLog, task.type === "work" ? energyUsed + task.duration : energyUsed, task.type === "rest" ? energyCharged + task.duration : energyCharged, activeTask, customGroups, pausedTask, switchingFrom); if (notifEnabled) onTaskDone(task.id);};
+  const markDone = (task: any) => { const entry = { id: genId(), name: task.name, type: task.type, urgent: task.urgent || false, duration: task.duration, startTime: getDisplayTime(task), endTime: fmtTime(Math.floor((getDisplayTimeMin(task) + task.duration) / 60) % 24, (getDisplayTimeMin(task) + task.duration) % 60) }; const newLog = [...dayLog, entry]; const u = tasks.map(t => t.id === task.id ? { ...t, status: "done", actual_duration: task.duration, completedAt: Date.now() } : t); setDayLog(newLog); setTasks(u); setExpandedTask(null); if (task.type === "work") setEnergyUsed(prev => prev + task.duration); else setEnergyCharged(prev => prev + task.duration); save(u, newLog, task.type === "work" ? energyUsed + task.duration : energyUsed, task.type === "rest" ? energyCharged + task.duration : energyCharged, activeTask, customGroups, pausedTask, switchingFrom); if (notifEnabled) onTaskDone(task.id);};
 
-  const markUndone = (task: any) => { const u = tasks.map(t => t.id === task.id ? { ...t, status: "pending" } : t); const newLog = dayLog.filter(e => e.name !== task.name || e.startTime !== getDisplayTime(task)); setTasks(u); setDayLog(newLog); if (task.type === "work") setEnergyUsed(prev => Math.max(0, prev - task.duration)); else setEnergyCharged(prev => Math.max(0, prev - task.duration)); save(u, newLog, task.type === "work" ? Math.max(0, energyUsed - task.duration) : energyUsed, task.type === "rest" ? Math.max(0, energyCharged - task.duration) : energyCharged, activeTask, customGroups, pausedTask, switchingFrom); };
+  const markUndone = (task: any) => { const u = tasks.map(t => t.id === task.id ? { ...t, status: "pending", actual_duration: null, completedAt: null } : t); const newLog = dayLog.filter(e => e.name !== task.name || e.startTime !== getDisplayTime(task)); setTasks(u); setDayLog(newLog); if (task.type === "work") setEnergyUsed(prev => Math.max(0, prev - task.duration)); else setEnergyCharged(prev => Math.max(0, prev - task.duration)); save(u, newLog, task.type === "work" ? Math.max(0, energyUsed - task.duration) : energyUsed, task.type === "rest" ? Math.max(0, energyCharged - task.duration) : energyCharged, activeTask, customGroups, pausedTask, switchingFrom); };
   const toggleRest = (task: any) => { const u = tasks.map(t => t.id === task.id ? { ...t, type: t.type === "work" ? "rest" : "work" } : t); setTasks(u); save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom); };
   const toggleUrgent = (task: any) => { const u = tasks.map(t => t.id === task.id ? { ...t, urgent: !t.urgent } : t); setTasks(u); save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom); };
   const addGroup = () => { setGroupInput(""); setShowGroupModal(true); };
@@ -854,7 +778,7 @@ export default function Home() {
   const PILL_H = 62;
 
   return (
-    <div style={{ background: "#0e0e12", minHeight: "100vh", fontFamily: BODY, color: "#c0c0c0", maxWidth: 430, margin: "0 auto", position: "relative", paddingBottom: hasActivePopup ? 190 : 110, paddingTop: "env(safe-area-inset-top, 0px)" }}>
+    <div style={{ background: "#0e0e12", minHeight: "100vh", fontFamily: BODY, color: "#c0c0c0", maxWidth: 430, margin: "0 auto", position: "relative", paddingBottom: hasActivePopup ? 130 : 40, paddingTop: "env(safe-area-inset-top, 0px)" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -869,7 +793,6 @@ export default function Home() {
         input:focus { outline: none; }
       `}</style>
 
-      {bottomTab === "today" && (
       <div style={{ padding: "16px 14px 0" }}>
 
         {/* ═══ ZONE 1: STATS ═══ */}
@@ -1171,7 +1094,10 @@ export default function Home() {
                     <div key={task.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", marginBottom: 4, borderRadius: 12, background: "#13131a08", border: "1px solid #1a1a20", opacity: 0.4 }}>
                       <div style={{ fontSize: 10, color: "#3a3a42", fontFamily: MONO, minWidth: 38 }}>{getDisplayTime(task)}</div>
                       <div style={{ fontSize: 13, color: "#3a3a42", flex: 1, fontFamily: DISPLAY }}>{task.name}</div>
-                      <div className="tap" onClick={() => { const u = tasks.map(t => t.id === task.id ? { ...t, status: "pending", skippedAt: null } : t); setTasks(u); save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom); }} style={{ fontSize: 9, color: "#555", fontFamily: MONO, padding: "4px 8px", borderRadius: 6, border: "1px solid #2a2a30" }}>
+                      {task.actual_duration != null && task.actual_duration > 0 && (
+                        <div style={{ fontSize: 9, color: "#555", fontFamily: MONO }}>{fmtDur(task.actual_duration)}/{fmtDur(task.duration)}</div>
+                      )}
+                      <div className="tap" onClick={() => { const u = tasks.map(t => t.id === task.id ? { ...t, status: "pending", skippedAt: null, actual_duration: null } : t); setTasks(u); save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom); }} style={{ fontSize: 9, color: "#555", fontFamily: MONO, padding: "4px 8px", borderRadius: 6, border: "1px solid #2a2a30" }}>
                         UNDO
                       </div>
                     </div>
@@ -1190,7 +1116,7 @@ export default function Home() {
                         <div key={t.id} style={{ position: i === arr.length - 1 ? "relative" : "absolute", top: off, left: 0, right: 0, background: bg, borderRadius: 12, padding: "12px 14px", border: `1px solid ${accent}30`, display: "flex", alignItems: "center", gap: 10, zIndex: i }}>
                           <div style={{ fontSize: 10, color: accent, fontFamily: MONO, minWidth: 38, fontWeight: 600 }}>{getDisplayTime(t)}</div>
                           <div style={{ fontSize: 13, color: light, fontWeight: 700, flex: 1, textDecoration: "line-through", textDecorationColor: `${accent}60`, fontFamily: DISPLAY }}>{t.name}</div>
-                          <div style={{ fontSize: 9, color: accent, fontFamily: MONO, fontWeight: 600 }}>{fmtDur(t.duration)}</div>
+                          <div style={{ fontSize: 9, color: accent, fontFamily: MONO, fontWeight: 600 }}>{t.actual_duration != null && t.actual_duration !== t.duration ? `${fmtDur(t.actual_duration)}/${fmtDur(t.duration)}` : fmtDur(t.duration)}</div>
                         </div>
                       ); })}
                     </div>
@@ -1203,11 +1129,11 @@ export default function Home() {
                         <div className="tap" onClick={() => setExpandedTask(isExp ? null : task.id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", background: bg, borderRadius: isExp ? "12px 12px 0 0" : 12, border: `1px solid ${accent}30`, borderBottom: isExp ? "none" : undefined, animation: `fadeUp 0.2s ease ${i * 0.03}s both` }}>
                           <div style={{ fontSize: 10, color: accent, fontFamily: MONO, minWidth: 38, fontWeight: 600 }}>{getDisplayTime(task)}</div>
                           <div style={{ fontSize: 13, color: light, fontWeight: 700, flex: 1, textDecoration: "line-through", textDecorationColor: `${accent}60`, fontFamily: DISPLAY }}>{task.name}</div>
-                          <div style={{ fontSize: 9, color: accent, fontFamily: MONO, fontWeight: 600 }}>{fmtDur(task.duration)}</div>
+                          <div style={{ fontSize: 9, color: accent, fontFamily: MONO, fontWeight: 600 }}>{task.actual_duration != null && task.actual_duration !== task.duration ? `${fmtDur(task.actual_duration)}/${fmtDur(task.duration)}` : fmtDur(task.duration)}</div>
                         </div>
                         {isExp && (
                           <div style={{ background: bg, borderRadius: "0 0 12px 12px", padding: "10px 14px", border: `1px solid ${accent}30`, borderTop: `1px dashed ${accent}20`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                            <div style={{ display: "flex", gap: 8, fontSize: 11, color: accent + "aa", fontFamily: MONO }}><span>{getDisplayTime(task)} — {fmtTime(Math.floor((getDisplayTimeMin(task) + task.duration) / 60) % 24, (getDisplayTimeMin(task) + task.duration) % 60)}</span><span>{task.type.toUpperCase()}</span><span>{fmtDur(task.duration)}</span></div>
+                            <div style={{ display: "flex", gap: 8, fontSize: 11, color: accent + "aa", fontFamily: MONO, flexWrap: "wrap" }}><span>{getDisplayTime(task)} — {fmtTime(Math.floor((getDisplayTimeMin(task) + task.duration) / 60) % 24, (getDisplayTimeMin(task) + task.duration) % 60)}</span><span>{task.type.toUpperCase()}</span>{task.actual_duration != null && task.actual_duration !== task.duration ? <span style={{ color: accent }}>Set: {fmtDur(task.duration)} · Actual: {fmtDur(task.actual_duration)}</span> : <span>{fmtDur(task.duration)}</span>}</div>
                             <div className="tap" onClick={(e) => { e.stopPropagation(); markUndone(task); }} style={{ width: 32, height: 32, borderRadius: 8, background: `${accent}20`, border: `1.5px solid ${accent}50`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
                             </div>
@@ -1245,309 +1171,11 @@ export default function Home() {
           </div>
         )}
 
-        {!["today", "categories", "income"].includes(activeTab) && bottomTab === "today" && (
+        {!["today", "categories", "income"].includes(activeTab) && (
           <div style={{ textAlign: "center", padding: "40px 20px", border: "1px dashed #2a2a30", borderRadius: 16 }}><div style={{ fontSize: 14, color: "#444" }}>{activeTab}</div><div style={{ fontSize: 12, color: "#333", fontFamily: MONO, marginTop: 4 }}>Custom group</div></div>
         )}
       </div>
-      )}
 
-      {/* ═══ PLAN TAB ═══ */}
-      {bottomTab === "plan" && (
-        <div style={{ padding: "16px 14px 0" }}>
-          {/* Plan header */}
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 9, letterSpacing: 4, color: "#4a5568", fontFamily: MONO }}>PLAN</div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: "#E1F5EE", fontFamily: DISPLAY, marginTop: 2 }}>Your autopilot</div>
-          </div>
-
-          {/* Streak card */}
-          <div style={{ background: "#13131a", borderRadius: 16, padding: "16px 20px", border: "1px solid #1e1e24", marginBottom: 14, display: "flex", alignItems: "center", gap: 14 }}>
-            <div style={{ fontSize: 32, lineHeight: 1 }}>{streak > 0 ? "🔥" : "○"}</div>
-            <div>
-              <div style={{ fontSize: 24, fontWeight: 800, color: streak > 0 ? "#EF9F27" : "#3a3a42", fontFamily: DISPLAY, lineHeight: 1 }}>{streak}</div>
-              <div style={{ fontSize: 10, color: "#555", fontFamily: MONO, letterSpacing: 1, marginTop: 2 }}>DAY STREAK</div>
-            </div>
-            <div style={{ flex: 1 }} />
-            <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: 11, color: "#555", fontFamily: MONO }}>{templates.length} templates</div>
-              <div style={{ fontSize: 10, color: "#3a3a42", fontFamily: MONO, marginTop: 2 }}>{Object.keys(history).length} days tracked</div>
-            </div>
-          </div>
-
-          {/* Plan view toggle */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", background: "#0a0a10", padding: "3px", gap: 3, marginBottom: 14, borderRadius: 10 }}>
-            {(["templates", "week", "history"] as const).map(v => (
-              <button key={v} className="tap" onClick={() => setPlanView(v)} style={{
-                padding: "9px 4px", border: "none", borderRadius: 7, fontFamily: MONO,
-                cursor: "pointer", fontSize: 10, fontWeight: 600, letterSpacing: 1,
-                background: planView === v ? "#5DCAA5" : "transparent",
-                color: planView === v ? "#063d30" : "#3a4048",
-                transition: "all 0.2s",
-              }}>{v === "templates" ? "ROUTINES" : v.toUpperCase()}</button>
-            ))}
-          </div>
-
-          {/* ═══ ROUTINES (Templates) ═══ */}
-          {planView === "templates" && (
-            <div>
-              {templates.length === 0 ? (
-                <div style={{ border: "1px dashed #2a2a30", borderRadius: 16, padding: "32px 20px", textAlign: "center" }}>
-                  <div style={{ fontSize: 28, marginBottom: 10 }}>⚡</div>
-                  <div style={{ fontSize: 14, color: "#555", marginBottom: 4 }}>No routines yet</div>
-                  <div style={{ fontSize: 11, color: "#333", fontFamily: MONO, marginBottom: 16 }}>Set up recurring tasks that auto-populate your day</div>
-                  <div className="tap" onClick={openNewTemplate} style={{ display: "inline-block", background: "#5DCAA5", borderRadius: 12, padding: "12px 24px", fontSize: 13, fontWeight: 700, color: "#063d30", fontFamily: DISPLAY }}>
-                    Create first routine
-                  </div>
-                </div>
-              ) : (
-                <>
-                  {templates.map((tpl, i) => {
-                    const isWork = tpl.type === "work";
-                    const accent = isWork ? "#5DCAA5" : "#7F77DD";
-                    const bg = isWork ? "#063d30" : "#1e1a4d";
-                    const light = isWork ? "#E1F5EE" : "#EEEDFE";
-                    const daysLabel = tpl.days.length === 0 ? "DAILY" : tpl.days.map(d => DAY_SHORT[d]).join(" ");
-                    return (
-                      <div key={tpl.id} style={{ background: "#13131a", borderRadius: 14, padding: "14px 16px", marginBottom: 8, border: "1px solid #1e1e24", animation: `fadeUp 0.3s ease ${i * 0.04}s both` }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                          <div style={{ width: 36, height: 36, borderRadius: 10, background: bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                            <div style={{ fontSize: 11, color: accent, fontWeight: 700, fontFamily: MONO }}>{tpl.time.split(":")[0]}</div>
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 14, fontWeight: 700, color: light, fontFamily: DISPLAY, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{tpl.name}</div>
-                            <div style={{ display: "flex", gap: 8, marginTop: 4, alignItems: "center" }}>
-                              <span style={{ fontSize: 9, color: accent, fontFamily: MONO, fontWeight: 600 }}>{tpl.time}</span>
-                              <span style={{ fontSize: 9, color: "#555", fontFamily: MONO }}>{fmtDur(tpl.duration)}</span>
-                              <span style={{ fontSize: 8, color: accent, background: `${accent}15`, padding: "2px 6px", borderRadius: 4, fontFamily: MONO, fontWeight: 600, letterSpacing: 1 }}>{daysLabel}</span>
-                            </div>
-                          </div>
-                          <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-                            <div className="tap" onClick={() => openEditTemplate(tpl)} style={{ width: 30, height: 30, borderRadius: 8, background: "#1e1e24", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2" strokeLinecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
-                            </div>
-                            <div className="tap" onClick={() => deleteTemplate(tpl.id)} style={{ width: 30, height: 30, borderRadius: 8, background: "#1e1e24", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                  <div className="tap" onClick={openNewTemplate} style={{ background: "#13131a", borderRadius: 14, padding: "14px", textAlign: "center", border: "1px dashed #2a2a30", marginTop: 4 }}>
-                    <span style={{ fontSize: 13, color: "#5DCAA5", fontWeight: 600, fontFamily: DISPLAY }}>+ Add routine</span>
-                  </div>
-                </>
-              )}
-
-              {/* How it works */}
-              <div style={{ marginTop: 20, padding: "14px 16px", background: "#0a0e17", borderRadius: 12, border: "1px solid #13131a" }}>
-                <div style={{ fontSize: 9, color: "#4a5568", fontFamily: MONO, letterSpacing: 2, marginBottom: 10 }}>HOW IT WORKS</div>
-                {[
-                  { icon: "1", text: "Set up routines here (one-time)" },
-                  { icon: "2", text: "Each morning, tasks auto-generate" },
-                  { icon: "3", text: "Add or remove tasks for today" },
-                  { icon: "4", text: "Autopilot takes over from there" },
-                ].map((step, i) => (
-                  <div key={i} style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 8 }}>
-                    <div style={{ width: 22, height: 22, borderRadius: 6, background: "#5DCAA512", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      <span style={{ fontSize: 10, color: "#5DCAA5", fontWeight: 700, fontFamily: MONO }}>{step.icon}</span>
-                    </div>
-                    <span style={{ fontSize: 12, color: "#666" }}>{step.text}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* ═══ WEEK VIEW ═══ */}
-          {planView === "week" && (() => {
-            const refDate = new Date();
-            refDate.setDate(refDate.getDate() + planWeekOffset * 7);
-            const weekDates = getWeekDates(refDate);
-            const weekNum = getWeekNumber(weekDates[0]);
-            const isCurrentWeek = planWeekOffset === 0;
-
-            return (
-              <div>
-                {/* Week nav */}
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-                  <div className="tap" onClick={() => setPlanWeekOffset(p => p - 1)} style={{ width: 32, height: 32, borderRadius: 8, background: "#13131a", border: "1px solid #1e1e24", display: "flex", alignItems: "center", justifyContent: "center", color: "#666", fontSize: 14 }}>‹</div>
-                  <div style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: isCurrentWeek ? "#5DCAA5" : "#888", fontFamily: DISPLAY }}>
-                      {isCurrentWeek ? "This week" : planWeekOffset === -1 ? "Last week" : planWeekOffset === 1 ? "Next week" : `Week ${weekNum}`}
-                    </div>
-                    <div style={{ fontSize: 10, color: "#4a5568", fontFamily: MONO }}>
-                      {MONTHS_SHORT[weekDates[0].getMonth()]} {weekDates[0].getDate()} — {MONTHS_SHORT[weekDates[6].getMonth()]} {weekDates[6].getDate()}
-                    </div>
-                  </div>
-                  <div className="tap" onClick={() => setPlanWeekOffset(p => p + 1)} style={{ width: 32, height: 32, borderRadius: 8, background: "#13131a", border: "1px solid #1e1e24", display: "flex", alignItems: "center", justifyContent: "center", color: "#666", fontSize: 14 }}>›</div>
-                </div>
-
-                {/* Week grid */}
-                {weekDates.map((wd, i) => {
-                  const dk = dateKey(wd);
-                  const isToday = isSameDay(wd, new Date());
-                  const isPast = wd < new Date() && !isToday;
-                  const dayHistory = history[dk];
-                  const dayDow = wd.getDay();
-                  const dayTemplates = templates.filter(t => t.days.length === 0 || t.days.includes(dayDow));
-                  const ev = EVENTS[dk];
-
-                  return (
-                    <div key={dk} style={{
-                      background: isToday ? "#5DCAA508" : "#13131a",
-                      border: `1px solid ${isToday ? "#5DCAA530" : "#1e1e24"}`,
-                      borderRadius: 14, padding: "12px 14px", marginBottom: 6,
-                      opacity: isPast && !dayHistory ? 0.4 : 1,
-                      animation: `fadeUp 0.25s ease ${i * 0.04}s both`,
-                    }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: dayTemplates.length > 0 || dayHistory ? 8 : 0 }}>
-                        <div style={{ width: 36, textAlign: "center" }}>
-                          <div style={{ fontSize: 9, color: isToday ? "#5DCAA5" : "#555", fontFamily: MONO, fontWeight: 600 }}>{DAY_NAMES[dayDow].toUpperCase()}</div>
-                          <div style={{ fontSize: 16, fontWeight: 700, color: isToday ? "#5DCAA5" : "#888", fontFamily: DISPLAY }}>{wd.getDate()}</div>
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          {ev && <div style={{ fontSize: 10, color: "#EF9F27", fontFamily: MONO, marginBottom: 2 }}>{ev}</div>}
-                          {dayHistory ? (
-                            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                              <span style={{ fontSize: 11, color: "#5DCAA5", fontFamily: MONO, fontWeight: 600 }}>{dayHistory.done} done</span>
-                              {dayHistory.skipped > 0 && <span style={{ fontSize: 11, color: "#EF9F27", fontFamily: MONO }}>{dayHistory.skipped} moved</span>}
-                              <span style={{ fontSize: 10, color: "#444", fontFamily: MONO }}>{fmtDur(dayHistory.totalMin)}</span>
-                            </div>
-                          ) : isToday ? (
-                            <div style={{ fontSize: 11, color: "#5DCAA5", fontFamily: MONO }}>Today — {tasks.filter(t => t.status === "done").length} done so far</div>
-                          ) : dayTemplates.length > 0 ? (
-                            <div style={{ fontSize: 11, color: "#555", fontFamily: MONO }}>{dayTemplates.length} tasks planned</div>
-                          ) : (
-                            <div style={{ fontSize: 11, color: "#333", fontFamily: MONO }}>Rest day</div>
-                          )}
-                        </div>
-                        {dayHistory && dayHistory.done > 0 && (
-                          <div style={{ width: 24, height: 24, borderRadius: 6, background: "#063d30", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5DCAA5" strokeWidth="3" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Task preview for future days */}
-                      {!isPast && !isToday && dayTemplates.length > 0 && (
-                        <div style={{ display: "flex", gap: 4, flexWrap: "wrap", paddingLeft: 46 }}>
-                          {dayTemplates.slice(0, 4).map(tpl => (
-                            <span key={tpl.id} style={{ fontSize: 9, color: tpl.type === "work" ? "#5DCAA5" : "#7F77DD", background: tpl.type === "work" ? "#5DCAA508" : "#7F77DD08", padding: "3px 7px", borderRadius: 4, fontFamily: MONO }}>{tpl.time.slice(0, 5)} {tpl.name.slice(0, 12)}{tpl.name.length > 12 ? "…" : ""}</span>
-                          ))}
-                          {dayTemplates.length > 4 && <span style={{ fontSize: 9, color: "#444", fontFamily: MONO, padding: "3px 4px" }}>+{dayTemplates.length - 4}</span>}
-                        </div>
-                      )}
-
-                      {/* History log for past days */}
-                      {dayHistory && dayHistory.log.length > 0 && (
-                        <div style={{ display: "flex", gap: 4, flexWrap: "wrap", paddingLeft: 46 }}>
-                          {dayHistory.log.slice(0, 4).map((entry: any, j: number) => (
-                            <span key={j} style={{ fontSize: 9, color: entry.type === "work" ? "#5DCAA5" : "#7F77DD", background: entry.type === "work" ? "#5DCAA508" : "#7F77DD08", padding: "3px 7px", borderRadius: 4, fontFamily: MONO }}>{entry.startTime} {entry.name.slice(0, 10)}{entry.name.length > 10 ? "…" : ""}</span>
-                          ))}
-                          {dayHistory.log.length > 4 && <span style={{ fontSize: 9, color: "#444", fontFamily: MONO, padding: "3px 4px" }}>+{dayHistory.log.length - 4}</span>}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-
-                {planWeekOffset !== 0 && (
-                  <div className="tap" onClick={() => setPlanWeekOffset(0)} style={{ textAlign: "center", padding: 12, marginTop: 4 }}>
-                    <span style={{ fontSize: 11, color: "#5DCAA5", fontFamily: MONO }}>← Back to this week</span>
-                  </div>
-                )}
-              </div>
-            );
-          })()}
-
-          {/* ═══ HISTORY ═══ */}
-          {planView === "history" && (() => {
-            const sortedDates = Object.keys(history).sort().reverse();
-            const totalDays = sortedDates.length;
-            const totalDone = sortedDates.reduce((s, dk) => s + (history[dk]?.done || 0), 0);
-            const totalTrackedAll = sortedDates.reduce((s, dk) => s + (history[dk]?.totalMin || 0), 0);
-
-            return (
-              <div>
-                {/* Stats summary */}
-                <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-                  {[
-                    { v: totalDays, l: "DAYS", c: "#5DCAA5", bg: "#063d30" },
-                    { v: totalDone, l: "DONE", c: "#7F77DD", bg: "#1e1a4d" },
-                    { v: fmtDur(totalTrackedAll), l: "TRACKED", c: "#EF9F27", bg: "#351c02" },
-                  ].map((s, i) => (
-                    <div key={i} style={{ flex: 1, background: s.bg, borderRadius: 14, padding: "14px 10px", textAlign: "center" }}>
-                      <div style={{ fontSize: 22, fontWeight: 800, color: "#fff", lineHeight: 1, fontFamily: DISPLAY }}>{s.v}</div>
-                      <div style={{ fontSize: 9, color: s.c, marginTop: 4, fontFamily: MONO, letterSpacing: 1 }}>{s.l}</div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Income milestones */}
-                <div style={{ fontSize: 10, letterSpacing: 2, color: "#4a5568", fontFamily: MONO, marginBottom: 8 }}>INCOME TARGETS</div>
-                <div style={{ display: "flex", gap: 6, marginBottom: 16, overflowX: "auto" }} className="no-scroll">
-                  {INCOME.map(m => (
-                    <div key={m.label} style={{ flex: "0 0 auto", background: m.bg, borderRadius: 12, padding: "10px 14px", textAlign: "center", minWidth: 90 }}>
-                      <div style={{ fontSize: 15, fontWeight: 800, color: m.light, fontFamily: DISPLAY }}>{m.label}</div>
-                      <div style={{ fontSize: 9, color: m.mid, marginTop: 2, fontFamily: MONO }}>{m.desc}</div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Phase progress */}
-                <div style={{ fontSize: 10, letterSpacing: 2, color: "#4a5568", fontFamily: MONO, marginBottom: 8 }}>CAREER PHASES</div>
-                {PHASE_CARDS.map((p, i) => (
-                  <div key={p.id} style={{ background: p.bg, borderRadius: 12, padding: "12px 16px", marginBottom: 6, animation: `fadeUp 0.3s ease ${i * 0.05}s both` }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <div>
-                        <div style={{ fontSize: 9, fontFamily: MONO, fontWeight: 600, letterSpacing: 2, color: p.mid }}>{p.label}</div>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: p.light, fontFamily: DISPLAY, marginTop: 2 }}>{p.title}</div>
-                      </div>
-                      <div style={{ fontSize: 20, fontWeight: 800, color: p.light, fontFamily: DISPLAY }}>{p.pct}<span style={{ fontSize: 11, color: p.mid }}>%</span></div>
-                    </div>
-                    <div style={{ height: 3, background: p.dim, borderRadius: 2, marginTop: 8, overflow: "hidden" }}><div style={{ height: "100%", width: `${p.pct}%`, background: p.accent, borderRadius: 2 }} /></div>
-                  </div>
-                ))}
-
-                {/* Day-by-day history */}
-                {sortedDates.length > 0 && (
-                  <>
-                    <div style={{ fontSize: 10, letterSpacing: 2, color: "#4a5568", fontFamily: MONO, marginBottom: 8, marginTop: 16 }}>DAILY LOG</div>
-                    {sortedDates.slice(0, 14).map((dk, i) => {
-                      const dh = history[dk];
-                      if (!dh) return null;
-                      const d = new Date(dk + "T12:00:00");
-                      return (
-                        <div key={dk} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "#13131a", borderRadius: 10, marginBottom: 4, border: "1px solid #1e1e24", animation: `fadeUp 0.2s ease ${i * 0.03}s both` }}>
-                          <div style={{ width: 36, textAlign: "center" }}>
-                            <div style={{ fontSize: 9, color: "#555", fontFamily: MONO }}>{DAY_NAMES[d.getDay()]}</div>
-                            <div style={{ fontSize: 14, fontWeight: 700, color: "#888", fontFamily: DISPLAY }}>{d.getDate()}</div>
-                          </div>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: 12, color: "#ccc", fontFamily: DISPLAY, fontWeight: 600 }}>{dh.done} completed</div>
-                            <div style={{ fontSize: 10, color: "#555", fontFamily: MONO }}>{fmtDur(dh.totalMin)} tracked{dh.skipped > 0 ? ` · ${dh.skipped} moved` : ""}</div>
-                          </div>
-                          <div style={{ width: 40, height: 4, background: "#1e1e24", borderRadius: 2, overflow: "hidden" }}>
-                            <div style={{ height: "100%", width: dh.tasks > 0 ? `${Math.round((dh.done / dh.tasks) * 100)}%` : "0%", background: "#5DCAA5", borderRadius: 2 }} />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </>
-                )}
-
-                {sortedDates.length === 0 && (
-                  <div style={{ border: "1px dashed #2a2a30", borderRadius: 16, padding: "32px 20px", textAlign: "center", marginTop: 8 }}>
-                    <div style={{ fontSize: 14, color: "#555" }}>No history yet</div>
-                    <div style={{ fontSize: 11, color: "#333", fontFamily: MONO, marginTop: 4 }}>Complete tasks in the Today tab to build your log</div>
-                  </div>
-                )}
-              </div>
-            );
-          })()}
-        </div>
-      )}
 
       {/* ═══ POWER SETTINGS MODAL ═══ */}
       {showPowerSettings && (
@@ -1622,71 +1250,10 @@ export default function Home() {
         </div>
       )}
 
-      {/* ═══ TEMPLATE MODAL ═══ */}
-      {showTemplateModal && (
-        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-          <div onClick={() => setShowTemplateModal(false)} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)" }} />
-          <div style={{ position: "relative", width: "100%", maxWidth: 430, background: "#13131a", borderRadius: "24px 24px 0 0", padding: "24px 20px 36px", zIndex: 201, border: "1px solid #1e1e24", borderBottom: "none" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <div style={{ fontSize: 18, fontWeight: 700, color: "#E1F5EE", fontFamily: DISPLAY }}>{editingTemplate ? "Edit routine" : "New routine"}</div>
-              <div className="tap" onClick={() => setShowTemplateModal(false)} style={{ width: 32, height: 32, borderRadius: 10, background: "#1e1e24", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-              </div>
-            </div>
-
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 10, color: "#5DCAA5", fontFamily: MONO, letterSpacing: 2, marginBottom: 6 }}>TASK NAME</div>
-              <input autoFocus value={tplName} onChange={e => setTplName(e.target.value)} placeholder="e.g. Study C programming" style={{ width: "100%", background: "#0e0e12", border: "1px solid #2a2a30", borderRadius: 12, padding: "12px 14px", color: "#ccc", fontSize: 14, fontFamily: BODY, outline: "none" }} />
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
-              <div>
-                <div style={{ fontSize: 10, color: "#5DCAA5", fontFamily: MONO, letterSpacing: 2, marginBottom: 6 }}>TIME</div>
-                <input type="time" value={tplTime} onChange={e => setTplTime(e.target.value)} style={{ width: "100%", background: "#0e0e12", border: "1px solid #2a2a30", borderRadius: 12, padding: "12px 14px", color: "#ccc", fontSize: 14, fontFamily: MONO, outline: "none", colorScheme: "dark" }} />
-              </div>
-              <div>
-                <div style={{ fontSize: 10, color: "#5DCAA5", fontFamily: MONO, letterSpacing: 2, marginBottom: 6 }}>DURATION (MIN)</div>
-                <input type="number" value={tplDuration} onChange={e => setTplDuration(e.target.value)} style={{ width: "100%", background: "#0e0e12", border: "1px solid #2a2a30", borderRadius: 12, padding: "12px 14px", color: "#ccc", fontSize: 14, fontFamily: MONO, outline: "none" }} />
-              </div>
-            </div>
-
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 10, color: "#5DCAA5", fontFamily: MONO, letterSpacing: 2, marginBottom: 6 }}>TYPE</div>
-              <div style={{ display: "flex", gap: 6 }}>
-                {["work", "rest"].map(t => (
-                  <div key={t} className="tap" onClick={() => setTplType(t)} style={{
-                    flex: 1, padding: "10px 8px", borderRadius: 10, textAlign: "center", fontSize: 12, fontWeight: 700, fontFamily: MONO,
-                    background: tplType === t ? (t === "work" ? "#063d30" : "#1e1a4d") : "#0e0e12",
-                    border: `1px solid ${tplType === t ? (t === "work" ? "#5DCAA540" : "#7F77DD40") : "#2a2a30"}`,
-                    color: tplType === t ? (t === "work" ? "#5DCAA5" : "#7F77DD") : "#555"
-                  }}>{t.toUpperCase()}</div>
-                ))}
-              </div>
-            </div>
-
-            <div style={{ marginBottom: 20 }}>
-              <div style={{ fontSize: 10, color: "#5DCAA5", fontFamily: MONO, letterSpacing: 2, marginBottom: 6 }}>REPEAT ON</div>
-              <div style={{ display: "flex", gap: 5 }}>
-                {[1, 2, 3, 4, 5, 6, 0].map(d => (
-                  <div key={d} className="tap" onClick={() => toggleTplDay(d)} style={{
-                    flex: 1, padding: "10px 4px", borderRadius: 10, textAlign: "center", fontSize: 11, fontWeight: 700, fontFamily: MONO,
-                    background: tplDays.includes(d) ? "#5DCAA520" : "#0e0e12",
-                    border: `1px solid ${tplDays.includes(d) ? "#5DCAA540" : "#2a2a30"}`,
-                    color: tplDays.includes(d) ? "#5DCAA5" : "#555"
-                  }}>{DAY_SHORT[d]}</div>
-                ))}
-              </div>
-              <div style={{ fontSize: 10, color: "#333", fontFamily: MONO, marginTop: 6 }}>{tplDays.length === 0 ? "No days selected = every day" : `${tplDays.length} days per week`}</div>
-            </div>
-
-            <div className="tap" onClick={saveTemplate} style={{ background: "#5DCAA5", borderRadius: 14, padding: "14px", textAlign: "center", fontSize: 14, fontWeight: 700, color: "#063d30", fontFamily: DISPLAY }}>{editingTemplate ? "Save changes" : "Create routine"}</div>
-          </div>
-        </div>
-      )}
       {(popupState === "working" || popupState === "resting") && activeTask && (() => {
         const isW = popupState === "working"; const pc = isW ? "#5DCAA5" : "#7F77DD"; const pcBg = isW ? "#063d30" : "#1e1a4d"; const pcLight = isW ? "#E1F5EE" : "#EEEDFE";
         return (
-          <div style={{ position: "fixed", bottom: "calc(76px + env(safe-area-inset-bottom, 0px))", left: "50%", transform: "translateX(-50%)", width: "calc(100% - 28px)", maxWidth: 402, zIndex: 90 }}>
+          <div style={{ position: "fixed", bottom: "calc(16px + env(safe-area-inset-bottom, 0px))", left: "50%", transform: "translateX(-50%)", width: "calc(100% - 28px)", maxWidth: 402, zIndex: 90 }}>
             <div style={{ background: "#0c0c14", borderRadius: 20, padding: "18px 20px", border: `1.5px solid ${pc}35` }}>
               <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14 }}>
                 {/* Progress ring */}
@@ -1739,7 +1306,7 @@ export default function Home() {
 
       {/* ═══ PAUSED POPUP ═══ */}
       {popupState === "paused" && pausedTask && (
-        <div style={{ position: "fixed", bottom: "calc(76px + env(safe-area-inset-bottom, 0px))", left: "50%", transform: "translateX(-50%)", width: "calc(100% - 28px)", maxWidth: 402, zIndex: 90 }}>
+        <div style={{ position: "fixed", bottom: "calc(16px + env(safe-area-inset-bottom, 0px))", left: "50%", transform: "translateX(-50%)", width: "calc(100% - 28px)", maxWidth: 402, zIndex: 90 }}>
           <div style={{ background: "#0c0c14", borderRadius: 20, padding: "18px 20px", border: "1.5px solid #EF9F2735" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
               <div style={{ position: "relative", width: 48, height: 48, flexShrink: 0 }}>
@@ -1768,7 +1335,7 @@ export default function Home() {
 
       {/* ═══ GRACE PERIOD POPUP — overdue task within 15 min ═══ */}
       {popupState === "grace" && overdueTask && (
-        <div style={{ position: "fixed", bottom: "calc(76px + env(safe-area-inset-bottom, 0px))", left: "50%", transform: "translateX(-50%)", width: "calc(100% - 28px)", maxWidth: 402, zIndex: 90 }}>
+        <div style={{ position: "fixed", bottom: "calc(16px + env(safe-area-inset-bottom, 0px))", left: "50%", transform: "translateX(-50%)", width: "calc(100% - 28px)", maxWidth: 402, zIndex: 90 }}>
           <div style={{ background: "#0c0c14", borderRadius: 20, padding: "18px 20px", border: "1.5px solid #EF9F2740", animation: "graceFlash 2s infinite" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
               <div style={{ position: "relative", width: 48, height: 48, flexShrink: 0 }}>
@@ -1797,7 +1364,7 @@ export default function Home() {
 
       {/* ═══ UPCOMING POPUP ═══ */}
       {popupState === "upcoming" && upcoming && (
-        <div style={{ position: "fixed", bottom: "calc(76px + env(safe-area-inset-bottom, 0px))", left: "50%", transform: "translateX(-50%)", width: "calc(100% - 28px)", maxWidth: 402, zIndex: 90 }}>
+        <div style={{ position: "fixed", bottom: "calc(16px + env(safe-area-inset-bottom, 0px))", left: "50%", transform: "translateX(-50%)", width: "calc(100% - 28px)", maxWidth: 402, zIndex: 90 }}>
           <div style={{ background: "#0c0c14", borderRadius: 20, padding: "20px", border: "1.5px solid #EF9F2735" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
               <div style={{ position: "relative", width: 52, height: 52, flexShrink: 0 }}>
@@ -1999,30 +1566,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* ═══ BOTTOM NAV — 2 tabs: Today + Plan ═══ */}
-      <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, padding: "0 28px calc(12px + env(safe-area-inset-bottom, 0px))", zIndex: 100 }}>
-        <div style={{ background: "#18181f", borderRadius: 50, padding: "5px 6px", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, border: "1px solid #222230" }}>
-          {[
-            { id: "today", label: "Today", icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg> },
-            { id: "plan", label: "Plan", icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg> },
-          ].map(item => {
-            const active = bottomTab === item.id;
-            return (
-              <div key={item.id} className="tap" onClick={() => setBottomTab(item.id)} style={{
-                display: "flex", alignItems: "center", gap: 6,
-                padding: active ? "10px 24px" : "10px 18px",
-                borderRadius: 50,
-                background: active ? "#252530" : "transparent",
-                color: active ? "#f0f0f0" : "#3a3a42",
-                transition: "all 0.2s ease",
-              }}>
-                <div style={{ color: "inherit" }}>{item.icon}</div>
-                <span style={{ fontSize: 11, fontWeight: 700, fontFamily: MONO, letterSpacing: 0.5, opacity: active ? 1 : 0 }}>{item.label}</span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
     </div>
   );
 }
