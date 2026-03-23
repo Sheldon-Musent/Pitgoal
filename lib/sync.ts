@@ -170,15 +170,6 @@ export async function syncAllTasks(userId: string, tasks: any[], date: string) {
   }
 }
 
-  try {
-    const { error } = await supabase.from('tasks').upsert(payloads);
-    if (error) throw error;
-  } catch {
-    for (const p of payloads) {
-      addToQueue({ table: 'tasks', operation: 'upsert', data: p, timestamp: Date.now() });
-    }
-  }
-
 
 export async function deleteTask(taskId: string) {
   try {
