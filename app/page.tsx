@@ -109,6 +109,20 @@ const MOCK_CHATS: { [key: string]: { from: string; text: string; time: string }[
   ],
 };
 
+// Mock collab tasks (shared between friends)
+const MOCK_COLLAB_TASKS = [
+  { id: "collab1", name: "Complete TryHackMe room together", friend: "Siti", friendId: "f4", status: "pending", time: "15:00", duration: 90, type: "work" },
+  { id: "collab2", name: "Review each other's C code", friend: "Amir", friendId: "f1", status: "pending", time: "19:00", duration: 60, type: "work" },
+];
+
+// Friend activity feed items
+const FRIEND_ACTIVITY = [
+  { friendId: "f4", name: "Siti", action: "completed", task: "TryHackMe SOC Level 1 — Room 12", time: "12 min ago", type: "work" as const },
+  { friendId: "f2", name: "Mei Ling", action: "started", task: "Security+ Ch.4 study", time: "28 min ago", type: "work" as const },
+  { friendId: "f1", name: "Amir", action: "completed", task: "C pointers exercise set 3", time: "1h ago", type: "work" as const },
+  { friendId: "f2", name: "Mei Ling", action: "resting", task: "Coffee break", time: "now", type: "rest" as const },
+];
+
 const EVENTS: { [key: string]: string } = {
   "2026-01-01": "New Year", "2026-01-29": "Thaipusam", "2026-02-01": "Fed Territory",
   "2026-02-17": "CNY Day 1", "2026-02-18": "CNY Day 2", "2026-03-20": "Nuzul Quran",
@@ -247,6 +261,10 @@ export default function Home() {
   const [friendSearch, setFriendSearch] = useState("");
   const [friendChatOpen, setFriendChatOpen] = useState<string | null>(null);
   const [chatInput, setChatInput] = useState("");
+  const [profileView, setProfileView] = useState<'main' | 'settings'>('main');
+  const [settingsSection, setSettingsSection] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState("Anonymous");
+  const [editingName, setEditingName] = useState(false);
   // Plan data (kept for template auto-gen on day rollover)
   const [templates, setTemplates] = useState<Template[]>([]);
   const [history, setHistory] = useState<{ [date: string]: DayHistory }>({});
@@ -1176,6 +1194,119 @@ export default function Home() {
           </>
         )}
 
+        {/* ═══ COLLAB TASKS (in today view) ═══ */}
+        {activeTab === "today" && MOCK_COLLAB_TASKS.length > 0 && (
+          <>
+            <Divider />
+            <div style={{ marginBottom: 4 }}>
+              <div style={{ fontSize: 10, color: "#D4537E", fontFamily: MONO, letterSpacing: 2, marginBottom: 10 }}>COLLAB TASKS</div>
+              {MOCK_COLLAB_TASKS.map((ct, i) => (
+                <div key={ct.id} style={{
+                  background: "#13131a", borderRadius: 16, padding: "14px 16px", marginBottom: 8,
+                  border: "1px solid #D4537E20",
+                  display: "flex", alignItems: "center", gap: 12,
+                  animation: `fadeUp 0.3s ease ${i * 0.05}s both`,
+                }}>
+                  {/* Friend avatar */}
+                  <div style={{
+                    width: 34, height: 34, borderRadius: 10,
+                    background: "#D4537E15",
+                    display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                  }}>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: "#D4537E", fontFamily: DISPLAY }}>{ct.friend[0]}</span>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, color: "#ccc", fontWeight: 700, fontFamily: DISPLAY }}>{ct.name}</div>
+                    <div style={{ display: "flex", gap: 6, marginTop: 4, alignItems: "center" }}>
+                      <span style={{ fontSize: 9, color: "#D4537E", background: "#D4537E15", padding: "2px 7px", borderRadius: 4, fontFamily: MONO, fontWeight: 600 }}>COLLAB</span>
+                      <span style={{ fontSize: 10, color: "#555", fontFamily: MONO }}>{ct.time} · {fmtDur(ct.duration)}</span>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 6, flexShrink: 0, alignItems: "center" }}>
+                    <span style={{ fontSize: 10, color: "#D4537E80", fontFamily: MONO }}>w/ {ct.friend}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* ═══ FRIENDS ACTIVITY FEED (in today view) ═══ */}
+        {activeTab === "today" && (
+          <>
+            <Divider />
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <div style={{ fontSize: 10, color: "#7F77DD", fontFamily: MONO, letterSpacing: 2 }}>FRIENDS ACTIVITY</div>
+                <div className="tap" onClick={() => setBottomTab('friends')} style={{ fontSize: 9, color: "#555", fontFamily: MONO, cursor: "pointer", letterSpacing: 1 }}>VIEW ALL →</div>
+              </div>
+
+              {/* Live status strip */}
+              <div style={{ display: "flex", gap: 8, overflowX: "auto", marginBottom: 12, paddingBottom: 2 }} className="no-scroll">
+                {MOCK_FRIENDS.filter(f => f.statusType !== "idle").map(friend => {
+                  const sc = friend.statusType === "work" ? "#5DCAA5" : "#7F77DD";
+                  return (
+                    <div key={friend.id} className="tap" onClick={() => { setBottomTab('friends'); setFriendChatOpen(friend.id); }} style={{
+                      flexShrink: 0, display: "flex", alignItems: "center", gap: 8,
+                      background: `${sc}08`, border: `1px solid ${sc}20`,
+                      borderRadius: 12, padding: "8px 12px", cursor: "pointer",
+                    }}>
+                      <div style={{ position: "relative" }}>
+                        <div style={{
+                          width: 28, height: 28, borderRadius: 8,
+                          background: `${sc}18`,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                        }}>
+                          <span style={{ fontSize: 11, fontWeight: 800, color: sc, fontFamily: DISPLAY }}>{friend.name[0]}</span>
+                        </div>
+                        <div style={{ position: "absolute", bottom: -2, right: -2, width: 8, height: 8, borderRadius: "50%", background: sc, border: "2px solid #0e0e12" }} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "#E1F5EE", fontFamily: DISPLAY, whiteSpace: "nowrap" }}>{friend.name}</div>
+                        <div style={{ fontSize: 9, color: sc, fontFamily: MONO, whiteSpace: "nowrap", maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis" }}>{friend.status}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Activity feed */}
+              {FRIEND_ACTIVITY.slice(0, 4).map((activity, i) => {
+                const isComplete = activity.action === "completed";
+                const isRest = activity.type === "rest";
+                const accent = isRest ? "#7F77DD" : isComplete ? "#5DCAA5" : "#EF9F27";
+                const actionLabel = isComplete ? "✓ done" : isRest ? "◆ resting" : "▶ started";
+                return (
+                  <div key={i} className="tap" onClick={() => { setBottomTab('friends'); setFriendChatOpen(activity.friendId); }} style={{
+                    display: "flex", alignItems: "center", gap: 12,
+                    padding: "10px 14px", marginBottom: 4, borderRadius: 12,
+                    background: "rgba(255,255,255,0.015)",
+                    border: "1px solid #1e1e24",
+                    cursor: "pointer",
+                    animation: `fadeUp 0.25s ease ${i * 0.04}s both`,
+                  }}>
+                    <div style={{
+                      width: 28, height: 28, borderRadius: 8,
+                      background: `${accent}12`,
+                      display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                    }}>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: accent, fontFamily: DISPLAY }}>{activity.name[0]}</span>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: "#ccc", fontFamily: DISPLAY }}>{activity.name}</span>
+                        <span style={{ fontSize: 9, color: accent, fontFamily: MONO, fontWeight: 600 }}>{actionLabel}</span>
+                      </div>
+                      <div style={{ fontSize: 11, color: "#555", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{activity.task}</div>
+                    </div>
+                    <div style={{ fontSize: 9, color: "#3a3a42", fontFamily: MONO, flexShrink: 0 }}>{activity.time}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+
         {activeTab === "categories" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {PHASE_CARDS.map((p, i) => (
@@ -1388,68 +1519,314 @@ export default function Home() {
       {/* ═══ TAB 4: PROFILE ═══ */}
       {bottomTab === 'profile' && (
         <div style={{ padding: "16px 14px 0" }}>
-          {/* Header with settings gear */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-            <div style={{ fontSize: 20, fontWeight: 800, color: "#E1F5EE", fontFamily: DISPLAY }}>Profile</div>
-            <div className="tap" onClick={() => setShowPowerSettings(true)} style={{ width: 36, height: 36, borderRadius: 12, background: "#1e1e24", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" /></svg>
-            </div>
-          </div>
 
-          {/* User card */}
-          <div style={{ background: "#13131a", borderRadius: 20, padding: "24px 20px", border: "1px solid #1e1e24", marginBottom: 16 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20 }}>
-              <div style={{ width: 56, height: 56, borderRadius: 18, background: "#5DCAA515", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#5DCAA5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+          {profileView === 'main' ? (
+            <>
+              {/* Header */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+                <div style={{ fontSize: 20, fontWeight: 800, color: "#E1F5EE", fontFamily: DISPLAY }}>Profile</div>
+                <div className="tap" onClick={() => { setProfileView('settings'); setSettingsSection(null); }} style={{ width: 36, height: 36, borderRadius: 12, background: "#1e1e24", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" /></svg>
+                </div>
               </div>
-              <div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: "#E1F5EE", fontFamily: DISPLAY }}>Anonymous</div>
-                <div style={{ fontSize: 10, color: "#555", fontFamily: MONO }}>{userId ? `ID: ${userId.slice(0, 8)}...` : 'Offline mode'}</div>
-              </div>
-            </div>
 
-            {/* Stats grid */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+              {/* User card */}
+              <div style={{ background: "#13131a", borderRadius: 20, padding: "24px 20px", border: "1px solid #1e1e24", marginBottom: 16 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20 }}>
+                  <div style={{ width: 56, height: 56, borderRadius: 18, background: "#5DCAA515", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <span style={{ fontSize: 22, fontWeight: 800, color: "#5DCAA5", fontFamily: DISPLAY }}>{displayName[0]?.toUpperCase()}</span>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 18, fontWeight: 800, color: "#E1F5EE", fontFamily: DISPLAY }}>{displayName}</div>
+                    <div style={{ fontSize: 10, color: "#555", fontFamily: MONO }}>{userId ? `ID: ${userId.slice(0, 8)}...` : 'Offline mode'}</div>
+                  </div>
+                </div>
+
+                {/* Stats grid */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                  {[
+                    { v: tasksDoneCount, l: "TODAY", c: "#5DCAA5", bg: "#063d30" },
+                    { v: streak, l: "STREAK", c: "#EF9F27", bg: "#351c02" },
+                    { v: "0", l: "COINS", c: "#D4537E", bg: "#3e1022" },
+                  ].map((s, i) => (
+                    <div key={i} style={{ background: s.bg, borderRadius: 14, padding: "14px 10px", textAlign: "center" }}>
+                      <div style={{ fontSize: 24, fontWeight: 800, color: "#fff", fontFamily: DISPLAY, lineHeight: 1 }}>{s.v}</div>
+                      <div style={{ fontSize: 9, color: s.c, fontFamily: MONO, letterSpacing: 1, marginTop: 4 }}>{s.l}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Quick links */}
               {[
-                { v: tasksDoneCount, l: "TODAY", c: "#5DCAA5", bg: "#063d30" },
-                { v: streak, l: "STREAK", c: "#EF9F27", bg: "#351c02" },
-                { v: "0", l: "COINS", c: "#D4537E", bg: "#3e1022" },
-              ].map((s, i) => (
-                <div key={i} style={{ background: s.bg, borderRadius: 14, padding: "14px 10px", textAlign: "center" }}>
-                  <div style={{ fontSize: 24, fontWeight: 800, color: "#fff", fontFamily: DISPLAY, lineHeight: 1 }}>{s.v}</div>
-                  <div style={{ fontSize: 9, color: s.c, fontFamily: MONO, letterSpacing: 1, marginTop: 4 }}>{s.l}</div>
+                { icon: "⚡", label: "Energy settings", desc: `${ePct}% remaining · ${drainRates.maxEnergyHours}h max`, color: "#5DCAA5", bg: "#5DCAA515", action: () => { setProfileView('settings'); setSettingsSection('energy'); } },
+                { icon: "🐾", label: "Pet settings", desc: "Manage your digital companion", color: "#7F77DD", bg: "#7F77DD15", action: null, soon: true },
+                { icon: "◈", label: "Coin history", desc: "Earned, spent, invested", color: "#EF9F27", bg: "#EF9F2715", action: null, soon: true },
+              ].map((item, i) => (
+                <div key={i} className={item.action ? "tap" : ""} onClick={item.action || undefined} style={{ background: "#13131a", borderRadius: 16, padding: "18px 20px", border: "1px solid #1e1e24", marginBottom: 8, display: "flex", alignItems: "center", gap: 14, cursor: item.action ? "pointer" : "default" }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 12, background: item.bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>{item.icon}</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "#E1F5EE", fontFamily: DISPLAY }}>{item.label}</div>
+                    <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>{item.desc}</div>
+                  </div>
+                  {item.soon ? (
+                    <div style={{ fontSize: 9, color: "#333", fontFamily: MONO, letterSpacing: 1, background: "#1e1e24", padding: "4px 8px", borderRadius: 6 }}>SOON</div>
+                  ) : (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6" /></svg>
+                  )}
                 </div>
               ))}
-            </div>
-          </div>
 
-          {/* Pet settings placeholder */}
-          <div style={{ background: "#13131a", borderRadius: 16, padding: "18px 20px", border: "1px solid #1e1e24", marginBottom: 8, display: "flex", alignItems: "center", gap: 14 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 12, background: "#7F77DD15", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>🐾</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "#E1F5EE", fontFamily: DISPLAY }}>Pet settings</div>
-              <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>Manage your digital companion</div>
-            </div>
-            <div style={{ fontSize: 9, color: "#333", fontFamily: MONO, letterSpacing: 1, background: "#1e1e24", padding: "4px 8px", borderRadius: 6 }}>SOON</div>
-          </div>
+              {/* Sync status */}
+              <div style={{ background: "#13131a", borderRadius: 16, padding: "14px 20px", border: "1px solid #1e1e24", marginBottom: 8, display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: userId ? "#5DCAA5" : "#D4537E", flexShrink: 0 }} />
+                <span style={{ fontSize: 12, color: userId ? "#5DCAA580" : "#D4537E80" }}>{userId ? 'Synced to Supabase' : 'Offline — local only'}</span>
+              </div>
 
-          {/* Coin history placeholder */}
-          <div style={{ background: "#13131a", borderRadius: 16, padding: "18px 20px", border: "1px solid #1e1e24", marginBottom: 8, display: "flex", alignItems: "center", gap: 14 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 12, background: "#EF9F2715", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, color: "#EF9F27", flexShrink: 0 }}>◈</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "#E1F5EE", fontFamily: DISPLAY }}>Coin history</div>
-              <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>Earned, spent, invested</div>
-            </div>
-            <div style={{ fontSize: 9, color: "#333", fontFamily: MONO, letterSpacing: 1, background: "#1e1e24", padding: "4px 8px", borderRadius: 6 }}>SOON</div>
-          </div>
+              <div style={{ fontSize: 11, color: "#333", fontFamily: MONO, textAlign: "center", marginTop: 20 }}>PITGOAL v8.5</div>
+            </>
+          ) : (
+            /* ═══ SETTINGS VIEW ═══ */
+            <>
+              {/* Settings header */}
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+                <div className="tap" onClick={() => { if (settingsSection) setSettingsSection(null); else setProfileView('main'); }} style={{ width: 36, height: 36, borderRadius: 10, background: "#1e1e24", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2" strokeLinecap="round"><polyline points="15 18 9 12 15 6" /></svg>
+                </div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: "#E1F5EE", fontFamily: DISPLAY }}>
+                  {settingsSection === 'energy' ? 'Energy' : settingsSection === 'account' ? 'Account' : settingsSection === 'notifications' ? 'Notifications' : settingsSection === 'data' ? 'Data' : 'Settings'}
+                </div>
+              </div>
 
-          {/* Sync status */}
-          <div style={{ background: "#13131a", borderRadius: 16, padding: "14px 20px", border: "1px solid #1e1e24", marginBottom: 8, display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 8, height: 8, borderRadius: "50%", background: userId ? "#5DCAA5" : "#D4537E", flexShrink: 0 }} />
-            <span style={{ fontSize: 12, color: userId ? "#5DCAA580" : "#D4537E80" }}>{userId ? 'Synced to Supabase' : 'Offline — local only'}</span>
-          </div>
+              {!settingsSection && (
+                <>
+                  {/* Settings menu items */}
+                  {[
+                    { id: 'account', icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5DCAA5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>, label: "Account", desc: displayName, color: "#5DCAA5" },
+                    { id: 'energy', icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#EF9F27" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>, label: "Energy & sleep", desc: `Wake ${fmtTime(drainRates.wakeHour, drainRates.wakeMinute)} · Sleep ${fmtTime(drainRates.sleepHour, drainRates.sleepMinute)}`, color: "#EF9F27" },
+                    { id: 'notifications', icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7F77DD" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 01-3.46 0" /></svg>, label: "Notifications", desc: notifEnabled ? 'Enabled' : 'Disabled', color: "#7F77DD" },
+                    { id: 'data', icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D4537E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>, label: "Data & storage", desc: "Export, reset, manage", color: "#D4537E" },
+                  ].map((item) => (
+                    <div key={item.id} className="tap" onClick={() => setSettingsSection(item.id)} style={{
+                      background: "#13131a", borderRadius: 16, padding: "16px 18px", border: "1px solid #1e1e24", marginBottom: 8,
+                      display: "flex", alignItems: "center", gap: 14, cursor: "pointer",
+                    }}>
+                      <div style={{ width: 40, height: 40, borderRadius: 12, background: `${item.color}10`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        {item.icon}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: "#E1F5EE", fontFamily: DISPLAY }}>{item.label}</div>
+                        <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>{item.desc}</div>
+                      </div>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6" /></svg>
+                    </div>
+                  ))}
+                </>
+              )}
 
-          <div style={{ fontSize: 11, color: "#333", fontFamily: MONO, textAlign: "center", marginTop: 20 }}>PITGOAL v8.4</div>
+              {/* ── ACCOUNT SETTINGS ── */}
+              {settingsSection === 'account' && (
+                <div>
+                  <div style={{ background: "#13131a", borderRadius: 16, padding: "20px", border: "1px solid #1e1e24", marginBottom: 12 }}>
+                    <div style={{ fontSize: 10, color: "#5DCAA5", fontFamily: MONO, letterSpacing: 2, marginBottom: 10 }}>DISPLAY NAME</div>
+                    {editingName ? (
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <input autoFocus value={displayName} onChange={e => setDisplayName(e.target.value)} onKeyDown={e => e.key === "Enter" && setEditingName(false)} style={{ flex: 1, background: "#0e0e12", border: "1px solid #5DCAA530", borderRadius: 12, padding: "12px 14px", color: "#ccc", fontSize: 14, fontFamily: BODY, outline: "none" }} />
+                        <div className="tap" onClick={() => setEditingName(false)} style={{ background: "#5DCAA5", borderRadius: 12, padding: "12px 16px", fontSize: 12, fontWeight: 700, color: "#063d30", fontFamily: MONO, cursor: "pointer", display: "flex", alignItems: "center" }}>SAVE</div>
+                      </div>
+                    ) : (
+                      <div className="tap" onClick={() => setEditingName(true)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", background: "#0e0e12", borderRadius: 12, border: "1px solid #2a2a30", cursor: "pointer" }}>
+                        <span style={{ fontSize: 14, color: "#ccc" }}>{displayName}</span>
+                        <span style={{ fontSize: 10, color: "#555", fontFamily: MONO }}>TAP TO EDIT</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ background: "#13131a", borderRadius: 16, padding: "20px", border: "1px solid #1e1e24", marginBottom: 12 }}>
+                    <div style={{ fontSize: 10, color: "#5DCAA5", fontFamily: MONO, letterSpacing: 2, marginBottom: 10 }}>USER ID</div>
+                    <div style={{ fontSize: 12, color: "#555", fontFamily: MONO, wordBreak: "break-all" }}>{userId || 'Not connected'}</div>
+                  </div>
+
+                  <div style={{ background: "#13131a", borderRadius: 16, padding: "20px", border: "1px solid #1e1e24" }}>
+                    <div style={{ fontSize: 10, color: "#5DCAA5", fontFamily: MONO, letterSpacing: 2, marginBottom: 10 }}>SYNC STATUS</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <div style={{ width: 10, height: 10, borderRadius: "50%", background: userId ? "#5DCAA5" : "#D4537E" }} />
+                      <span style={{ fontSize: 13, color: userId ? "#5DCAA5" : "#D4537E" }}>{userId ? 'Connected to Supabase' : 'Offline mode'}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ── ENERGY SETTINGS ── */}
+              {settingsSection === 'energy' && (
+                <div>
+                  {/* Wake/sleep times */}
+                  <div style={{ background: "#13131a", borderRadius: 16, padding: "20px", border: "1px solid #1e1e24", marginBottom: 12 }}>
+                    <div style={{ fontSize: 10, color: "#EF9F27", fontFamily: MONO, letterSpacing: 2, marginBottom: 14 }}>SCHEDULE</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                      <div>
+                        <div style={{ fontSize: 10, color: "#555", fontFamily: MONO, marginBottom: 6 }}>WAKE UP</div>
+                        <input type="time" value={fmtTime(drainRates.wakeHour, drainRates.wakeMinute)} onChange={e => { const [h, m] = e.target.value.split(":").map(Number); saveDrainRates({ ...drainRates, wakeHour: h, wakeMinute: m }); }} style={{ width: "100%", background: "#0e0e12", border: "1px solid #2a2a30", borderRadius: 12, padding: "12px 14px", color: "#EF9F27", fontSize: 16, fontFamily: MONO, outline: "none", colorScheme: "dark", fontWeight: 700 }} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 10, color: "#555", fontFamily: MONO, marginBottom: 6 }}>SLEEP</div>
+                        <input type="time" value={fmtTime(drainRates.sleepHour, drainRates.sleepMinute)} onChange={e => { const [h, m] = e.target.value.split(":").map(Number); saveDrainRates({ ...drainRates, sleepHour: h, sleepMinute: m }); }} style={{ width: "100%", background: "#0e0e12", border: "1px solid #2a2a30", borderRadius: 12, padding: "12px 14px", color: "#EF9F27", fontSize: 16, fontFamily: MONO, outline: "none", colorScheme: "dark", fontWeight: 700 }} />
+                      </div>
+                    </div>
+                    <div style={{ marginTop: 12 }}>
+                      <div style={{ fontSize: 10, color: "#555", fontFamily: MONO, marginBottom: 6 }}>MAX ENERGY (HOURS)</div>
+                      <input type="number" value={drainRates.maxEnergyHours} onChange={e => { const v = Math.min(24, Math.max(1, parseInt(e.target.value) || 17)); saveDrainRates({ ...drainRates, maxEnergyHours: v }); }} style={{ width: "100%", background: "#0e0e12", border: "1px solid #2a2a30", borderRadius: 12, padding: "12px 14px", color: "#EF9F27", fontSize: 16, fontFamily: MONO, outline: "none", fontWeight: 700 }} />
+                    </div>
+                  </div>
+
+                  {/* Drain rates */}
+                  <div style={{ background: "#13131a", borderRadius: 16, padding: "20px", border: "1px solid #1e1e24" }}>
+                    <div style={{ fontSize: 10, color: "#EF9F27", fontFamily: MONO, letterSpacing: 2, marginBottom: 6 }}>DRAIN RATES</div>
+                    <div style={{ fontSize: 11, color: "#444", marginBottom: 14 }}>How fast each state consumes energy. 1x = 1 min per real min.</div>
+                    {([
+                      { key: "idle" as const, label: "IDLE", desc: "No task running", color: "#555", icon: "○" },
+                      { key: "work" as const, label: "WORK", desc: "Normal task drain", color: "#5DCAA5", icon: "▶" },
+                      { key: "urgent" as const, label: "URGENT", desc: "High intensity", color: "#D4537E", icon: "⚡" },
+                      { key: "rest" as const, label: "REST", desc: "Recharge rate", color: "#7F77DD", icon: "◆" },
+                    ]).map(item => {
+                      const val = drainRates[item.key];
+                      const limits = RATE_LIMITS[item.key];
+                      return (
+                        <div key={item.key} style={{ marginBottom: 16 }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <span style={{ color: item.color, fontSize: 12 }}>{item.icon}</span>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: item.color, fontFamily: MONO }}>{item.label}</span>
+                              <span style={{ fontSize: 10, color: "#444" }}>{item.desc}</span>
+                            </div>
+                            <span style={{ fontSize: 14, fontWeight: 700, color: item.color, fontFamily: MONO }}>{val}x</span>
+                          </div>
+                          <input type="range" min={limits.min * 10} max={limits.max * 10} value={val * 10} onChange={e => saveDrainRates({ ...drainRates, [item.key]: parseInt(e.target.value) / 10 })} style={{ width: "100%", accentColor: item.color }} />
+                        </div>
+                      );
+                    })}
+                    <div className="tap" onClick={() => saveDrainRates(DEFAULT_RATES)} style={{ textAlign: "center", padding: "10px", borderRadius: 10, border: "1px solid #2a2a30", fontSize: 11, color: "#555", fontFamily: MONO, cursor: "pointer", marginTop: 4 }}>RESET TO DEFAULTS</div>
+                  </div>
+                </div>
+              )}
+
+              {/* ── NOTIFICATION SETTINGS ── */}
+              {settingsSection === 'notifications' && (
+                <div>
+                  <div style={{ background: "#13131a", borderRadius: 16, padding: "20px", border: "1px solid #1e1e24", marginBottom: 12 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: "#E1F5EE", fontFamily: DISPLAY }}>Task reminders</div>
+                        <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>Get notified when tasks are about to start</div>
+                      </div>
+                      <div className="tap" onClick={async () => {
+                        if (notifEnabled) {
+                          clearAllNotifications();
+                          setNotifEnabled(false);
+                        } else {
+                          const ok = await initNotifications();
+                          setNotifEnabled(ok);
+                          if (ok) {
+                            scheduleTaskNotifications(tasks);
+                            scheduleDaySummary(drainRates.sleepHour, drainRates.sleepMinute);
+                          }
+                        }
+                      }} style={{
+                        width: 50, height: 28, borderRadius: 14, cursor: "pointer",
+                        background: notifEnabled ? "#5DCAA5" : "#2a2a30",
+                        display: "flex", alignItems: "center",
+                        padding: "2px",
+                        transition: "background 0.2s",
+                      }}>
+                        <div style={{
+                          width: 24, height: 24, borderRadius: 12,
+                          background: "#fff",
+                          transform: notifEnabled ? "translateX(22px)" : "translateX(0)",
+                          transition: "transform 0.2s",
+                        }} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ background: "#13131a", borderRadius: 16, padding: "20px", border: "1px solid #1e1e24", marginBottom: 12 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "#E1F5EE", fontFamily: DISPLAY }}>Day summary</div>
+                    <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>Summary notification at bedtime ({fmtTime(drainRates.sleepHour, drainRates.sleepMinute)})</div>
+                    <div style={{ marginTop: 8, fontSize: 10, color: notifEnabled ? "#5DCAA580" : "#D4537E80", fontFamily: MONO }}>{notifEnabled ? "ACTIVE" : "REQUIRES NOTIFICATIONS ON"}</div>
+                  </div>
+
+                  <div style={{ background: "#13131a", borderRadius: 16, padding: "20px", border: "1px solid #1e1e24" }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "#E1F5EE", fontFamily: DISPLAY }}>Pause reminders</div>
+                    <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>Reminds you to resume after 30 min pause</div>
+                    <div style={{ marginTop: 8, fontSize: 10, color: notifEnabled ? "#5DCAA580" : "#D4537E80", fontFamily: MONO }}>{notifEnabled ? "ACTIVE" : "REQUIRES NOTIFICATIONS ON"}</div>
+                  </div>
+                </div>
+              )}
+
+              {/* ── DATA SETTINGS ── */}
+              {settingsSection === 'data' && (
+                <div>
+                  <div style={{ background: "#13131a", borderRadius: 16, padding: "20px", border: "1px solid #1e1e24", marginBottom: 12 }}>
+                    <div style={{ fontSize: 10, color: "#D4537E", fontFamily: MONO, letterSpacing: 2, marginBottom: 12 }}>STORAGE</div>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                      <span style={{ fontSize: 12, color: "#888" }}>Tasks today</span>
+                      <span style={{ fontSize: 12, color: "#ccc", fontFamily: MONO }}>{tasks.length}</span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                      <span style={{ fontSize: 12, color: "#888" }}>Templates</span>
+                      <span style={{ fontSize: 12, color: "#ccc", fontFamily: MONO }}>{templates.length}</span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                      <span style={{ fontSize: 12, color: "#888" }}>History days</span>
+                      <span style={{ fontSize: 12, color: "#ccc", fontFamily: MONO }}>{Object.keys(history).length}</span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span style={{ fontSize: 12, color: "#888" }}>Custom groups</span>
+                      <span style={{ fontSize: 12, color: "#ccc", fontFamily: MONO }}>{customGroups.length}</span>
+                    </div>
+                  </div>
+
+                  <div className="tap" onClick={() => {
+                    const exportData = {
+                      tasks, dayLog, templates, history, customGroups, drainRates, streak,
+                      exportedAt: new Date().toISOString(),
+                      version: "v8.5",
+                    };
+                    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url; a.download = `pitgoal-export-${getMYDate()}.json`;
+                    a.click(); URL.revokeObjectURL(url);
+                  }} style={{ background: "#13131a", borderRadius: 16, padding: "18px 20px", border: "1px solid #5DCAA530", marginBottom: 8, display: "flex", alignItems: "center", gap: 14, cursor: "pointer" }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 12, background: "#5DCAA515", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5DCAA5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: "#E1F5EE", fontFamily: DISPLAY }}>Export data</div>
+                      <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>Download as JSON file</div>
+                    </div>
+                  </div>
+
+                  <div className="tap" onClick={() => {
+                    if (confirm("Reset ALL data? Tasks, templates, history — everything. Cannot be undone.")) {
+                      setTasks([]); setDayLog([]); setTemplates([]); setHistory({}); setStreak(0);
+                      setCustomGroups([]); setEnergyUsed(0); setEnergyCharged(0);
+                      setActiveTask(null); setPausedTask(null); setSwitchingFrom(null);
+                      try { localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(PLAN_KEY); localStorage.removeItem(SETTINGS_KEY); } catch (e) {}
+                      setSettingsSection(null);
+                    }
+                  }} style={{ background: "#13131a", borderRadius: 16, padding: "18px 20px", border: "1px solid #D4537E30", marginBottom: 8, display: "flex", alignItems: "center", gap: 14, cursor: "pointer" }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 12, background: "#D4537E15", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D4537E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: "#D4537E", fontFamily: DISPLAY }}>Reset all data</div>
+                      <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>Clear everything and start fresh</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
 
@@ -1471,7 +1848,7 @@ export default function Home() {
           const isActive = bottomTab === tab.id;
           const color = isActive ? "#5DCAA5" : "#3a3a42";
           return (
-            <div key={tab.id} className="tap" onClick={() => { setBottomTab(tab.id); if (tab.id === 'friends') setFriendChatOpen(null); }} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "4px 12px", cursor: "pointer" }}>
+            <div key={tab.id} className="tap" onClick={() => { setBottomTab(tab.id); if (tab.id === 'friends') setFriendChatOpen(null); if (tab.id === 'profile') { setProfileView('main'); setSettingsSection(null); } }} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "4px 12px", cursor: "pointer" }}>
               {tab.icon(color)}
               <span style={{ fontSize: 9, fontWeight: 700, color, fontFamily: MONO, letterSpacing: 1 }}>{tab.label}</span>
             </div>
