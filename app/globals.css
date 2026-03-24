@@ -157,3 +157,8 @@ input[type="number"] {
 [data-theme="light"] input[type="number"] {
   color-scheme: light;
 }
+
+body {
+  margin: 0;
+  background: #050505;
+}
