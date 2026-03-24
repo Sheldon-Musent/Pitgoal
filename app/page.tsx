@@ -8,6 +8,7 @@ import { ensureAuth, syncAllTasks, syncDayLog, saveProfile } from "../lib/sync";
 import {
   STORAGE_KEY, PLAN_KEY, SETTINGS_KEY, GRACE_PERIOD_MS, DEFAULT_RATES,
   DISPLAY, BODY, MONO, PHASE_CARDS, INCOME, EVENTS, DAYS, MONTHS_SHORT,
+  MOCK_COLLAB_TASKS,
 } from "../lib/constants";
 import {
   pad, fmtTime, fmtDur, dateKey, nowMinutes, isSameDay, getAllDatesInMonth,
@@ -352,55 +353,69 @@ export default function Home() {
       {bottomTab === "main" && (
         <div style={{ padding: "16px 14px 0" }}>
 
-          {/* Power bar (collapsed) */}
-          <div className="tap" onClick={() => setPowerExpanded(!powerExpanded)} style={{ marginBottom: 6 }}>
-            <div style={{ background: "var(--card)", borderRadius: 50, padding: "12px 20px", border: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ fontSize: 15, fontWeight: 700, color: ePct > 30 ? "var(--accent)" : ePct > 10 ? "var(--warn)" : "var(--danger)", fontFamily: MONO }}>{ePct}%</div>
-              <div style={{ flex: 1, height: 8, background: "var(--border)", borderRadius: 100, overflow: "hidden" }}>
+          {/* ═══ SECTION A: Power 75% + Record 25% ═══ */}
+          <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+            {/* Power bar — 75% */}
+            <div className="tap" onClick={() => setPowerExpanded(!powerExpanded)} style={{ flex: 3, background: "var(--card)", borderRadius: 50, padding: "10px 16px", border: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: ePct > 30 ? "var(--accent)" : ePct > 10 ? "var(--warn)" : "var(--danger)", fontFamily: MONO }}>{ePct}%</div>
+              <div style={{ flex: 1, height: 6, background: "var(--border)", borderRadius: 100, overflow: "hidden" }}>
                 <div style={{ width: `${ePct}%`, height: "100%", background: ePct > 30 ? "var(--accent)" : ePct > 10 ? "var(--warn)" : "var(--danger)", borderRadius: 100, transition: "width 1s" }} />
               </div>
-              <div style={{ fontSize: 11, color: "var(--t4)", fontFamily: MONO }}>{eHrs}h</div>
+              <div style={{ fontSize: 10, color: "var(--t5)", fontFamily: MONO }}>{eHrs}h</div>
             </div>
-          </div>
-
-          {/* Stats row */}
-          <div style={{ background: "var(--card)", borderRadius: 16, padding: "10px 14px", border: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 12, marginBottom: 6 }}>
-            <div style={{ display: "flex", gap: 10 }}>
-              {[{ v: tasksDoneCount, l: "TASKS", c: "var(--accent)" }, { v: restsDoneCount, l: "RESTS", c: "var(--rest)" }, { v: skippedCount, l: "MOVED", c: "var(--warn)" }].map((s, i) => (
-                <div key={i} style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: 16, fontWeight: 800, color: "var(--t1)", lineHeight: 1, fontFamily: DISPLAY }}>{s.v}</div>
-                  <div style={{ fontSize: 8, color: s.c, fontFamily: MONO, letterSpacing: 1, marginTop: 2 }}>{s.l}</div>
-                </div>
+            {/* Record — 25% */}
+            <div style={{ flex: 1, background: "var(--card)", borderRadius: 50, padding: "10px 8px", border: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+              {[{ v: tasksDoneCount, c: "var(--accent)" }, { v: restsDoneCount, c: "var(--rest)" }, { v: skippedCount, c: "var(--warn)" }].map((s, i) => (
+                <div key={i} style={{ fontSize: 14, fontWeight: 800, color: s.c, fontFamily: DISPLAY, lineHeight: 1 }}>{s.v}</div>
               ))}
             </div>
-            <div style={{ flex: 1 }} />
-            <div style={{ fontSize: 11, color: "var(--t4)", fontFamily: MONO }}>{fmtDur(totalTracked)}</div>
           </div>
 
-          <Divider />
-
-          {/* Date strip */}
-          <div style={{ marginBottom: 8 }}>
+          {/* ═══ SECTION B: Calendar — month pill + 3 dates ═══ */}
+          <div style={{ marginBottom: 14 }}>
             <div style={{ display: "flex", gap: 5, alignItems: "stretch" }}>
-              <div ref={dateScrollRef} style={{ display: "flex", gap: 5, overflowX: "auto", flex: 1, scrollbarWidth: "none" }} className="no-scroll">
-                {allDates.map(d => {
-                  const isT = isSameDay(d, today); const isSel = isSameDay(d, selectedDate); const ev = EVENTS[dateKey(d)];
+              {/* Month picker pill */}
+              <div style={{ position: "relative", flexShrink: 0, zIndex: monthPickerOpen ? 20 : 1 }}>
+                {!monthPickerOpen ? (
+                  <div className="tap" onClick={() => setMonthPickerOpen(true)} style={{ textAlign: "center", padding: "8px 6px", borderRadius: 12, width: 46, height: PILL_H, background: "var(--card)", border: "1px solid var(--border)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, cursor: "pointer" }}>
+                    <div style={{ fontSize: 9, color: "var(--t5)", fontFamily: MONO }}>{viewYear}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--accent)", fontFamily: MONO }}>{MONTHS_SHORT[viewMonth]}</div>
+                  </div>
+                ) : (
+                  <div ref={monthScrollRef} className="no-scroll" style={{ position: "absolute", top: 0, left: 0, zIndex: 20, background: "var(--card)", border: "1px solid var(--accent-30)", borderRadius: 12, width: 50, maxHeight: 210, overflowY: "auto", padding: "4px 0" }}>
+                    {MONTHS_SHORT.map((m, i) => {
+                      const isCur = i === today.getMonth() && viewYear === today.getFullYear();
+                      const isSel = i === viewMonth;
+                      return <div key={m} data-active={isSel ? "true" : "false"} className="tap" onClick={() => pickMonth(i)} style={{ padding: "7px 4px", textAlign: "center", borderRadius: 6, margin: "1px 3px", fontSize: 11, fontFamily: MONO, fontWeight: 600, cursor: "pointer", background: isSel ? "var(--accent-10)" : "transparent", color: isSel ? "var(--accent)" : isCur ? "var(--accent)" : "var(--t5)" }}>{m}</div>;
+                    })}
+                  </div>
+                )}
+              </div>
+              {/* 3 date pills: yesterday, today, tomorrow */}
+              {(() => {
+                const selIdx = allDates.findIndex(d => isSameDay(d, selectedDate));
+                const nearby = [selIdx - 1, selIdx, selIdx + 1].filter(i => i >= 0 && i < allDates.length).map(i => allDates[i]);
+                return nearby.map(d => {
+                  const isT = isSameDay(d, today);
+                  const isSel = isSameDay(d, selectedDate);
+                  const ev = EVENTS[dateKey(d)];
                   return (
                     <div key={d.getTime()} className={isSel ? "" : "tap"} onClick={() => !isSel && setSelectedDate(new Date(d))}
-                      style={{ flexShrink: 0, width: isSel ? 80 : 46, height: PILL_H, borderRadius: 12, background: isSel ? "var(--accent-10)" : "var(--card)", border: isSel ? "1.5px solid var(--accent-30)" : "1px solid var(--border)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: isSel ? "default" : "pointer" }}>
-                      <div style={{ fontSize: 11, color: isSel ? "var(--accent)" : "var(--t4)" }}>{DAYS[d.getDay()]}</div>
-                      <div style={{ fontSize: isSel ? 20 : 14, fontWeight: 700, color: isSel ? "var(--accent)" : "var(--t4)", lineHeight: 1.1 }}>{d.getDate()}</div>
-                      <div style={{ width: 5, height: 5, borderRadius: "50%", marginTop: 2, background: isT ? "var(--accent)" : "transparent" }} />
-                      {ev && isSel && <div style={{ fontSize: 7, color: "var(--warn)", fontFamily: MONO, marginTop: 1, whiteSpace: "nowrap", maxWidth: 72, overflow: "hidden", textOverflow: "ellipsis" }}>{ev}</div>}
+                      style={{ flex: isSel ? 1.3 : 1, height: PILL_H, borderRadius: 12, background: isSel ? "var(--accent-10)" : "var(--card)", border: isSel ? "1.5px solid var(--accent-30)" : "1px solid var(--border)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: isSel ? "default" : "pointer", opacity: isSel ? 1 : 0.5 }}>
+                      <div style={{ fontSize: 11, color: isSel ? "var(--accent)" : "var(--t5)" }}>{DAYS[d.getDay()]}</div>
+                      <div style={{ fontSize: isSel ? 22 : 15, fontWeight: 700, color: isSel ? "var(--accent)" : "var(--t5)", lineHeight: 1.1 }}>{d.getDate()}</div>
+                      {isT && <div style={{ width: 5, height: 5, borderRadius: "50%", marginTop: 2, background: "var(--accent)" }} />}
+                      {ev && isSel && <div style={{ fontSize: 7, color: "var(--warn)", fontFamily: MONO, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 80 }}>{ev}</div>}
                     </div>
                   );
-                })}
-              </div>
+                });
+              })()}
             </div>
+            {monthPickerOpen && <div onClick={() => setMonthPickerOpen(false)} style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 10 }} />}
           </div>
 
-          {/* Tags */}
-          <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 4 }}>
+          {/* ═══ MAIN SECTION: Tags + Content ═══ */}
+          <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 14 }}>
             {["today", "categories", "income", ...customGroups].map(t => (
               <div key={t} className="tap" onClick={() => setActiveTab(t)}
                 style={{ padding: "7px 16px", borderRadius: 100, fontFamily: MONO, fontSize: 11, fontWeight: 700, letterSpacing: 1, background: activeTab === t ? "var(--accent)" : "var(--card)", color: activeTab === t ? "var(--accent-bg)" : "var(--t4)" }}>{t.toUpperCase()}</div>
@@ -410,79 +425,91 @@ export default function Home() {
             </div>
           </div>
 
-          <Divider />
-
           {/* ── TODAY TAB CONTENT ── */}
           {activeTab === "today" && (
             <>
-              {/* Command bar */}
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ background: "var(--card)", borderRadius: 16, padding: "12px 14px", border: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 8 }}>
-                  <div className="tap" onClick={() => setCmdCategory(c => c === "task" ? "rest" : c === "rest" ? "life" : "task")}
-                    style={{ background: cmdCategory === "task" ? "var(--accent-20)" : cmdCategory === "rest" ? "var(--rest-20)" : "var(--warn-20)", border: `1px solid ${cmdCategory === "task" ? "var(--accent)" : cmdCategory === "rest" ? "var(--rest)" : "var(--warn)"}`, borderRadius: 8, padding: "5px 10px", fontSize: 9, fontWeight: 700, fontFamily: MONO, color: cmdCategory === "task" ? "var(--accent)" : cmdCategory === "rest" ? "var(--rest)" : "var(--warn)", cursor: "pointer", flexShrink: 0, letterSpacing: 1 }}>{cmdCategory.toUpperCase()}</div>
-                  <input value={cmdInput} onChange={e => { setCmdInput(e.target.value); fetchSuggestions(e.target.value); }} onKeyDown={e => e.key === "Enter" && addTask()} placeholder="study C 7pm 1.5h"
-                    style={{ flex: 1, background: "none", border: "none", color: "var(--t2)", fontSize: 13, fontFamily: BODY, outline: "none" }} />
-                  {cmdInput && <div className="tap" onClick={addTask} style={{ background: "var(--accent)", borderRadius: 8, padding: "6px 14px", fontSize: 11, color: "var(--accent-bg)", fontWeight: 700, fontFamily: MONO }}>GO</div>}
-                </div>
-              </div>
-
-              {/* Pending tasks */}
-              {pendingTasks.map((task, i) => {
-                const accent = accentForType(task.type);
-                const displayTime = getDisplayTime(task);
-                const endTime = fmtTime(Math.floor((getDisplayTimeMin(task) + task.duration) / 60) % 24, (getDisplayTimeMin(task) + task.duration) % 60);
-                const isActive = task.status === "active";
-                const isExpanded = expandedTask === task.id;
-
-                return (
-                  <div key={task.id} style={{ marginBottom: 8, animation: `fadeUp 0.3s ease ${i * 0.04}s both` }}>
-                    <div style={{ background: "var(--card)", borderRadius: isExpanded ? "20px 20px 0 0" : 20, border: `1px solid ${isActive ? "var(--accent-30)" : "var(--border)"}`, borderBottom: isExpanded ? "none" : undefined }}>
-                      <div style={{ display: "flex", alignItems: "center" }}>
-                        <div className="tap" onClick={() => setExpandedTask(isExpanded ? null : task.id)} style={{ flex: 1, padding: "16px 0 16px 18px" }}>
-                          <div style={{ fontSize: 10, color: accent, fontFamily: MONO, letterSpacing: 1, marginBottom: 4 }}>{displayTime} — {endTime}</div>
-                          <div style={{ fontSize: 16, color: isActive ? "var(--t1)" : "var(--t2)", fontWeight: 700, fontFamily: DISPLAY }}>{task.name}</div>
+              {/* Merged timeline: personal tasks + collab tasks, sorted by time */}
+              {(() => {
+                const collabAsTasks = MOCK_COLLAB_TASKS.map(ct => ({
+                  ...ct, timeMin: parseInt(ct.time.split(":")[0]) * 60 + parseInt(ct.time.split(":")[1] || "0"),
+                  isCollab: true, friendName: ct.friend,
+                }));
+                const allPending = [...pendingTasks.map(t => ({ ...t, isCollab: false, friendName: "" })), ...collabAsTasks]
+                  .sort((a, b) => getDisplayTimeMin(a) - (b.timeMin ?? getDisplayTimeMin(b)));
+                return allPending.map((task, i) => {
+                  if ((task as any).isCollab) {
+                    const ct = task as any;
+                    return (
+                      <div key={ct.id} style={{ marginBottom: 8, animation: `fadeUp 0.3s ease ${i * 0.04}s both` }}>
+                        <div style={{ background: "var(--card)", borderRadius: 20, border: "1px solid var(--border)", borderLeft: "3px solid var(--pink)", padding: "14px 16px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                            <div style={{ fontSize: 10, color: "var(--accent)", fontFamily: MONO, letterSpacing: 1 }}>{ct.time} — {fmtTime(Math.floor((ct.timeMin + ct.duration) / 60) % 24, (ct.timeMin + ct.duration) % 60)}</div>
+                            <span style={{ fontSize: 8, color: "var(--pink)", background: "var(--pink-dim)", padding: "2px 6px", borderRadius: 4, fontFamily: MONO, fontWeight: 700 }}>COLLAB</span>
+                          </div>
+                          <div style={{ fontSize: 16, color: "var(--t2)", fontWeight: 700, fontFamily: DISPLAY }}>{ct.name}</div>
                           <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-                            <span style={{ fontSize: 9, color: "var(--t4)", background: "var(--glow)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{task.type.toUpperCase()}</span>
-                            <span style={{ fontSize: 9, color: "var(--t4)", background: "var(--glow)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{fmtDur(task.duration)}</span>
-                            {task.urgent && <span style={{ fontSize: 9, color: "var(--pink)", background: "var(--pink-dim)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>⚡ URGENT</span>}
+                            <span style={{ fontSize: 9, color: "var(--t4)", background: "var(--glow)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>w/ {ct.friendName}</span>
+                            <span style={{ fontSize: 9, color: "var(--t4)", background: "var(--glow)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{fmtDur(ct.duration)}</span>
                           </div>
                         </div>
-                        {isActive ? (
-                          <div className="anim-pulse" style={{ width: 10, height: 10, borderRadius: "50%", background: accent, margin: "0 18px", boxShadow: `0 0 0 3px var(--accent-30)` }} />
-                        ) : (
-                          <div className="tap" onClick={(e) => { e.stopPropagation(); startTask(task); }} style={{ padding: "16px 18px 16px 12px" }}>
-                            <div style={{ width: 36, height: 36, borderRadius: 12, background: "var(--accent-10)", border: "1px solid var(--accent-20)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                              <PlayIcon size={16} color={accent} />
+                      </div>
+                    );
+                  }
+                  const accent = accentForType(task.type);
+                  const displayTime = getDisplayTime(task);
+                  const endTime = fmtTime(Math.floor((getDisplayTimeMin(task) + task.duration) / 60) % 24, (getDisplayTimeMin(task) + task.duration) % 60);
+                  const isActive = task.status === "active";
+                  const isExpanded = expandedTask === task.id;
+                  return (
+                    <div key={task.id} style={{ marginBottom: 8, animation: `fadeUp 0.3s ease ${i * 0.04}s both` }}>
+                      <div style={{ background: "var(--card)", borderRadius: isExpanded ? "20px 20px 0 0" : 20, border: `1px solid ${isActive ? "var(--accent-30)" : "var(--border)"}`, borderBottom: isExpanded ? "none" : undefined }}>
+                        <div style={{ display: "flex", alignItems: "center" }}>
+                          <div className="tap" onClick={() => setExpandedTask(isExpanded ? null : task.id)} style={{ flex: 1, padding: "14px 0 14px 16px" }}>
+                            <div style={{ fontSize: 10, color: accent, fontFamily: MONO, letterSpacing: 1, marginBottom: 4 }}>{displayTime} — {endTime}</div>
+                            <div style={{ fontSize: 16, color: isActive ? "var(--t1)" : "var(--t2)", fontWeight: 700, fontFamily: DISPLAY }}>{task.name}</div>
+                            <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                              <span style={{ fontSize: 9, color: "var(--t4)", background: "var(--glow)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{task.type.toUpperCase()}</span>
+                              <span style={{ fontSize: 9, color: "var(--t4)", background: "var(--glow)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{fmtDur(task.duration)}</span>
+                              {task.urgent && <span style={{ fontSize: 9, color: "var(--pink)", background: "var(--pink-dim)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>⚡ URGENT</span>}
                             </div>
                           </div>
-                        )}
-                      </div>
-                    </div>
-                    {isExpanded && (
-                      <div style={{ background: "var(--card)", borderRadius: "0 0 20px 20px", padding: "12px 14px 14px", border: "1px solid var(--border)", borderTop: "1px dashed var(--border2)" }}>
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                          <div className="tap" onClick={() => markDone(task)} style={{ background: "var(--accent-bg)", borderRadius: 14, padding: "14px 12px", textAlign: "center" }}>
-                            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--t1)", fontFamily: DISPLAY }}>Mark done</div>
-                          </div>
-                          <div className="tap" onClick={() => openEditModal(task)} style={{ background: "var(--rest-bg)", borderRadius: 14, padding: "14px 12px", textAlign: "center" }}>
-                            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--t1)", fontFamily: DISPLAY }}>Edit</div>
-                          </div>
-                          <div className="tap" onClick={() => toggleRest(task)} style={{ background: "var(--card)", borderRadius: 14, padding: "14px 12px", textAlign: "center", border: "1px solid var(--border)" }}>
-                            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--t2)", fontFamily: DISPLAY }}>{task.type === "rest" ? "Set as work" : "Set as rest"}</div>
-                          </div>
-                          <div className="tap" onClick={() => deleteTask(task)} style={{ background: "var(--danger-bg)", borderRadius: 14, padding: "14px 12px", textAlign: "center" }}>
-                            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--danger)", fontFamily: DISPLAY }}>Delete</div>
-                          </div>
+                          {isActive ? (
+                            <div className="anim-pulse" style={{ width: 10, height: 10, borderRadius: "50%", background: accent, margin: "0 18px", boxShadow: `0 0 0 3px var(--accent-30)` }} />
+                          ) : (
+                            <div className="tap" onClick={(e) => { e.stopPropagation(); startTask(task); }} style={{ padding: "14px 16px 14px 10px" }}>
+                              <div style={{ width: 36, height: 36, borderRadius: 12, background: "var(--accent-10)", border: "1px solid var(--accent-20)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                <PlayIcon size={16} color={accent} />
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
-                    )}
-                  </div>
-                );
-              })}
+                      {isExpanded && (
+                        <div style={{ background: "var(--card)", borderRadius: "0 0 20px 20px", padding: "12px 14px 14px", border: "1px solid var(--border)", borderTop: "1px dashed var(--border2)" }}>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                            <div className="tap" onClick={() => markDone(task)} style={{ background: "var(--accent-bg)", borderRadius: 14, padding: "14px 12px", textAlign: "center" }}>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--t1)", fontFamily: DISPLAY }}>Mark done</div>
+                            </div>
+                            <div className="tap" onClick={() => openEditModal(task)} style={{ background: "var(--rest-bg)", borderRadius: 14, padding: "14px 12px", textAlign: "center" }}>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--t1)", fontFamily: DISPLAY }}>Edit</div>
+                            </div>
+                            <div className="tap" onClick={() => toggleRest(task)} style={{ background: "var(--card)", borderRadius: 14, padding: "14px 12px", textAlign: "center", border: "1px solid var(--border)" }}>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--t2)", fontFamily: DISPLAY }}>{task.type === "rest" ? "Set as work" : "Set as rest"}</div>
+                            </div>
+                            <div className="tap" onClick={() => deleteTask(task)} style={{ background: "var(--danger-bg)", borderRadius: 14, padding: "14px 12px", textAlign: "center" }}>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--danger)", fontFamily: DISPLAY }}>Delete</div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                });
+              })()}
 
               {/* Done tasks (stacked) */}
               {doneTasks.length > 0 && (
-                <div style={{ marginTop: 12 }}>
+                <div style={{ marginTop: 4, marginBottom: 8 }}>
                   <div className="tap" onClick={() => setShowCompleted(!showCompleted)}>
                     {!showCompleted && (
                       <div style={{ position: "relative", height: Math.min(doneTasks.length, 3) * 6 + 48 }}>
@@ -512,9 +539,25 @@ export default function Home() {
                 </div>
               )}
 
-              {/* Friends feed */}
-              <Divider />
-              <FriendsFeed onNavigate={handleFriendsNav} />
+              {/* Create task bar — BELOW tasks */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ background: "var(--card)", borderRadius: 16, padding: "12px 14px", border: "1px dashed var(--border)", display: "flex", alignItems: "center", gap: 8 }}>
+                  <div className="tap" onClick={() => setCmdCategory(c => c === "task" ? "rest" : c === "rest" ? "life" : "task")}
+                    style={{ background: cmdCategory === "task" ? "var(--accent-20)" : cmdCategory === "rest" ? "var(--rest-20)" : "var(--warn-20)", border: `1px solid ${cmdCategory === "task" ? "var(--accent)" : cmdCategory === "rest" ? "var(--rest)" : "var(--warn)"}`, borderRadius: 8, padding: "5px 10px", fontSize: 9, fontWeight: 700, fontFamily: MONO, color: cmdCategory === "task" ? "var(--accent)" : cmdCategory === "rest" ? "var(--rest)" : "var(--warn)", cursor: "pointer", flexShrink: 0, letterSpacing: 1 }}>{cmdCategory.toUpperCase()}</div>
+                  <input value={cmdInput} onChange={e => { setCmdInput(e.target.value); fetchSuggestions(e.target.value); }} onKeyDown={e => e.key === "Enter" && addTask()} placeholder="add task... 7pm 1.5h"
+                    style={{ flex: 1, background: "none", border: "none", color: "var(--t2)", fontSize: 13, fontFamily: BODY, outline: "none" }} />
+                  {cmdInput && <div className="tap" onClick={addTask} style={{ background: "var(--accent)", borderRadius: 8, padding: "6px 14px", fontSize: 11, color: "var(--accent-bg)", fontWeight: 700, fontFamily: MONO }}>GO</div>}
+                </div>
+              </div>
+
+              {/* Friends feed — below the fold with fade shadow */}
+              <div style={{ position: "relative" }}>
+                {/* Fade gradient overlay at top of friends section */}
+                <div style={{ position: "absolute", top: 0, left: -14, right: -14, height: 40, background: "linear-gradient(to bottom, var(--bg), transparent)", zIndex: 2, pointerEvents: "none" }} />
+                <div style={{ paddingTop: 8, opacity: 0.6 }}>
+                  <FriendsFeed onNavigate={handleFriendsNav} />
+                </div>
+              </div>
             </>
           )}
 
@@ -563,9 +606,12 @@ export default function Home() {
         />
       )}
 
-      {/* ── STATUS POPUP ── */}
+      {/* ── STATUS POPUP with dark overlay ── */}
       {hasActivePopup && (
-        <div style={{ position: "fixed", bottom: "calc(72px + env(safe-area-inset-bottom, 0px))", left: "50%", transform: "translateX(-50%)", width: "calc(100% - 28px)", maxWidth: 402, zIndex: 90 }}>
+        <>
+          {/* Dark overlay behind content */}
+          <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.3)", zIndex: 85, pointerEvents: "none" }} />
+          <div style={{ position: "fixed", bottom: "calc(72px + env(safe-area-inset-bottom, 0px))", left: "50%", transform: "translateX(-50%)", width: "calc(100% - 28px)", maxWidth: 402, zIndex: 90 }}>
           <div style={{ background: "var(--card)", borderRadius: 24, padding: "18px 20px", border: "1px solid var(--border)", backdropFilter: "blur(16px)" }}>
             {popupState === "working" || popupState === "resting" ? (
               <div>
@@ -600,6 +646,7 @@ export default function Home() {
             ) : null}
           </div>
         </div>
+        </>
       )}
 
       {/* ── EDIT MODAL ── */}

@@ -1,6 +1,6 @@
 "use client";
-import { DISPLAY, MONO, MOCK_FRIENDS, MOCK_COLLAB_TASKS, FRIEND_ACTIVITY } from "../lib/constants";
-import { fmtDur, statusColor } from "../lib/utils";
+import { DISPLAY, MONO, MOCK_FRIENDS, FRIEND_ACTIVITY } from "../lib/constants";
+import { statusColor } from "../lib/utils";
 import type { BottomTab } from "../lib/types";
 
 interface Props {
@@ -10,32 +10,6 @@ interface Props {
 export default function FriendsFeed({ onNavigate }: Props) {
   return (
     <>
-      {/* ── Collab tasks ── */}
-      {MOCK_COLLAB_TASKS.length > 0 && (
-        <div style={{ marginBottom: 4, marginTop: 8 }}>
-          <div style={{ fontSize: 10, color: "var(--pink)", fontFamily: MONO, letterSpacing: 2, marginBottom: 10 }}>COLLAB TASKS</div>
-          {MOCK_COLLAB_TASKS.map((ct, i) => (
-            <div key={ct.id} style={{
-              background: "var(--card)", borderRadius: 20, padding: "14px 16px", marginBottom: 8,
-              border: "1px solid var(--pink-20)", display: "flex", alignItems: "center", gap: 12,
-              animation: `fadeUp 0.3s ease ${i * 0.05}s both`,
-            }}>
-              <div style={{ width: 34, height: 34, borderRadius: 10, background: "var(--pink-dim)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: "var(--pink)", fontFamily: DISPLAY }}>{ct.friend[0]}</span>
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, color: "var(--t2)", fontWeight: 700, fontFamily: DISPLAY }}>{ct.name}</div>
-                <div style={{ display: "flex", gap: 6, marginTop: 4, alignItems: "center" }}>
-                  <span style={{ fontSize: 9, color: "var(--pink)", background: "var(--pink-dim)", padding: "2px 7px", borderRadius: 4, fontFamily: MONO, fontWeight: 600 }}>COLLAB</span>
-                  <span style={{ fontSize: 10, color: "var(--t4)", fontFamily: MONO }}>{ct.time} · {fmtDur(ct.duration)}</span>
-                </div>
-              </div>
-              <span style={{ fontSize: 10, color: "var(--t5)", fontFamily: MONO }}>w/ {ct.friend}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
       {/* ── Friends activity ── */}
       <div style={{ marginTop: 8 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
