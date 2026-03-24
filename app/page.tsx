@@ -435,7 +435,7 @@ export default function Home() {
                   isCollab: true, friendName: ct.friend,
                 }));
                 const allPending = [...pendingTasks.map(t => ({ ...t, isCollab: false, friendName: "" })), ...collabAsTasks]
-                  .sort((a, b) => getDisplayTimeMin(a) - (b.timeMin ?? getDisplayTimeMin(b)));
+                  .sort((a, b) => ((a as any).timeMin ?? getDisplayTimeMin(a as any)) - ((b as any).timeMin ?? getDisplayTimeMin(b as any)));
                 return allPending.map((task, i) => {
                   if ((task as any).isCollab) {
                     const ct = task as any;
