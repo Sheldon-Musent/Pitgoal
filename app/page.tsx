@@ -1,2248 +1,647 @@
 "use client";
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-
 import {
-  initNotifications,
-  scheduleTaskNotifications,
-  schedulePauseReminder,
-  cancelPauseReminder,
-  scheduleDaySummary,
-  onTaskDone,
-  clearAllNotifications,
-  getPermissionStatus,
+  initNotifications, scheduleTaskNotifications, schedulePauseReminder,
+  cancelPauseReminder, scheduleDaySummary, onTaskDone, clearAllNotifications, getPermissionStatus,
 } from "./notifications";
+import { ensureAuth, syncAllTasks, syncDayLog, saveProfile } from "../lib/sync";
+import {
+  STORAGE_KEY, PLAN_KEY, SETTINGS_KEY, GRACE_PERIOD_MS, DEFAULT_RATES,
+  DISPLAY, BODY, MONO, PHASE_CARDS, INCOME, EVENTS, DAYS, MONTHS_SHORT,
+} from "../lib/constants";
+import {
+  pad, fmtTime, fmtDur, dateKey, nowMinutes, isSameDay, getAllDatesInMonth,
+  getMYDate, genId, getDisplayTime, getDisplayTimeMin, parseCmd, autoShift,
+  accentForType, bgForType,
+} from "../lib/utils";
+import type { Task, ActiveTask, Template, DayHistory, DrainRates, Theme, BottomTab, CmdCategory } from "../lib/types";
+import BottomNav from "../components/BottomNav";
+import CommunityTab from "../components/CommunityTab";
+import FriendsTab from "../components/FriendsTab";
+import FriendsFeed from "../components/FriendsFeed";
+import ProfileTab from "../components/ProfileTab";
 
-import { ensureAuth, syncAllTasks, syncDayLog, saveProfile } from '../lib/sync';
-
-const DISPLAY = "'Sora', sans-serif";
-const BODY = "'Plus Jakarta Sans', sans-serif";
-const MONO = "'IBM Plex Mono', monospace";
-const STORAGE_KEY = "doit-v8-shift";
-const PLAN_KEY = "doit-v8-plan";
-const SETTINGS_KEY = "doit-v8-settings";
-const DEFAULT_ENERGY = 17;
-const GRACE_PERIOD_MS = 15 * 60 * 1000; // 15 minutes
-
-// Power bar drain rates (per real minute)
-interface DrainRates {
-  idle: number;     // Low consume when doing nothing
-  work: number;     // Normal consume during tasks
-  urgent: number;   // Faster consume during urgent tasks
-  rest: number;     // Recharge rate (negative = recharge)
-  wakeHour: number;
-  wakeMinute: number;
-  sleepHour: number;
-  sleepMinute: number;
-  maxEnergyHours: number;
-}
-
-const DEFAULT_RATES: DrainRates = {
-  idle: 0.5,
-  work: 1.0,
-  urgent: 1.5,
-  rest: 0.3,  // recharge per minute
-  wakeHour: 6, wakeMinute: 30,
-  sleepHour: 23, sleepMinute: 30,
-  maxEnergyHours: 17,
-};
-
-const RATE_LIMITS = {
-  idle: { min: 0.1, max: 1.0 },
-  work: { min: 0.5, max: 2.0 },
-  urgent: { min: 1.0, max: 3.0 },
-  rest: { min: 0.1, max: 1.0 },
-};
-
-interface Template {
-  id: string;
-  name: string;
-  time: string;
-  timeMin: number;
-  duration: number;
-  type: string;
-  days: number[]; // 0=Sun, 1=Mon, ..., 6=Sat. Empty = daily
-}
-
-interface DayHistory {
-  date: string;
-  tasks: number;
-  done: number;
-  skipped: number;
-  totalMin: number;
-  log: any[];
-}
-
-const PHASE_CARDS = [
-  { id: "p1", label: "PHASE 1", title: "Pre-Piscine prep", bg: "#063d30", accent: "#5DCAA5", light: "#E1F5EE", mid: "#9FE1CB", dim: "#0F6E56", pct: 43, done: 3, total: 7 },
-  { id: "p2", label: "PHASE 2", title: "The Piscine", bg: "#1e1a4d", accent: "#7F77DD", light: "#EEEDFE", mid: "#AFA9EC", dim: "#3C3489", pct: 0, done: 0, total: 5 },
-  { id: "p3", label: "PHASE 3", title: "Cadet + Security+", bg: "#3e1022", accent: "#D4537E", light: "#FBEAF0", mid: "#ED93B1", dim: "#72243E", pct: 0, done: 0, total: 7 },
-  { id: "p4", label: "PHASE 4", title: "First security role", bg: "#351c02", accent: "#EF9F27", light: "#FAEEDA", mid: "#FAC775", dim: "#854F0B", pct: 0, done: 0, total: 6 },
-  { id: "p5", label: "PHASE 5", title: "Level up", bg: "#3a140a", accent: "#F0997B", light: "#FAECE7", mid: "#F5C4B3", dim: "#993C1D", pct: 0, done: 0, total: 7 },
-];
-
-const INCOME = [
-  { label: "RM4-6K", desc: "SOC Analyst L1", bg: "#063d30", accent: "#5DCAA5", light: "#E1F5EE", mid: "#9FE1CB" },
-  { label: "RM6-9K", desc: "+CEH/CySA+", bg: "#1e1a4d", accent: "#7F77DD", light: "#EEEDFE", mid: "#AFA9EC" },
-  { label: "RM10-15K", desc: "Remote SG/US", bg: "#3e1022", accent: "#D4537E", light: "#FBEAF0", mid: "#ED93B1" },
-  { label: "RM15-25K+", desc: "GRC / Sales Eng", bg: "#351c02", accent: "#EF9F27", light: "#FAEEDA", mid: "#FAC775" },
-];
-
-
-// Mock friends data for Tab 3 shell
-const MOCK_FRIENDS = [
-  { id: "f1", name: "Amir", status: "Studying C pointers", statusType: "work" as const, lastActive: "2m ago", streak: 12, pet: "healthy" as const },
-  { id: "f2", name: "Mei Ling", status: "Rest — coffee break", statusType: "rest" as const, lastActive: "now", streak: 7, pet: "healthy" as const },
-  { id: "f3", name: "Raj", status: "Offline", statusType: "idle" as const, lastActive: "3h ago", streak: 0, pet: "hungry" as const },
-  { id: "f4", name: "Siti", status: "TryHackMe SOC path", statusType: "work" as const, lastActive: "15m ago", streak: 23, pet: "healthy" as const },
-];
-
-const MOCK_CHATS: { [key: string]: { from: string; text: string; time: string }[] } = {
-  f1: [
-    { from: "them", text: "bro how far are u with the C stuff", time: "14:20" },
-    { from: "me", text: "still on pointers lol", time: "14:22" },
-    { from: "them", text: "same 😂 lets grind tmrw", time: "14:23" },
-  ],
-  f2: [
-    { from: "them", text: "just finished my Security+ chapter 3", time: "10:15" },
-    { from: "me", text: "nice how long did it take", time: "10:18" },
-    { from: "them", text: "about 2h, the networking part is tough", time: "10:20" },
-  ],
-};
-
-// Mock collab tasks (shared between friends)
-const MOCK_COLLAB_TASKS = [
-  { id: "collab1", name: "Complete TryHackMe room together", friend: "Siti", friendId: "f4", status: "pending", time: "15:00", duration: 90, type: "work" },
-  { id: "collab2", name: "Review each other's C code", friend: "Amir", friendId: "f1", status: "pending", time: "19:00", duration: 60, type: "work" },
-];
-
-// Friend activity feed items
-const FRIEND_ACTIVITY = [
-  { friendId: "f4", name: "Siti", action: "completed", task: "TryHackMe SOC Level 1 — Room 12", time: "12 min ago", type: "work" as const },
-  { friendId: "f2", name: "Mei Ling", action: "started", task: "Security+ Ch.4 study", time: "28 min ago", type: "work" as const },
-  { friendId: "f1", name: "Amir", action: "completed", task: "C pointers exercise set 3", time: "1h ago", type: "work" as const },
-  { friendId: "f2", name: "Mei Ling", action: "resting", task: "Coffee break", time: "now", type: "rest" as const },
-];
-
-const EVENTS: { [key: string]: string } = {
-  "2026-01-01": "New Year", "2026-01-29": "Thaipusam", "2026-02-01": "Fed Territory",
-  "2026-02-17": "CNY Day 1", "2026-02-18": "CNY Day 2", "2026-03-20": "Nuzul Quran",
-  "2026-03-31": "Hari Raya", "2026-04-01": "Raya Day 2", "2026-04-06": "Piscine starts",
-  "2026-05-01": "Labour Day", "2026-05-02": "Full EHub return", "2026-05-12": "Vesak Day",
-  "2026-06-02": "Agong Bday", "2026-06-07": "Hari Raya Haji", "2026-07-07": "Awal Muharram",
-  "2026-08-31": "Merdeka", "2026-09-16": "M'sia Day", "2026-10-15": "Sec+ target",
-  "2026-10-20": "Deepavali", "2026-12-25": "Christmas", "2026-12-31": "Year review",
-};
-
-function genId(): string { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
-function pad(n: number): string { return String(n).padStart(2, "0"); }
-function fmtTime(h: number, m: number): string { return `${pad(h)}:${pad(m)}`; }
-function fmtDur(mins: number): string { if (mins < 60) return `${Math.round(mins)}m`; const h = Math.floor(mins / 60); const mn = Math.round(mins % 60); return mn > 0 ? `${h}h ${mn}m` : `${h}h`; }
-function dateKey(d: Date): string { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
-function nowMinutes(): number { const n = new Date(); return n.getHours() * 60 + n.getMinutes(); }
-
-function parseCmd(input: string, category: 'task' | 'rest' | 'life' = 'task') {
-  let text = input.trim(); if (!text) return null;
-  // Category → energy type: rest charges, task/life drain
-  let type = category === 'rest' ? 'rest' : 'work';
-  let urgent = false;
-  if (/\burgent\b/i.test(text)) { urgent = true; text = text.replace(/\burgent\b/i, ""); }
-  // Still allow text override for backward compat
-  if (/\brest\b/i.test(text)) { type = "rest"; text = text.replace(/\brest\b/i, ""); }
-  else if (/\bwork\b/i.test(text)) { text = text.replace(/\bwork\b/i, ""); }
-  let duration = 60;
-  const durH = text.match(/(\d+\.?\d*)\s*h(?:r|rs|ours?)?/i);
-  const durM = text.match(/(\d+)\s*m(?:in|ins|inutes?)?/i);
-  if (durH) { duration = parseFloat(durH[1]) * 60; text = text.replace(durH[0], ""); }
-  else if (durM) { duration = parseInt(durM[1]); text = text.replace(durM[0], ""); }
-  let hour = null, minute = 0;
-  const t12 = text.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i);
-  const t24 = text.match(/(\d{1,2}):(\d{2})/);
-  if (t12) { hour = parseInt(t12[1]); minute = t12[2] ? parseInt(t12[2]) : 0; if (t12[3].toLowerCase() === "pm" && hour !== 12) hour += 12; if (t12[3].toLowerCase() === "am" && hour === 12) hour = 0; text = text.replace(t12[0], ""); }
-  else if (t24) { hour = parseInt(t24[1]); minute = parseInt(t24[2]); text = text.replace(t24[0], ""); }
-  const name = text.replace(/\s+/g, " ").trim(); if (!name) return null;
-  if (hour === null) { const now = new Date(); hour = now.getHours(); minute = Math.ceil(now.getMinutes() / 5) * 5; if (minute >= 60) { hour++; minute = 0; } }
-  return { name, category, time: fmtTime(hour, minute), timeMin: hour * 60 + minute, duration, planned_duration: duration, actual_duration: null as number | null, type, urgent, id: genId(), status: "pending", adjustedTimeMin: null as number | null, skippedAt: null as number | null };
-}
-
-// ═══ AUTO-SHIFT ENGINE ═══
-// When a disruption happens (skip, late start, pause overrun), recalculate all future task times
-function autoShift(tasks: any[], fromTimeMin: number, delayMinutes: number): any[] {
-  return tasks.map(t => {
-    if (t.status === "done" || t.status === "skipped" || t.status === "active") return t;
-    const effectiveTime = t.adjustedTimeMin ?? t.timeMin;
-    if (effectiveTime >= fromTimeMin) {
-      return { ...t, adjustedTimeMin: effectiveTime + delayMinutes };
-    }
-    return t;
-  });
-}
-
-// Get the display time for a task (adjusted or original)
-function getDisplayTime(task: any): string {
-  const mins = task.adjustedTimeMin ?? task.timeMin;
-  return fmtTime(Math.floor(mins / 60) % 24, mins % 60);
-}
-function getDisplayTimeMin(task: any): number {
-  return task.adjustedTimeMin ?? task.timeMin;
-}
-
-const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const MONTHS_SHORT = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
-const isSameDay = (a: Date, b: Date) => a.getDate() === b.getDate() && a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear();
-
-function getAllDatesInMonth(year: number, month: number) {
-  const days = new Date(year, month + 1, 0).getDate();
-  const arr = [];
-  for (let i = 1; i <= days; i++) arr.push(new Date(year, month, i));
-  return arr;
-}
-
-function PlayIcon({ size = 18, color = "#5DCAA5" }: { size?: number; color?: string }) {
+// ── SVG icons ──
+function PlayIcon({ size = 18, color = "var(--accent)" }: { size?: number; color?: string }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none"><path d="M8 5.14v13.72a1 1 0 001.5.86l11.04-6.86a1 1 0 000-1.72L9.5 4.28A1 1 0 008 5.14z" fill={color} /></svg>;
 }
-
-function StopIcon({ size = 18, color = "#E24B4A" }: { size?: number; color?: string }) {
+function StopIcon({ size = 18, color = "var(--danger)" }: { size?: number; color?: string }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none"><rect x="6" y="6" width="12" height="12" rx="2" fill={color} /></svg>;
 }
-
-function PauseIcon({ size = 18, color = "#EF9F27" }: { size?: number; color?: string }) {
+function PauseIcon({ size = 18, color = "var(--warn)" }: { size?: number; color?: string }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none"><rect x="6" y="5" width="4" height="14" rx="1" fill={color} /><rect x="14" y="5" width="4" height="14" rx="1" fill={color} /></svg>;
 }
-
-function SkipIcon({ size = 18, color = "#888" }: { size?: number; color?: string }) {
+function SkipIcon({ size = 18, color = "var(--t3)" }: { size?: number; color?: string }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none"><path d="M5 4l10 8-10 8V4z" fill={color} /><rect x="17" y="5" width="3" height="14" rx="1" fill={color} /></svg>;
 }
-
-function SwitchIcon({ size = 18, color = "#D4537E" }: { size?: number; color?: string }) {
+function SwitchIcon({ size = 18, color = "var(--pink)" }: { size?: number; color?: string }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9" /><path d="M3 11V9a4 4 0 014-4h14" /><polyline points="7 23 3 19 7 15" /><path d="M21 13v2a4 4 0 01-4 4H3" /></svg>;
 }
-
 function Divider() {
-  return <div style={{ height: 20, display: "flex", alignItems: "center", padding: "0 24px" }}><div style={{ flex: 1, height: 1, background: "linear-gradient(90deg, transparent, #1e1e2460, transparent)" }} /></div>;
+  return <div style={{ height: 20, display: "flex", alignItems: "center", padding: "0 24px" }}><div style={{ flex: 1, height: 1, background: "linear-gradient(90deg, transparent, var(--border), transparent)" }} /></div>;
 }
 
+// ═══════════════════════════════════════════════════════════
+// MAIN COMPONENT
+// ═══════════════════════════════════════════════════════════
+
 export default function Home() {
-  const [tasks, setTasks] = useState<any[]>([]);
-  const [activeTask, setActiveTask] = useState<any>(null);
-  const [pausedTask, setPausedTask] = useState<any>(null); // NEW: paused task state
-  const [switchingFrom, setSwitchingFrom] = useState<any>(null); // NEW: task we switched away from
+  // ── Core state ──
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [activeTask, setActiveTask] = useState<ActiveTask | null>(null);
+  const [pausedTask, setPausedTask] = useState<ActiveTask | null>(null);
+  const [switchingFrom, setSwitchingFrom] = useState<ActiveTask | null>(null);
   const [dayLog, setDayLog] = useState<any[]>([]);
   const [energyUsed, setEnergyUsed] = useState(0);
   const [energyCharged, setEnergyCharged] = useState(0);
-  const [powerExpanded, setPowerExpanded] = useState(false);
-  const [showPowerSettings, setShowPowerSettings] = useState(false);
   const [drainRates, setDrainRates] = useState<DrainRates>(DEFAULT_RATES);
-  const powerTapTimer = useRef<any>(null);
-  const [recordExpanded, setRecordExpanded] = useState(false);
+
+  // ── UI state ──
+  const [bottomTab, setBottomTab] = useState<BottomTab>("main");
   const [activeTab, setActiveTab] = useState("today");
-  const [notifEnabled, setNotifEnabled] = useState(false);
-  const [notifBanner, setNotifBanner] = useState(false); // show permission prompt
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [viewMonth, setViewMonth] = useState(new Date().getMonth());
-  const [viewYear, setViewYear] = useState(new Date().getFullYear());
-  const [cmdCategory, setCmdCategory] = useState<'task' | 'rest' | 'life'>('task');
-  const [suggestions, setSuggestions] = useState<any[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [monthPickerOpen, setMonthPickerOpen] = useState(false);
-  const [cmdInput, setCmdInput] = useState("");
-  const [customGroups, setCustomGroups] = useState<string[]>([]);
-  const [expandedTask, setExpandedTask] = useState<string | null>(null);
-  const [showCompleted, setShowCompleted] = useState(false);
+  const [theme, setTheme] = useState<Theme>("dark");
   const [loaded, setLoaded] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
+
+  // ── Main tab state ──
+  const [cmdInput, setCmdInput] = useState("");
+  const [cmdCategory, setCmdCategory] = useState<CmdCategory>("task");
+  const [expandedTask, setExpandedTask] = useState<string | null>(null);
+  const [showCompleted, setShowCompleted] = useState(false);
+  const [powerExpanded, setPowerExpanded] = useState(false);
+  const [showPowerSettings, setShowPowerSettings] = useState(false);
+  const [recordExpanded, setRecordExpanded] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [viewMonth, setViewMonth] = useState(new Date().getMonth());
+  const [viewYear, setViewYear] = useState(new Date().getFullYear());
+  const [monthPickerOpen, setMonthPickerOpen] = useState(false);
+  const [customGroups, setCustomGroups] = useState<string[]>([]);
+  const [notifEnabled, setNotifEnabled] = useState(false);
+  const [notifBanner, setNotifBanner] = useState(false);
+
+  // ── Modals ──
   const [editModal, setEditModal] = useState<any>(null);
   const [editFields, setEditFields] = useState({ name: "", time: "", duration: "", type: "work", desc: "", rate: "" });
   const [groupInput, setGroupInput] = useState("");
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [showSwitchInput, setShowSwitchInput] = useState(false);
   const [switchInput, setSwitchInput] = useState("");
-  const [bottomTab, setBottomTab] = useState<'main' | 'community' | 'friends' | 'profile'>('main');
-  const [friendSearch, setFriendSearch] = useState("");
-  const [friendChatOpen, setFriendChatOpen] = useState<string | null>(null);
-  const [chatInput, setChatInput] = useState("");
-  const [profileView, setProfileView] = useState<'main' | 'settings'>('main');
-  const [settingsSection, setSettingsSection] = useState<string | null>(null);
-  const [displayName, setDisplayName] = useState("Anonymous");
-  const [editingName, setEditingName] = useState(false);
-  // Plan data (kept for template auto-gen on day rollover)
+
+  // ── Plan data ──
   const [templates, setTemplates] = useState<Template[]>([]);
-  const [history, setHistory] = useState<{ [date: string]: DayHistory }>({});
+  const [history, setHistory] = useState<Record<string, DayHistory>>({});
   const [streak, setStreak] = useState(0);
+
+  // ── Suggestion state ──
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  const powerTapTimer = useRef<any>(null);
   const monthScrollRef = useRef<HTMLDivElement>(null);
   const dateScrollRef = useRef<HTMLDivElement>(null);
+  const suggestTimer = useRef<any>(null);
   const today = useMemo(() => new Date(), []);
 
-  const getMYDate = (): string => {
-    return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kuala_Lumpur" });
-  };
-
-  useEffect(() => {
-
-    if (!("serviceWorker" in navigator)) return;
-      const handler = (event: MessageEvent) => {
-        if (event.data?.type === "NOTIFICATION_CLICK") {
-          const { action, taskId } = event.data;
-          if (action === "start" && taskId) {
-            const task = tasks.find((t) => t.id === taskId);
-            if (task && task.status === "pending") {
-              startTask(task);
-            }
-          } else if (action === "resume") {
-            if (pausedTask) resumePaused();
-          }
-          // "focus" action — just focusing the window is enough, already handled by SW
-        }
-      };
-      navigator.serviceWorker.addEventListener("message", handler);
-      return () => navigator.serviceWorker.removeEventListener("message", handler);
-    }, [tasks, pausedTask]);
-
+  // ═══ LOAD DATA ═══
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       const planRaw = localStorage.getItem(PLAN_KEY);
       let loadedTemplates: Template[] = [];
-      let loadedHistory: { [date: string]: DayHistory } = {};
+      let loadedHistory: Record<string, DayHistory> = {};
       let loadedStreak = 0;
 
-      // Load plan data (persists forever)
       if (planRaw) {
         const pd = JSON.parse(planRaw);
-        loadedTemplates = pd.templates || [];
-        loadedHistory = pd.history || {};
-        loadedStreak = pd.streak || 0;
-        setTemplates(loadedTemplates);
-        setHistory(loadedHistory);
-        setStreak(loadedStreak);
+        loadedTemplates = pd.templates || []; loadedHistory = pd.history || {}; loadedStreak = pd.streak || 0;
+        setTemplates(loadedTemplates); setHistory(loadedHistory); setStreak(loadedStreak);
       }
 
-      // Load drain rate settings
       try {
         const settingsRaw = localStorage.getItem(SETTINGS_KEY);
-        if (settingsRaw) setDrainRates({ ...DEFAULT_RATES, ...JSON.parse(settingsRaw) });
-      } catch (e) {}
+        if (settingsRaw) {
+          const parsed = JSON.parse(settingsRaw);
+          setDrainRates({ ...DEFAULT_RATES, ...parsed });
+          if (parsed.theme) setTheme(parsed.theme);
+        }
+      } catch {}
 
       if (raw) {
         const d = JSON.parse(raw);
         const todayMY = getMYDate();
-        const savedDate = d.savedDate || "";
-        if (savedDate !== todayMY) {
-          // Archive yesterday's data to history
-          if (savedDate && d.tasks) {
-            const prevDone = (d.dayLog || []).filter((e: any) => e.type === "work").length + (d.dayLog || []).filter((e: any) => e.type === "rest").length;
+        if (d.savedDate !== todayMY) {
+          // Day rollover: archive + generate from templates
+          if (d.savedDate && d.tasks) {
+            const prevDone = (d.dayLog || []).filter((e: any) => e.type === "work" || e.type === "rest").length;
             const prevSkipped = (d.tasks || []).filter((t: any) => t.status === "skipped").length;
             const prevTotal = (d.dayLog || []).reduce((s: number, e: any) => s + e.duration, 0);
-            const hist: DayHistory = { date: savedDate, tasks: (d.tasks || []).length, done: prevDone, skipped: prevSkipped, totalMin: prevTotal, log: d.dayLog || [] };
-            loadedHistory[savedDate] = hist;
-            // Calculate streak
+            loadedHistory[d.savedDate] = { date: d.savedDate, tasks: d.tasks.length, done: prevDone, skipped: prevSkipped, totalMin: prevTotal, log: d.dayLog || [] };
             let s = prevDone > 0 ? 1 : 0;
-            if (s > 0) {
-              const check = new Date(savedDate);
-              for (let i = 1; i < 365; i++) {
-                check.setDate(check.getDate() - 1);
-                const ck = dateKey(check);
-                if (loadedHistory[ck] && loadedHistory[ck].done > 0) s++;
-                else break;
-              }
-            }
-            loadedStreak = s;
-            setHistory(loadedHistory);
-            setStreak(loadedStreak);
-            savePlan(loadedTemplates, loadedHistory, loadedStreak);
+            if (s > 0) { const check = new Date(d.savedDate); for (let i = 1; i < 365; i++) { check.setDate(check.getDate() - 1); const ck = dateKey(check); if (loadedHistory[ck]?.done > 0) s++; else break; } }
+            loadedStreak = s; setHistory(loadedHistory); setStreak(loadedStreak); savePlan(loadedTemplates, loadedHistory, loadedStreak);
           }
-
-          // Generate today's tasks from templates
-          const todayDate = new Date();
-          const todayDow = todayDate.getDay(); // 0=Sun
-          const generatedTasks = loadedTemplates
-            .filter(tpl => tpl.days.length === 0 || tpl.days.includes(todayDow))
-            .map(tpl => ({
-              name: tpl.name,
-              time: tpl.time,
-              timeMin: tpl.timeMin,
-              duration: tpl.duration,
-              type: tpl.type,
-              id: genId(),
-              status: "pending",
-              adjustedTimeMin: null,
-              skippedAt: null,
-              fromTemplate: tpl.id,
-            }));
-
-          // Merge: keep manual tasks (no fromTemplate), replace template-generated ones
-          const manualTasks = (d.tasks || []).filter((t: any) => !t.fromTemplate).map((t: any) => ({ ...t, status: "pending", adjustedTimeMin: null, skippedAt: null }));
-          setTasks([...generatedTasks, ...manualTasks]);
-          setDayLog([]);
-          setEnergyUsed(0);
-          setEnergyCharged(0);
-          setActiveTask(null);
-          setPausedTask(null);
-          setSwitchingFrom(null);
-          setCustomGroups(d.customGroups || []);
+          const dow = new Date().getDay();
+          const gen = loadedTemplates.filter(t => t.days.length === 0 || t.days.includes(dow)).map(t => ({ name: t.name, time: t.time, timeMin: t.timeMin, duration: t.duration, type: t.type, id: genId(), status: "pending" as const, adjustedTimeMin: null, skippedAt: null, fromTemplate: t.id, urgent: false, planned_duration: t.duration, actual_duration: null }));
+          setTasks(gen); setDayLog([]); setEnergyUsed(0); setEnergyCharged(0); setActiveTask(null); setPausedTask(null); setSwitchingFrom(null); setCustomGroups(d.customGroups || []);
         } else {
-          setTasks(d.tasks || []);
-          setDayLog(d.dayLog || []);
-          setEnergyUsed(d.energyUsed || 0);
-          setEnergyCharged(d.energyCharged || 0);
-          setActiveTask(d.activeTask || null);
-          setPausedTask(d.pausedTask || null);
-          setSwitchingFrom(d.switchingFrom || null);
-          setCustomGroups(d.customGroups || []);
+          setTasks(d.tasks || []); setDayLog(d.dayLog || []); setEnergyUsed(d.energyUsed || 0); setEnergyCharged(d.energyCharged || 0);
+          setActiveTask(d.activeTask || null); setPausedTask(d.pausedTask || null); setSwitchingFrom(d.switchingFrom || null); setCustomGroups(d.customGroups || []);
         }
-      } else if (loadedTemplates.length > 0) {
-        // No daily data but templates exist — generate tasks
-        const todayDate = new Date();
-        const todayDow = todayDate.getDay();
-        const generatedTasks = loadedTemplates
-          .filter(tpl => tpl.days.length === 0 || tpl.days.includes(todayDow))
-          .map(tpl => ({
-            name: tpl.name, time: tpl.time, timeMin: tpl.timeMin, duration: tpl.duration, type: tpl.type,
-            id: genId(), status: "pending", adjustedTimeMin: null, skippedAt: null, fromTemplate: tpl.id,
-          }));
-        setTasks(generatedTasks);
       }
-    } catch (e) {}
-
-    // Connect to Supabase (non-blocking)
-    ensureAuth().then(uid => {
-      if (uid) setUserId(uid);
-    });
-
+    } catch {}
+    ensureAuth().then(uid => { if (uid) setUserId(uid); });
     setLoaded(true);
   }, []);
 
-    // ═══ NOTIFICATION INIT ═══
+  // ═══ NOTIFICATIONS ═══
+  useEffect(() => { if (!loaded) return; const s = getPermissionStatus(); if (s === "granted") initNotifications().then(ok => setNotifEnabled(ok)); else if (s === "default") { const t = setTimeout(() => setNotifBanner(true), 3000); return () => clearTimeout(t); } }, [loaded]);
+  useEffect(() => { if (notifEnabled) scheduleTaskNotifications(tasks); }, [tasks, notifEnabled]);
+  useEffect(() => { if (notifEnabled) scheduleDaySummary(drainRates.sleepHour, drainRates.sleepMinute); }, [notifEnabled, drainRates.sleepHour, drainRates.sleepMinute]);
+
+  // ═══ SW message handler ═══
   useEffect(() => {
-    if (!loaded) return;
-    const status = getPermissionStatus();
-    if (status === "granted") {
-      initNotifications().then((ok) => setNotifEnabled(ok));
-    } else if (status === "default") {
-      // Show permission banner after 3 seconds (not immediately — feels less pushy)
-      const t = setTimeout(() => setNotifBanner(true), 3000);
-      return () => clearTimeout(t);
-    }
-  }, [loaded]);
+    if (!("serviceWorker" in navigator)) return;
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === "NOTIFICATION_CLICK") {
+        if (e.data.action === "start" && e.data.taskId) { const t = tasks.find(x => x.id === e.data.taskId); if (t?.status === "pending") startTask(t); }
+        else if (e.data.action === "resume" && pausedTask) resumePaused();
+      }
+    };
+    navigator.serviceWorker.addEventListener("message", handler);
+    return () => navigator.serviceWorker.removeEventListener("message", handler);
+  }, [tasks, pausedTask]);
 
-    // ═══ RESCHEDULE ON TASK CHANGE ═══
-  useEffect(() => {
-    if (!notifEnabled) return;
-    scheduleTaskNotifications(tasks);
-  }, [tasks, notifEnabled]);
-
-  // Schedule day summary on load
-  useEffect(() => {
-    if (!notifEnabled) return;
-    scheduleDaySummary(drainRates.sleepHour, drainRates.sleepMinute);
-  }, [notifEnabled, drainRates.sleepHour, drainRates.sleepMinute]);
-
-  const persist = useCallback((data: any) => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...data, savedDate: getMYDate() })); } catch (e) {}
-  }, []);
-
+  // ═══ PERSISTENCE ═══
+  const persist = useCallback((data: any) => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...data, savedDate: getMYDate() })); } catch {} }, []);
   const save = useCallback((t: any, log: any, eu: number, ec: number, at: any, cg: any, pt?: any, sf?: any) => {
     persist({ tasks: t, dayLog: log, energyUsed: eu, energyCharged: ec, activeTask: at, customGroups: cg, pausedTask: pt ?? null, switchingFrom: sf ?? null });
-    // Background sync to Supabase
-    if (userId) {
-      const today = getMYDate();
-      syncAllTasks(userId, t, today);
-      syncDayLog(userId, today, {
-        tasks_total: t.length,
-        tasks_done: log.filter((e: any) => e.type === 'work' || e.type === 'rest').length,
-        tasks_skipped: t.filter((x: any) => x.status === 'skipped').length,
-        work_minutes: Math.round(log.filter((e: any) => e.type === 'work').reduce((s: number, e: any) => s + e.duration, 0)),
-        rest_minutes: Math.round(log.filter((e: any) => e.type === 'rest').reduce((s: number, e: any) => s + e.duration, 0)),
-        energy_used: eu,
-        energy_charged: ec,
-        log_entries: log,
-      });
-    }
+    if (userId) { const td = getMYDate(); syncAllTasks(userId, t, td); syncDayLog(userId, td, { tasks_total: t.length, tasks_done: log.filter((e: any) => e.type === "work" || e.type === "rest").length, tasks_skipped: t.filter((x: any) => x.status === "skipped").length, energy_used: eu, energy_charged: ec, log_entries: log }); }
   }, [persist, userId]);
-
-  const savePlan = useCallback((tpls: Template[], hist: { [date: string]: DayHistory }, str: number) => {
-    try { localStorage.setItem(PLAN_KEY, JSON.stringify({ templates: tpls, history: hist, streak: str })); } catch (e) {}
-  }, []);
-
+  const savePlan = useCallback((tpls: Template[], hist: Record<string, DayHistory>, str: number) => { try { localStorage.setItem(PLAN_KEY, JSON.stringify({ templates: tpls, history: hist, streak: str })); } catch {} }, []);
   const saveDrainRates = useCallback((rates: DrainRates) => {
-    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(rates)); } catch (e) {}
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...rates, theme })); } catch {}
     setDrainRates(rates);
-    if (userId) saveProfile(userId, {
-      drain_idle: rates.idle, drain_work: rates.work,
-      drain_urgent: rates.urgent, drain_rest: rates.rest,
-      wake_hour: rates.wakeHour, wake_minute: rates.wakeMinute,
-      sleep_hour: rates.sleepHour, sleep_minute: rates.sleepMinute,
-      max_energy_h: rates.maxEnergyHours,
-    });
-  }, [userId]);
+    if (userId) saveProfile(userId, { drain_idle: rates.idle, drain_work: rates.work, drain_urgent: rates.urgent, drain_rest: rates.rest, wake_hour: rates.wakeHour, wake_minute: rates.wakeMinute, sleep_hour: rates.sleepHour, sleep_minute: rates.sleepMinute, max_energy_h: rates.maxEnergyHours });
+  }, [userId, theme]);
 
-  // Template CRUD
+  // ═══ TICK + ENERGY ═══
   useEffect(() => { const id = setInterval(() => setTick(t => t + 1), 1000); return () => clearInterval(id); }, []);
   useEffect(() => { if (!activeTask) return; const elapsed = (Date.now() - activeTask.startedAt) / 60000; if (activeTask.type === "work") setEnergyUsed(activeTask.baseUsed + elapsed); else setEnergyCharged(activeTask.baseCharged + elapsed); }, [tick, activeTask]);
 
   // ═══ GRACE PERIOD AUTO-SKIP ═══
   useEffect(() => {
-    if (activeTask) return; // don't auto-skip while something is running
-    const now = nowMinutes();
-    const nowMs = Date.now();
-    let shifted = false;
-    let updatedTasks = [...tasks];
-
-    updatedTasks = updatedTasks.map(t => {
-      if (t.status !== "pending") return t;
-      const taskTime = getDisplayTimeMin(t);
-      const overdueMs = (now - taskTime) * 60 * 1000;
-      // If task is more than 15 minutes overdue and not yet skipped
-      if (overdueMs >= GRACE_PERIOD_MS && taskTime < now) {
-        shifted = true;
-        return { ...t, status: "skipped", skippedAt: nowMs };
-      }
-      return t;
-    });
-
-    if (shifted) {
-      // Auto-shift remaining tasks
-      const skippedTasks = updatedTasks.filter(t => t.status === "skipped" && t.skippedAt === nowMs);
-      let totalDelay = 0;
-      for (const st of skippedTasks) {
-        totalDelay += st.duration;
-      }
-      if (totalDelay > 0) {
-        updatedTasks = autoShift(updatedTasks, now, 0); // just re-sort, delay already baked in by time passing
-      }
-      setTasks(updatedTasks);
-      save(updatedTasks, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom);
-    }
+    if (activeTask) return;
+    const now = nowMinutes(); const nowMs = Date.now(); let shifted = false; let u = [...tasks];
+    u = u.map(t => { if (t.status !== "pending") return t; const tt = getDisplayTimeMin(t); if ((now - tt) * 60 * 1000 >= GRACE_PERIOD_MS && tt < now) { shifted = true; return { ...t, status: "skipped" as const, skippedAt: nowMs }; } return t; });
+    if (shifted) { setTasks(u); save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom); }
   }, [tick, tasks, activeTask, dayLog, energyUsed, energyCharged, customGroups, pausedTask, switchingFrom, save]);
 
-  // Scroll to selected date
-  useEffect(() => {
-    if (!dateScrollRef.current) return;
-    const selIdx = selectedDate.getDate() - 1;
-    const pillW = 52;
-    const container = dateScrollRef.current;
-    const scrollTo = selIdx * pillW - container.clientWidth / 2 + pillW / 2;
-    container.scrollTo({ left: Math.max(0, scrollTo), behavior: "smooth" });
-  }, [selectedDate, viewMonth]);
-
-  // Auto-scroll back to today when user returns to app or switches to Today tab
-  useEffect(() => {
-    const resetToToday = () => {
-      if (document.visibilityState === "visible") {
-        const now = new Date();
-        setSelectedDate(now);
-        setViewMonth(now.getMonth());
-        setViewYear(now.getFullYear());
-      }
-    };
-    document.addEventListener("visibilitychange", resetToToday);
-    return () => document.removeEventListener("visibilitychange", resetToToday);
-  }, []);
-
-  // ═══ POWER BAR — drain rate calculation ═══
-  const activeElapsed = activeTask ? Math.floor((Date.now() - activeTask.startedAt) / 1000) : 0;
-  const activeElapsedMin = Math.floor(activeElapsed / 60);
-  const activeTimerStr = `${pad(Math.floor(activeElapsed / 3600))}:${pad(Math.floor((activeElapsed % 3600) / 60))}:${pad(activeElapsed % 60)}`;
-
-  const wakeTimeMin = drainRates.wakeHour * 60 + drainRates.wakeMinute;
-  const eTotal = drainRates.maxEnergyHours * 60;
-  const minutesSinceWake = Math.max(0, nowMinutes() - wakeTimeMin);
-
-  // Sum tracked time from dayLog by type
-  const workMinsLogged = dayLog.filter(e => e.type === "work" && !e.urgent).reduce((s, e) => s + e.duration, 0);
-  const urgentMinsLogged = dayLog.filter(e => e.urgent || e.type === "urgent").reduce((s, e) => s + e.duration, 0);
-  const restMinsLogged = dayLog.filter(e => e.type === "rest").reduce((s, e) => s + e.duration, 0);
-
-  // Add active task elapsed time
-  const activeIsUrgent = activeTask?.urgent || activeTask?.type === "urgent";
-  const activeWorkNow = activeTask && activeTask.type === "work" && !activeIsUrgent ? activeElapsedMin : 0;
-  const activeUrgentNow = activeTask && activeIsUrgent ? activeElapsedMin : 0;
-  const activeRestNow = activeTask && activeTask.type === "rest" ? activeElapsedMin : 0;
-
-  const totalWorkMins = workMinsLogged + activeWorkNow;
-  const totalUrgentMins = urgentMinsLogged + activeUrgentNow;
-  const totalRestMins = restMinsLogged + activeRestNow;
-  const totalTrackedMins = totalWorkMins + totalUrgentMins + totalRestMins;
-  const idleMins2 = Math.max(0, minutesSinceWake - totalTrackedMins);
-
-  // Calculate drain
-  const totalDrain = (idleMins2 * drainRates.idle) + (totalWorkMins * drainRates.work) + (totalUrgentMins * drainRates.urgent);
-  const totalRecharge = totalRestMins * drainRates.rest;
-  const eRemain = Math.max(0, Math.min(eTotal, eTotal - totalDrain + totalRecharge));
-  const ePct = Math.round((eRemain / eTotal) * 100);
-  const eHrs = (eRemain / 60).toFixed(1);
-  const usedHrs = ((totalDrain - totalRecharge) / 60).toFixed(1);
-  const sorted = useMemo(() => [...tasks].sort((a, b) => getDisplayTimeMin(a) - getDisplayTimeMin(b)), [tasks]);
-  const pendingTasks = sorted.filter(t => t.status === "pending" || t.status === "active");
-  const skippedTasks = sorted.filter(t => t.status === "skipped");
-  const doneTasks = sorted.filter(t => t.status === "done");
-  const tasksDoneCount = dayLog.filter(e => e.type === "work").length;
-  const restsDoneCount = dayLog.filter(e => e.type === "rest").length;
-  const totalTracked = dayLog.reduce((s, e) => s + e.duration, 0);
-  const idleMins = Math.max(0, Math.round(((Date.now() - new Date().setHours(6, 30, 0, 0)) / 60000) - totalTracked - (activeTask ? (Date.now() - activeTask.startedAt) / 60000 : 0)));
-  const upcoming = sorted.find(t => { if (t.status !== "pending") return false; const now = new Date(); const diff = getDisplayTimeMin(t) - (now.getHours() * 60 + now.getMinutes()); return diff > 0 && diff <= 60; });
-
-  // Overdue task: pending and past its time but within grace period
-  const overdueTask = sorted.find(t => {
-    if (t.status !== "pending") return false;
-    const taskTime = getDisplayTimeMin(t);
-    const now = nowMinutes();
-    return taskTime <= now && (now - taskTime) < 15;
-  });
-
-  const popupState = activeTask
-    ? (activeTask.type === "work" ? "working" : "resting")
-    : pausedTask
-      ? "paused"
-      : overdueTask
-        ? "grace"
-        : upcoming
-          ? "upcoming"
-          : "idle";
-  const hasTasks = pendingTasks.length > 0 || doneTasks.length > 0 || skippedTasks.length > 0;
+  // ═══ SCROLL ═══
+  useEffect(() => { if (!dateScrollRef.current) return; const i = selectedDate.getDate() - 1; dateScrollRef.current.scrollTo({ left: Math.max(0, i * 52 - dateScrollRef.current.clientWidth / 2 + 26), behavior: "smooth" }); }, [selectedDate, viewMonth]);
+  useEffect(() => { const fn = () => { if (document.visibilityState === "visible") { const n = new Date(); setSelectedDate(n); setViewMonth(n.getMonth()); setViewYear(n.getFullYear()); } }; document.addEventListener("visibilitychange", fn); return () => document.removeEventListener("visibilitychange", fn); }, []);
+  useEffect(() => { if (monthPickerOpen && monthScrollRef.current) { const el = monthScrollRef.current.querySelector('[data-active="true"]'); if (el) (el as HTMLElement).scrollIntoView({ block: "center", behavior: "auto" }); } }, [monthPickerOpen]);
 
   // ═══ TASK ACTIONS ═══
   const addTask = () => { const p = parseCmd(cmdInput, cmdCategory); if (!p) return; const n = [...tasks, p]; setTasks(n); setCmdInput(""); save(n, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom); };
 
-  // Auto-predict: fetch suggestions as user types
-  const suggestTimer = useRef<any>(null);
-  const fetchSuggestions = useCallback((query: string) => {
-    if (query.length < 2) { setSuggestions([]); setShowSuggestions(false); return; }
-    clearTimeout(suggestTimer.current);
-    suggestTimer.current = setTimeout(async () => {
-      if (!userId) return;
-      const { getPersonalSuggestions, getGlobalSuggestions } = await import('../lib/sync');
-      const personal = await getPersonalSuggestions(userId, query, 3);
-      const global = await getGlobalSuggestions(query, 3);
-      // Merge: personal first, then global (deduplicated)
-      const personalNames = new Set(personal.map((p: any) => p.name.toLowerCase()));
-      const merged = [
-        ...personal.map((p: any) => ({ ...p, source: 'you' })),
-        ...global.filter((g: any) => !personalNames.has(g.name.toLowerCase())).map((g: any) => ({ ...g, source: 'popular' })),
-      ].slice(0, 5);
-      setSuggestions(merged);
-      setShowSuggestions(merged.length > 0);
-    }, 300); // 300ms debounce
-  }, [userId]);
-
-  const pickSuggestion = (s: any) => {
-    setCmdInput(s.name);
-    if (s.category) setCmdCategory(s.category);
-    setSuggestions([]);
-    setShowSuggestions(false);
-  };
-
-  const startTask = (task: any) => {
-    // If something is running, stop it first
+  const startTask = (task: Task) => {
     if (activeTask) stopAndComplete();
-    // If resuming from pause, clear paused state
     if (pausedTask && pausedTask.id === task.id) {
-      const at = { ...task, startedAt: Date.now() - (pausedTask.elapsedMs || 0), baseUsed: energyUsed, baseCharged: energyCharged };
-      setActiveTask(at);
-      setPausedTask(null);
-      const u = tasks.map(t => t.id === task.id ? { ...t, status: "active" } : t);
-      setTasks(u);
-      save(u, dayLog, energyUsed, energyCharged, at, customGroups, null, switchingFrom);
-      return;
+      const at = { ...task, startedAt: Date.now() - (pausedTask.elapsedMs || 0), baseUsed: energyUsed, baseCharged: energyCharged } as ActiveTask;
+      setActiveTask(at); setPausedTask(null); const u = tasks.map(t => t.id === task.id ? { ...t, status: "active" as const } : t); setTasks(u); save(u, dayLog, energyUsed, energyCharged, at, customGroups, null, switchingFrom); return;
     }
-    const at = { ...task, startedAt: Date.now(), baseUsed: energyUsed, baseCharged: energyCharged };
-    setActiveTask(at);
-    const u = tasks.map(t => t.id === task.id ? { ...t, status: "active" } : t);
-    setTasks(u);
-    setExpandedTask(null);
-    save(u, dayLog, energyUsed, energyCharged, at, customGroups, pausedTask, switchingFrom);
+    const at = { ...task, startedAt: Date.now(), baseUsed: energyUsed, baseCharged: energyCharged } as ActiveTask;
+    setActiveTask(at); const u = tasks.map(t => t.id === task.id ? { ...t, status: "active" as const } : t); setTasks(u); setExpandedTask(null); save(u, dayLog, energyUsed, energyCharged, at, customGroups, pausedTask, switchingFrom);
   };
 
-  // Complete a task (stop timer, log it, mark done)
   const stopAndComplete = () => {
     if (!activeTask) return;
     const elapsed = Math.round((Date.now() - activeTask.startedAt) / 60000);
-    const entry = { id: genId(), name: activeTask.name, type: activeTask.type, urgent: activeTask.urgent || false, duration: elapsed, startTime: new Date(activeTask.startedAt).toTimeString().slice(0, 5), endTime: new Date().toTimeString().slice(0, 5) };
+    const entry = { id: genId(), name: activeTask.name, type: activeTask.type, urgent: activeTask.urgent, duration: elapsed, startTime: new Date(activeTask.startedAt).toTimeString().slice(0, 5), endTime: new Date().toTimeString().slice(0, 5) };
     const newLog = [...dayLog, entry];
-    const u = tasks.map(t => t.id === activeTask.id ? { ...t, status: "done", actual_duration: elapsed, completedAt: Date.now(), startedAt: activeTask.startedAt } : t);
-    setDayLog(newLog);
-    setTasks(u);
-    setActiveTask(null);
+    const u = tasks.map(t => t.id === activeTask.id ? { ...t, status: "done" as const, actual_duration: elapsed, completedAt: Date.now(), startedAt: activeTask.startedAt } : t);
+    setDayLog(newLog); setTasks(u); setActiveTask(null);
     if (notifEnabled) onTaskDone(activeTask.id);
-
-    // If we were switching, resume the original task
-    if (switchingFrom) {
-      const origTask = u.find(t => t.id === switchingFrom.id);
-      if (origTask && origTask.status !== "done") {
-        setPausedTask(switchingFrom);
-        setSwitchingFrom(null);
-        save(u, newLog, energyUsed, energyCharged, null, customGroups, switchingFrom, null);
-        return;
-      }
-      setSwitchingFrom(null);
-    }
+    if (switchingFrom) { const orig = u.find(t => t.id === switchingFrom.id); if (orig && orig.status !== "done") { setPausedTask(switchingFrom); setSwitchingFrom(null); save(u, newLog, energyUsed, energyCharged, null, customGroups, switchingFrom, null); return; } setSwitchingFrom(null); }
     save(u, newLog, energyUsed, energyCharged, null, customGroups, pausedTask, null);
   };
 
-  // ═══ PAUSE — freeze timer, remind in 30 min ═══
   const pauseTask = () => {
     if (!activeTask) return;
-    const elapsedMs = Date.now() - activeTask.startedAt;
-    const pt = { ...activeTask, elapsedMs, pausedAt: Date.now() };
-    setPausedTask(pt);
-    const u = tasks.map(t => t.id === activeTask.id ? { ...t, status: "pending" } : t);
-    setTasks(u);
-    setActiveTask(null);
-    // Shift remaining tasks by 30 min (expected pause duration)
-    const shifted = autoShift(u, getDisplayTimeMin(activeTask), 30);
-    setTasks(shifted);
+    const pt = { ...activeTask, elapsedMs: Date.now() - activeTask.startedAt, pausedAt: Date.now() } as ActiveTask;
+    setPausedTask(pt); const u = tasks.map(t => t.id === activeTask.id ? { ...t, status: "pending" as const } : t);
+    const shifted = autoShift(u, getDisplayTimeMin(activeTask), 30); setTasks(shifted); setActiveTask(null);
     save(shifted, dayLog, energyUsed, energyCharged, null, customGroups, pt, switchingFrom);
-    // Notify to resume in 30 min
     if (notifEnabled) schedulePauseReminder(activeTask.name, activeTask.id);
   };
 
-  // ═══ SKIP — log partial time, mark skipped, shift everything ═══
   const skipTask = () => {
     if (!activeTask) return;
     const elapsed = Math.round((Date.now() - activeTask.startedAt) / 60000);
-    const remaining = Math.max(0, activeTask.duration - elapsed);
-    // Log partial time
     if (elapsed > 0) {
-      const entry = { id: genId(), name: activeTask.name, type: activeTask.type, urgent: activeTask.urgent || false, duration: elapsed, startTime: new Date(activeTask.startedAt).toTimeString().slice(0, 5), endTime: new Date().toTimeString().slice(0, 5), partial: true };
-      const newLog = [...dayLog, entry];
-      setDayLog(newLog);
-      const u = tasks.map(t => t.id === activeTask.id ? { ...t, status: "skipped", skippedAt: Date.now(), actual_duration: elapsed, startedAt: activeTask.startedAt } : t);
-      // Shift remaining tasks forward — they already lost the elapsed time, but the remaining planned time is freed
-      const shifted = autoShift(u, nowMinutes(), 0);
-      setTasks(shifted);
-      setActiveTask(null);
-      if (notifEnabled) onTaskDone(activeTask.id);
-      save(shifted, newLog, energyUsed, energyCharged, null, customGroups, pausedTask, switchingFrom);
+      const entry = { id: genId(), name: activeTask.name, type: activeTask.type, urgent: activeTask.urgent, duration: elapsed, startTime: new Date(activeTask.startedAt).toTimeString().slice(0, 5), endTime: new Date().toTimeString().slice(0, 5), partial: true };
+      const newLog = [...dayLog, entry]; setDayLog(newLog);
+      const u = tasks.map(t => t.id === activeTask.id ? { ...t, status: "skipped" as const, skippedAt: Date.now(), actual_duration: elapsed } : t);
+      setTasks(autoShift(u, nowMinutes(), 0)); setActiveTask(null); if (notifEnabled) onTaskDone(activeTask.id); save(autoShift(u, nowMinutes(), 0), newLog, energyUsed, energyCharged, null, customGroups, pausedTask, switchingFrom);
     } else {
-      const u = tasks.map(t => t.id === activeTask.id ? { ...t, status: "skipped", skippedAt: Date.now() } : t);
-      const shifted = autoShift(u, nowMinutes(), 0);
-      setTasks(shifted);
-      setActiveTask(null);
-      if (notifEnabled) onTaskDone(activeTask.id);
-      save(shifted, dayLog, energyUsed, energyCharged, null, customGroups, pausedTask, switchingFrom);
+      const u = tasks.map(t => t.id === activeTask.id ? { ...t, status: "skipped" as const, skippedAt: Date.now() } : t);
+      setTasks(autoShift(u, nowMinutes(), 0)); setActiveTask(null); if (notifEnabled) onTaskDone(activeTask.id); save(autoShift(u, nowMinutes(), 0), dayLog, energyUsed, energyCharged, null, customGroups, pausedTask, switchingFrom);
     }
   };
 
-  // Skip a pending task (from grace period or manual)
-  const skipPendingTask = (task: any) => {
-    const u = tasks.map(t => t.id === task.id ? { ...t, status: "skipped", skippedAt: Date.now() } : t);
-    setTasks(u);
-    save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom);
-    if (notifEnabled) onTaskDone(task.id);
-  };
-
-  // ═══ SWITCH — pause current, open command bar for urgent task ═══
   const switchTask = () => {
     if (!activeTask) return;
-    const elapsedMs = Date.now() - activeTask.startedAt;
-    const sf = { ...activeTask, elapsedMs, pausedAt: Date.now() };
-    setSwitchingFrom(sf);
-    const u = tasks.map(t => t.id === activeTask.id ? { ...t, status: "pending" } : t);
-    setTasks(u);
-    setActiveTask(null);
-    setShowSwitchInput(true);
-    setSwitchInput("");
-    save(u, dayLog, energyUsed, energyCharged, null, customGroups, null, sf);
+    const sf = { ...activeTask, elapsedMs: Date.now() - activeTask.startedAt, pausedAt: Date.now() } as ActiveTask;
+    setSwitchingFrom(sf); const u = tasks.map(t => t.id === activeTask.id ? { ...t, status: "pending" as const } : t); setTasks(u); setActiveTask(null); setShowSwitchInput(true); setSwitchInput(""); save(u, dayLog, energyUsed, energyCharged, null, customGroups, null, sf);
   };
 
   const addSwitchTask = () => {
-    const p = parseCmd(switchInput);
-    if (!p) return;
-    p.status = "pending";
-    (p as any).urgent = true; // Auto-tag as urgent from Switch
-    const n = [...tasks, p];
-    setTasks(n);
-    setSwitchInput("");
-    setShowSwitchInput(false);
-    // Start the urgent task immediately
-    const at = { ...p, urgent: true, startedAt: Date.now(), baseUsed: energyUsed, baseCharged: energyCharged };
-    setActiveTask(at);
-    const u = n.map(t => t.id === p.id ? { ...t, status: "active", urgent: true } : t);
-    setTasks(u);
-    save(u, dayLog, energyUsed, energyCharged, at, customGroups, null, switchingFrom);
+    const p = parseCmd(switchInput); if (!p) return; p.urgent = true;
+    const n = [...tasks, p]; setSwitchInput(""); setShowSwitchInput(false);
+    const at = { ...p, urgent: true, startedAt: Date.now(), baseUsed: energyUsed, baseCharged: energyCharged } as ActiveTask;
+    setActiveTask(at); const u = n.map(t => t.id === p.id ? { ...t, status: "active" as const, urgent: true } : t); setTasks(u); save(u, dayLog, energyUsed, energyCharged, at, customGroups, null, switchingFrom);
   };
 
-  // Resume paused task
-  const resumePaused = () => {
-    if (!pausedTask) return;
-    const task = tasks.find(t => t.id === pausedTask.id);
-    if (task) startTask(task);
-    if (notifEnabled) cancelPauseReminder();
-  };
+  const resumePaused = () => { if (!pausedTask) return; const t = tasks.find(x => x.id === pausedTask.id); if (t) startTask(t); if (notifEnabled) cancelPauseReminder(); };
+  const dismissPaused = () => { if (!pausedTask) return; setPausedTask(null); save(tasks, dayLog, energyUsed, energyCharged, activeTask, customGroups, null, switchingFrom); if (notifEnabled) cancelPauseReminder(); };
 
-  // Dismiss paused task
-  const dismissPaused = () => {
-    if (!pausedTask) return;
-    setPausedTask(null);
-    save(tasks, dayLog, energyUsed, energyCharged, activeTask, customGroups, null, switchingFrom);
-    if (notifEnabled) cancelPauseReminder();
-  };
-
-  const markDone = (task: any) => { const entry = { id: genId(), name: task.name, type: task.type, urgent: task.urgent || false, duration: task.duration, startTime: getDisplayTime(task), endTime: fmtTime(Math.floor((getDisplayTimeMin(task) + task.duration) / 60) % 24, (getDisplayTimeMin(task) + task.duration) % 60) }; const newLog = [...dayLog, entry]; const u = tasks.map(t => t.id === task.id ? { ...t, status: "done", actual_duration: task.duration, completedAt: Date.now() } : t); setDayLog(newLog); setTasks(u); setExpandedTask(null); if (task.type === "work") setEnergyUsed(prev => prev + task.duration); else setEnergyCharged(prev => prev + task.duration); save(u, newLog, task.type === "work" ? energyUsed + task.duration : energyUsed, task.type === "rest" ? energyCharged + task.duration : energyCharged, activeTask, customGroups, pausedTask, switchingFrom); if (notifEnabled) onTaskDone(task.id);};
-
-  const markUndone = (task: any) => { const u = tasks.map(t => t.id === task.id ? { ...t, status: "pending", actual_duration: null, completedAt: null } : t); const newLog = dayLog.filter(e => e.name !== task.name || e.startTime !== getDisplayTime(task)); setTasks(u); setDayLog(newLog); if (task.type === "work") setEnergyUsed(prev => Math.max(0, prev - task.duration)); else setEnergyCharged(prev => Math.max(0, prev - task.duration)); save(u, newLog, task.type === "work" ? Math.max(0, energyUsed - task.duration) : energyUsed, task.type === "rest" ? Math.max(0, energyCharged - task.duration) : energyCharged, activeTask, customGroups, pausedTask, switchingFrom); };
-  const toggleRest = (task: any) => { const u = tasks.map(t => t.id === task.id ? { ...t, type: t.type === "work" ? "rest" : "work" } : t); setTasks(u); save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom); };
-  const toggleUrgent = (task: any) => { const u = tasks.map(t => t.id === task.id ? { ...t, urgent: !t.urgent } : t); setTasks(u); save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom); };
+  const markDone = (task: Task) => { const entry = { id: genId(), name: task.name, type: task.type, urgent: task.urgent, duration: task.duration, startTime: getDisplayTime(task), endTime: fmtTime(Math.floor((getDisplayTimeMin(task) + task.duration) / 60) % 24, (getDisplayTimeMin(task) + task.duration) % 60) }; const newLog = [...dayLog, entry]; const u = tasks.map(t => t.id === task.id ? { ...t, status: "done" as const, actual_duration: task.duration, completedAt: Date.now() } : t); setDayLog(newLog); setTasks(u); setExpandedTask(null); save(u, newLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom); if (notifEnabled) onTaskDone(task.id); };
+  const markUndone = (task: Task) => { const u = tasks.map(t => t.id === task.id ? { ...t, status: "pending" as const, actual_duration: null, completedAt: undefined } : t); const newLog = dayLog.filter(e => !(e.name === task.name && e.startTime === getDisplayTime(task))); setTasks(u); setDayLog(newLog); save(u, newLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom); };
+  const skipPendingTask = (task: Task) => { const u = tasks.map(t => t.id === task.id ? { ...t, status: "skipped" as const, skippedAt: Date.now() } : t); setTasks(u); save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom); if (notifEnabled) onTaskDone(task.id); };
+  const deleteTask = (task: Task) => { const u = tasks.filter(t => t.id !== task.id); setTasks(u); setExpandedTask(null); save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom); };
+  const toggleRest = (task: Task) => { const u = tasks.map(t => t.id === task.id ? { ...t, type: t.type === "work" ? "rest" : "work" } : t); setTasks(u); save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom); };
+  const toggleUrgent = (task: Task) => { const u = tasks.map(t => t.id === task.id ? { ...t, urgent: !t.urgent } : t); setTasks(u); save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom); };
+  const openEditModal = (task: Task) => { setEditFields({ name: task.name, time: getDisplayTime(task), duration: String(task.duration), type: task.type, desc: task.desc || "", rate: task.rate || "" }); setEditModal(task); setExpandedTask(null); };
+  const saveEdit = () => { if (!editModal || !editFields.name.trim()) return; const [h, m] = editFields.time.split(":").map(Number); const u = tasks.map(t => t.id === editModal.id ? { ...t, name: editFields.name.trim(), time: fmtTime(h || 0, m || 0), timeMin: (h || 0) * 60 + (m || 0), adjustedTimeMin: null, duration: parseInt(editFields.duration) || 60, type: editFields.type, desc: editFields.desc, rate: editFields.rate } : t); setTasks(u); save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom); setEditModal(null); };
   const addGroup = () => { setGroupInput(""); setShowGroupModal(true); };
   const confirmAddGroup = () => { if (groupInput.trim()) { const x = [...customGroups, groupInput.trim()]; setCustomGroups(x); save(tasks, dayLog, energyUsed, energyCharged, activeTask, x, pausedTask, switchingFrom); } setShowGroupModal(false); setGroupInput(""); };
-  const deleteTask = (task: any) => { const u = tasks.filter(t => t.id !== task.id); setTasks(u); setExpandedTask(null); save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom); };
-  const openEditModal = (task: any) => {
-    setEditFields({ name: task.name, time: getDisplayTime(task), duration: String(task.duration), type: task.type, desc: task.desc || "", rate: task.rate || "" });
-    setEditModal(task); setExpandedTask(null);
-  };
-  const saveEdit = () => {
-    if (!editModal || !editFields.name.trim()) return;
-    const timeParts = editFields.time.split(":"); const h = parseInt(timeParts[0]) || 0; const m = parseInt(timeParts[1]) || 0;
-    const u = tasks.map(t => t.id === editModal.id ? { ...t, name: editFields.name.trim(), time: fmtTime(h, m), timeMin: h * 60 + m, adjustedTimeMin: null, duration: parseInt(editFields.duration) || 60, type: editFields.type, desc: editFields.desc, rate: editFields.rate } : t);
-    setTasks(u); save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom); setEditModal(null);
-  };
-  const pickMonth = (m: number) => { setViewMonth(m); setMonthPickerOpen(false); const isCur = m === today.getMonth() && viewYear === today.getFullYear(); setSelectedDate(isCur ? new Date(today) : new Date(viewYear, m, 1)); };
+  const pickMonth = (m: number) => { setViewMonth(m); setMonthPickerOpen(false); setSelectedDate(m === today.getMonth() && viewYear === today.getFullYear() ? new Date(today) : new Date(viewYear, m, 1)); };
+  const resetAll = () => { setTasks([]); setDayLog([]); setTemplates([]); setHistory({}); setStreak(0); setCustomGroups([]); setEnergyUsed(0); setEnergyCharged(0); setActiveTask(null); setPausedTask(null); setSwitchingFrom(null); try { localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(PLAN_KEY); } catch {} };
 
-  const allDates = useMemo(() => getAllDatesInMonth(viewYear, viewMonth), [viewYear, viewMonth]);
+  const fetchSuggestions = useCallback((q: string) => {
+    if (q.length < 2) { setSuggestions([]); setShowSuggestions(false); return; }
+    clearTimeout(suggestTimer.current);
+    suggestTimer.current = setTimeout(async () => {
+      if (!userId) return;
+      const { getPersonalSuggestions, getGlobalSuggestions } = await import("../lib/sync");
+      const personal = await getPersonalSuggestions(userId, q, 3);
+      const global = await getGlobalSuggestions(q, 3);
+      const pNames = new Set(personal.map((p: any) => p.name.toLowerCase()));
+      const merged = [...personal.map((p: any) => ({ ...p, source: "you" })), ...global.filter((g: any) => !pNames.has(g.name.toLowerCase())).map((g: any) => ({ ...g, source: "popular" }))].slice(0, 5);
+      setSuggestions(merged); setShowSuggestions(merged.length > 0);
+    }, 300);
+  }, [userId]);
+  const pickSuggestion = (s: any) => { setCmdInput(s.name); if (s.category) setCmdCategory(s.category); setSuggestions([]); setShowSuggestions(false); };
 
-  const upcomingMins = upcoming ? Math.max(0, Math.round(getDisplayTimeMin(upcoming) - (new Date().getHours() * 60 + new Date().getMinutes()))) : 0;
-  const hasActivePopup = popupState !== "idle";
+  // ═══ COMPUTED ═══
+  const activeElapsed = activeTask ? Math.floor((Date.now() - activeTask.startedAt) / 1000) : 0;
+  const activeTimerStr = `${pad(Math.floor(activeElapsed / 3600))}:${pad(Math.floor((activeElapsed % 3600) / 60))}:${pad(activeElapsed % 60)}`;
+  const wakeTimeMin = drainRates.wakeHour * 60 + drainRates.wakeMinute;
+  const eTotal = drainRates.maxEnergyHours * 60;
+  const minutesSinceWake = Math.max(0, nowMinutes() - wakeTimeMin);
+  const workMinsLogged = dayLog.filter((e: any) => e.type === "work" && !e.urgent).reduce((s: number, e: any) => s + e.duration, 0);
+  const urgentMinsLogged = dayLog.filter((e: any) => e.urgent || e.type === "urgent").reduce((s: number, e: any) => s + e.duration, 0);
+  const restMinsLogged = dayLog.filter((e: any) => e.type === "rest").reduce((s: number, e: any) => s + e.duration, 0);
+  const activeElapsedMin = Math.floor(activeElapsed / 60);
+  const totalWorkMins = workMinsLogged + (activeTask?.type === "work" && !activeTask?.urgent ? activeElapsedMin : 0);
+  const totalUrgentMins = urgentMinsLogged + (activeTask?.urgent ? activeElapsedMin : 0);
+  const totalRestMins = restMinsLogged + (activeTask?.type === "rest" ? activeElapsedMin : 0);
+  const idleMins2 = Math.max(0, minutesSinceWake - totalWorkMins - totalUrgentMins - totalRestMins);
+  const totalDrain = idleMins2 * drainRates.idle + totalWorkMins * drainRates.work + totalUrgentMins * drainRates.urgent;
+  const totalRecharge = totalRestMins * drainRates.rest;
+  const eRemain = Math.max(0, Math.min(eTotal, eTotal - totalDrain + totalRecharge));
+  const ePct = Math.round((eRemain / eTotal) * 100);
+  const eHrs = (eRemain / 60).toFixed(1);
 
-  // Grace period remaining for overdue task
-  const graceRemainingSec = overdueTask ? Math.max(0, Math.round((GRACE_PERIOD_MS - (nowMinutes() - getDisplayTimeMin(overdueTask)) * 60000) / 1000)) : 0;
-  const graceRemainingMin = Math.ceil(graceRemainingSec / 60);
-
-  // Pause timer
-  const pauseElapsedSec = pausedTask ? Math.floor((Date.now() - pausedTask.pausedAt) / 1000) : 0;
-  const pauseTimerStr = pausedTask ? `${pad(Math.floor(pauseElapsedSec / 3600))}:${pad(Math.floor((pauseElapsedSec % 3600) / 60))}:${pad(pauseElapsedSec % 60)}` : "00:00:00";
-
-  useEffect(() => { if (monthPickerOpen && monthScrollRef.current) { const el = monthScrollRef.current.querySelector('[data-active="true"]'); if (el) el.scrollIntoView({ block: "center", behavior: "auto" }); } }, [monthPickerOpen]);
-
-  // Day summary counts
+  const sorted = useMemo(() => [...tasks].sort((a, b) => getDisplayTimeMin(a) - getDisplayTimeMin(b)), [tasks]);
+  const pendingTasks = sorted.filter(t => t.status === "pending" || t.status === "active");
+  const skippedTasks = sorted.filter(t => t.status === "skipped");
+  const doneTasks = sorted.filter(t => t.status === "done");
+  const tasksDoneCount = dayLog.filter((e: any) => e.type === "work").length;
+  const restsDoneCount = dayLog.filter((e: any) => e.type === "rest").length;
+  const totalTracked = dayLog.reduce((s: number, e: any) => s + e.duration, 0);
   const skippedCount = skippedTasks.length;
-  const doneCount = doneTasks.length;
-
-  if (!loaded) return (<div style={{ background: "#0e0e12", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ fontSize: 11, letterSpacing: 4, color: "#5DCAA5", fontFamily: MONO, animation: "pulse 1.5s infinite" }}>LOADING...</div></div>);
-
+  const hasTasks = pendingTasks.length > 0 || doneTasks.length > 0 || skippedTasks.length > 0;
+  const upcoming = sorted.find(t => t.status === "pending" && getDisplayTimeMin(t) - nowMinutes() > 0 && getDisplayTimeMin(t) - nowMinutes() <= 60);
+  const overdueTask = sorted.find(t => t.status === "pending" && getDisplayTimeMin(t) <= nowMinutes() && nowMinutes() - getDisplayTimeMin(t) < 15);
+  const popupState = activeTask ? (activeTask.type === "work" ? "working" : "resting") : pausedTask ? "paused" : overdueTask ? "grace" : upcoming ? "upcoming" : "idle";
+  const hasActivePopup = popupState !== "idle";
+  const upcomingMins = upcoming ? Math.max(0, Math.round(getDisplayTimeMin(upcoming) - nowMinutes())) : 0;
+  const graceRemainingSec = overdueTask ? Math.max(0, Math.round((GRACE_PERIOD_MS - (nowMinutes() - getDisplayTimeMin(overdueTask)) * 60000) / 1000)) : 0;
+  const pauseElapsedSec = pausedTask ? Math.floor((Date.now() - (pausedTask.pausedAt || Date.now())) / 1000) : 0;
+  const pauseTimerStr = `${pad(Math.floor(pauseElapsedSec / 3600))}:${pad(Math.floor((pauseElapsedSec % 3600) / 60))}:${pad(pauseElapsedSec % 60)}`;
+  const allDates = useMemo(() => getAllDatesInMonth(viewYear, viewMonth), [viewYear, viewMonth]);
   const PILL_H = 62;
 
+  const handleTabChange = (tab: BottomTab) => setBottomTab(tab);
+  const handleFriendsNav = (tab: BottomTab) => setBottomTab(tab);
+
+  // ═══ LOADING ═══
+  if (!loaded) return (
+    <div style={{ background: "#050505", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ fontSize: 13, letterSpacing: 6, color: "#2ECDA8", fontFamily: MONO, fontWeight: 500 }} className="anim-pulse">PITGOAL</div>
+    </div>
+  );
+
+  // ═══ RENDER ═══
   return (
-    <div style={{ background: "#0e0e12", minHeight: "100vh", fontFamily: BODY, color: "#c0c0c0", maxWidth: 430, margin: "0 auto", position: "relative", paddingBottom: hasActivePopup ? 200 : 110, paddingTop: "env(safe-area-inset-top, 0px)" }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        @keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
-        @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
-        @keyframes graceFlash { 0%,100% { border-color: #EF9F2740; } 50% { border-color: #EF9F2780; } }
-        .tap:active { opacity: 0.65; transform: scale(0.97); }
-        .no-scroll::-webkit-scrollbar { display: none; }
-        .no-scroll { -ms-overflow-style: none; scrollbar-width: none; }
-        .pulse-dot { animation: pulse 2s infinite; }
-        input:focus { outline: none; }
-      `}</style>
+    <div data-theme={theme} style={{ background: "var(--bg)", minHeight: "100vh", fontFamily: BODY, color: "var(--t2)", maxWidth: 430, margin: "0 auto", position: "relative", paddingBottom: hasActivePopup ? 200 : 110, paddingTop: "env(safe-area-inset-top, 0px)" }}>
 
-      {bottomTab === 'main' && (
-      <div style={{ padding: "16px 14px 0" }}>
+      {/* ── MAIN TAB ── */}
+      {bottomTab === "main" && (
+        <div style={{ padding: "16px 14px 0" }}>
 
-        {/* ═══ ZONE 1: STATS ═══ */}
-        <div onClick={() => {
-          if (powerTapTimer.current) {
-            clearTimeout(powerTapTimer.current);
-            powerTapTimer.current = null;
-            setShowPowerSettings(true); // double tap
-          } else {
-            powerTapTimer.current = setTimeout(() => {
-              powerTapTimer.current = null;
-              setPowerExpanded(!powerExpanded); // single tap
-            }, 280);
-          }
-        }} style={{ marginBottom: 6 }}>
-          {powerExpanded ? (
-            <div style={{ background: "#13131a", borderRadius: 28, padding: "16px 22px", border: "1px solid #1e1e24" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                <div><div style={{ fontSize: 20, fontWeight: 700, color: "#E1F5EE", lineHeight: 1, fontFamily: DISPLAY }}>{eHrs}<span style={{ fontSize: 13, color: "#5DCAA5", fontWeight: 500 }}>h</span></div><div style={{ fontSize: 10, color: "#555", fontFamily: MONO, marginTop: 2 }}>of {drainRates.maxEnergyHours}h energy</div></div>
-                <div style={{ fontSize: 28, fontWeight: 800, color: ePct > 30 ? "#5DCAA5" : ePct > 10 ? "#EF9F27" : "#E24B4A", lineHeight: 1, fontFamily: MONO }}>{ePct}%</div>
+          {/* Power bar (collapsed) */}
+          <div className="tap" onClick={() => setPowerExpanded(!powerExpanded)} style={{ marginBottom: 6 }}>
+            <div style={{ background: "var(--card)", borderRadius: 50, padding: "12px 20px", border: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: ePct > 30 ? "var(--accent)" : ePct > 10 ? "var(--warn)" : "var(--danger)", fontFamily: MONO }}>{ePct}%</div>
+              <div style={{ flex: 1, height: 8, background: "var(--border)", borderRadius: 100, overflow: "hidden" }}>
+                <div style={{ width: `${ePct}%`, height: "100%", background: ePct > 30 ? "var(--accent)" : ePct > 10 ? "var(--warn)" : "var(--danger)", borderRadius: 100, transition: "width 1s" }} />
               </div>
-              <div style={{ height: 12, background: "#1a2a22", borderRadius: 100, overflow: "hidden" }}><div style={{ width: `${ePct}%`, height: "100%", background: ePct > 30 ? "linear-gradient(90deg,#0F6E56,#5DCAA5)" : ePct > 10 ? "#EF9F27" : "#E24B4A", borderRadius: 100, transition: "width 1s" }} /></div>
-              {/* Drain breakdown */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 6, marginTop: 10 }}>
-                {[
-                  { label: "IDLE", mins: idleMins2, rate: drainRates.idle, color: "#555", drain: Math.round(idleMins2 * drainRates.idle) },
-                  { label: "WORK", mins: totalWorkMins, rate: drainRates.work, color: "#5DCAA5", drain: Math.round(totalWorkMins * drainRates.work) },
-                  { label: "URGENT", mins: totalUrgentMins, rate: drainRates.urgent, color: "#D4537E", drain: Math.round(totalUrgentMins * drainRates.urgent) },
-                  { label: "REST", mins: totalRestMins, rate: drainRates.rest, color: "#7F77DD", drain: -Math.round(totalRestMins * drainRates.rest) },
-                ].map(d => (
-                  <div key={d.label} style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: d.color, fontFamily: MONO }}>{d.drain > 0 ? "-" : "+"}{fmtDur(Math.abs(d.drain))}</div>
-                    <div style={{ fontSize: 8, color: "#3a3a42", fontFamily: MONO, letterSpacing: 1, marginTop: 2 }}>{d.label}</div>
-                    <div style={{ fontSize: 8, color: "#2a2a30", fontFamily: MONO }}>{d.rate}x</div>
-                  </div>
-                ))}
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}><div style={{ fontSize: 10, color: "#444", fontFamily: MONO }}>{usedHrs}h drained</div><div style={{ fontSize: 10, color: "#3a3a42", fontFamily: MONO }}>double-tap to edit</div><div style={{ fontSize: 10, color: "#5DCAA5", fontFamily: MONO }}>{eHrs}h left</div></div>
-            </div>
-          ) : (
-            <div style={{ background: "#13131a", borderRadius: 50, padding: "10px 18px", border: "1px solid #1e1e24", display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ fontSize: 15, fontWeight: 700, color: ePct > 30 ? "#5DCAA5" : ePct > 10 ? "#EF9F27" : "#E24B4A", fontFamily: MONO }}>{ePct}%</div>
-              <div style={{ flex: 1, height: 8, background: "#1a2a22", borderRadius: 100, overflow: "hidden" }}><div style={{ width: `${ePct}%`, height: "100%", background: ePct > 30 ? "#5DCAA5" : ePct > 10 ? "#EF9F27" : "#E24B4A", borderRadius: 100, transition: "width 1s" }} /></div>
-              <div style={{ fontSize: 11, color: "#555", fontFamily: MONO }}>{eHrs}h</div>
-              {notifEnabled && (
-                <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#5DCAA5", flexShrink: 0 }} title="Notifications on" />
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="tap" onClick={() => setRecordExpanded(!recordExpanded)}>
-          {recordExpanded ? (
-            <div>
-              <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                {[
-                  { v: tasksDoneCount, l: "TASKS", c: "#5DCAA5", bg: "#063d30", lt: "#E1F5EE", dur: fmtDur(dayLog.filter(e => e.type === "work").reduce((s, e) => s + e.duration, 0)) },
-                  { v: restsDoneCount, l: "RESTS", c: "#7F77DD", bg: "#1e1a4d", lt: "#EEEDFE", dur: fmtDur(dayLog.filter(e => e.type === "rest").reduce((s, e) => s + e.duration, 0)) },
-                  { v: skippedCount, l: "MOVED", c: "#EF9F27", bg: "#351c02", lt: "#FAEEDA", dur: "tmrw" },
-                ].map((s, i) => (
-                  <div key={i} style={{ flex: 1, background: s.bg, borderRadius: 16, padding: "14px 12px", textAlign: "center" }}>
-                    <div style={{ fontSize: 26, fontWeight: 800, color: s.lt, lineHeight: 1, fontFamily: DISPLAY }}>{s.v}</div>
-                    <div style={{ fontSize: 10, color: s.c, marginTop: 4, fontFamily: MONO, letterSpacing: 1 }}>{s.l}</div>
-                    <div style={{ fontSize: 10, color: s.c + "99", marginTop: 2 }}>{s.dur}</div>
-                  </div>
-                ))}
-              </div>
-              <div style={{ background: "#13131a", borderRadius: 12, padding: "10px 12px", border: "1px solid #1e1e24" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 6, height: 6, borderRadius: "50%", background: "#5DCAA5", flexShrink: 0 }} /><div style={{ flex: 1, height: 4, background: "#1e1e24", borderRadius: 2, display: "flex", overflow: "hidden" }}>{dayLog.map((e, i) => <div key={i} style={{ width: `${Math.max(2, (e.duration / eTotal) * 100)}%`, background: e.type === "work" ? "#5DCAA5" : "#7F77DD" }} />)}</div></div>
-                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}><div style={{ fontSize: 10, color: "#555", fontFamily: MONO }}>06:30</div><div style={{ fontSize: 10, color: "#555", fontFamily: MONO }}>{new Date().toTimeString().slice(0, 5)}</div><div style={{ fontSize: 10, color: "#555", fontFamily: MONO }}>23:30</div></div>
-              </div>
-            </div>
-          ) : (
-            <div style={{ background: "#13131a", borderRadius: 14, padding: "10px 14px", border: "1px solid #1e1e24", display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ display: "flex", gap: 10 }}>
-                {[{ v: tasksDoneCount, l: "TASKS", c: "#5DCAA5" }, { v: restsDoneCount, l: "RESTS", c: "#7F77DD" }, { v: skippedCount, l: "MOVED", c: "#EF9F27" }].map((s, i) => (
-                  <div key={i} style={{ textAlign: "center" }}><div style={{ fontSize: 16, fontWeight: 800, color: "#E1F5EE", lineHeight: 1, fontFamily: DISPLAY }}>{s.v}</div><div style={{ fontSize: 8, color: s.c, fontFamily: MONO, letterSpacing: 1, marginTop: 2 }}>{s.l}</div></div>
-                ))}
-              </div>
-              <div style={{ flex: 1 }} />
-              <div style={{ fontSize: 11, color: "#555", fontFamily: MONO }}>{fmtDur(totalTracked)}</div>
-            </div>
-          )}
-        </div>
-
-        <Divider />
-
-        {/* ═══ ZONE 2: NAVIGATION ═══ */}
-        <div style={{ position: "relative", marginBottom: 12 }}>
-          <div style={{ display: "flex", gap: 5, alignItems: "stretch" }}>
-            <div style={{ position: "relative", flexShrink: 0, zIndex: monthPickerOpen ? 20 : 1 }}>
-              {!monthPickerOpen ? (
-                <div className="tap" onClick={() => setMonthPickerOpen(true)} style={{ textAlign: "center", padding: "8px 4px", borderRadius: 12, width: 48, height: PILL_H, background: "#13131a", border: "1px solid #1e1e24", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2 }}>
-                  <div style={{ fontSize: 9, color: "#5DCAA580", fontFamily: MONO }}>{viewYear}</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: "#5DCAA5", fontFamily: MONO }}>{MONTHS_SHORT[viewMonth]}</div>
-                </div>
-              ) : (
-                <div ref={monthScrollRef} className="no-scroll" style={{ position: "absolute", top: 0, left: 0, zIndex: 20, background: "#13131a", border: "1px solid #5DCAA530", borderRadius: 12, width: 50, maxHeight: 210, overflowY: "auto", padding: "4px 0" }}>
-                  {MONTHS_SHORT.map((m, i) => {
-                    const isCur = i === today.getMonth() && viewYear === today.getFullYear();
-                    const isSel = i === viewMonth;
-                    return <div key={m} data-active={isSel ? "true" : "false"} className="tap" onClick={() => pickMonth(i)} style={{ padding: "7px 4px", textAlign: "center", borderRadius: 6, margin: "1px 3px", fontSize: 11, fontFamily: MONO, fontWeight: 600, cursor: "pointer", background: isSel ? "#5DCAA518" : "transparent", color: isSel ? "#5DCAA5" : isCur ? "#5DCAA5" : "#444" }}>{m}</div>;
-                  })}
-                </div>
-              )}
-            </div>
-
-            <div ref={dateScrollRef} style={{ display: "flex", gap: 5, overflowX: "auto", overflowY: "hidden", flex: 1, scrollbarWidth: "none", msOverflowStyle: "none", WebkitOverflowScrolling: "touch" }} className="no-scroll">
-              {allDates.map((d) => {
-                const isT = isSameDay(d, today);
-                const isSel = isSameDay(d, selectedDate);
-                const ev = EVENTS[dateKey(d)];
-
-                if (isSel) {
-                  return (
-                    <div key={d.getTime()} style={{ flexShrink: 0, width: 80, height: PILL_H, borderRadius: 12, background: "#5DCAA510", border: "1.5px solid #5DCAA540", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "4px 4px" }}>
-                      <div style={{ fontSize: 11, color: "#5DCAA5" }}>{DAYS[d.getDay()]}</div>
-                      <div style={{ fontSize: 20, fontWeight: 700, color: "#5DCAA5", lineHeight: 1.1 }}>{d.getDate()}</div>
-                      <div style={{ width: 5, height: 5, borderRadius: "50%", marginTop: 2, background: isT ? "#5DCAA5" : "transparent" }} />
-                      {ev && <div style={{ fontSize: 7, color: "#EF9F27", fontFamily: MONO, marginTop: 1, lineHeight: 1, whiteSpace: "nowrap", maxWidth: 72, overflow: "hidden", textOverflow: "ellipsis" }}>{ev}</div>}
-                    </div>
-                  );
-                }
-
-                return (
-                  <div key={d.getTime()} className="tap" onClick={() => setSelectedDate(new Date(d))} style={{ flexShrink: 0, width: 46, height: PILL_H, borderRadius: 12, background: "#1e1e24", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-                    <div style={{ fontSize: 11, color: "#555" }}>{DAYS[d.getDay()]}</div>
-                    <div style={{ fontSize: 14, color: "#666", fontWeight: 600 }}>{d.getDate()}</div>
-                    <div style={{ width: 5, height: 5, borderRadius: "50%", marginTop: 2, background: isT ? "#5DCAA5" : "transparent" }} />
-                  </div>
-                );
-              })}
+              <div style={{ fontSize: 11, color: "var(--t4)", fontFamily: MONO }}>{eHrs}h</div>
             </div>
           </div>
-          {monthPickerOpen && <div onClick={() => setMonthPickerOpen(false)} style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 10 }} />}
-        </div>
 
-        {/* Tags */}
-        <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 4 }}>
-          {["today", "categories", "income", ...customGroups].map(t => (
-            <div key={t} className="tap" onClick={() => setActiveTab(t)} style={{ padding: "7px 16px", borderRadius: 100, fontFamily: MONO, fontSize: 11, fontWeight: 700, letterSpacing: 1, background: activeTab === t ? "#5DCAA5" : "#1e1e24", color: activeTab === t ? "#063d30" : "#555" }}>{t.toUpperCase()}</div>
-          ))}
-          <div className="tap" onClick={addGroup} style={{ width: 30, height: 30, borderRadius: "50%", background: "#1e1e24", display: "flex", alignItems: "center", justifyContent: "center", border: "1px dashed #444" }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+          {/* Stats row */}
+          <div style={{ background: "var(--card)", borderRadius: 16, padding: "10px 14px", border: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 12, marginBottom: 6 }}>
+            <div style={{ display: "flex", gap: 10 }}>
+              {[{ v: tasksDoneCount, l: "TASKS", c: "var(--accent)" }, { v: restsDoneCount, l: "RESTS", c: "var(--rest)" }, { v: skippedCount, l: "MOVED", c: "var(--warn)" }].map((s, i) => (
+                <div key={i} style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: "var(--t1)", lineHeight: 1, fontFamily: DISPLAY }}>{s.v}</div>
+                  <div style={{ fontSize: 8, color: s.c, fontFamily: MONO, letterSpacing: 1, marginTop: 2 }}>{s.l}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ flex: 1 }} />
+            <div style={{ fontSize: 11, color: "var(--t4)", fontFamily: MONO }}>{fmtDur(totalTracked)}</div>
           </div>
-        </div>
 
-        <Divider />
+          <Divider />
 
-        {/* ═══ ZONE 3: CONTENT ═══ */}
-        {activeTab === "today" && (
-          <>
-            {!hasTasks && (
-              <div style={{ border: "1px dashed #2a2a30", borderRadius: 16, padding: "28px 16px 16px", textAlign: "center" }}>
-                <div style={{ fontSize: 14, color: "#555", marginBottom: 4 }}>No tasks yet</div>
-                <div style={{ fontSize: 11, color: "#333", fontFamily: MONO, marginBottom: 16 }}>Type below to add your first task</div>
-                <div style={{ position: "relative" }}>
-                  <div style={{ background: "#13131a", borderRadius: 14, padding: "12px 14px", border: "1px solid #5DCAA530", display: "flex", alignItems: "center", gap: 8 }}>
-                    <div className="tap" onClick={() => setCmdCategory(c => c === 'task' ? 'rest' : c === 'rest' ? 'life' : 'task')} style={{ background: cmdCategory === 'task' ? '#5DCAA520' : cmdCategory === 'rest' ? '#7F77DD20' : '#EF9F2720', border: `1px solid ${cmdCategory === 'task' ? '#5DCAA5' : cmdCategory === 'rest' ? '#7F77DD' : '#EF9F27'}`, borderRadius: 8, padding: "5px 10px", fontSize: 9, fontWeight: 700, fontFamily: MONO, color: cmdCategory === 'task' ? '#5DCAA5' : cmdCategory === 'rest' ? '#7F77DD' : '#EF9F27', cursor: "pointer", flexShrink: 0, letterSpacing: 1, userSelect: "none" }}>{cmdCategory.toUpperCase()}</div>
-                    <input value={cmdInput} onChange={e => { setCmdInput(e.target.value); fetchSuggestions(e.target.value); }} onKeyDown={e => e.key === "Enter" && addTask()} onFocus={() => suggestions.length > 0 && setShowSuggestions(true)} onBlur={() => setTimeout(() => setShowSuggestions(false), 200)} placeholder="study C 7pm 1.5h" style={{ flex: 1, background: "none", border: "none", color: "#ccc", fontSize: 13, fontFamily: BODY, outline: "none" }} />
-                    {cmdInput && <div className="tap" onClick={addTask} style={{ background: "#5DCAA5", borderRadius: 8, padding: "6px 14px", fontSize: 11, color: "#063d30", fontWeight: 700, fontFamily: MONO }}>GO</div>}
-                  </div>
-                  {showSuggestions && suggestions.length > 0 && (
-                    <div style={{ position: "absolute", top: "100%", left: 0, right: 0, marginTop: 4, background: "#1a1a24", border: "1px solid #2a2a34", borderRadius: 12, overflow: "hidden", zIndex: 20 }}>
-                      {suggestions.map((s: any, i: number) => (
-                        <div key={i} className="tap" onMouseDown={() => pickSuggestion(s)} style={{ padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: i < suggestions.length - 1 ? "1px solid #1e1e28" : "none", cursor: "pointer" }}>
-                          <span style={{ fontSize: 12, color: "#ccc", fontFamily: BODY }}>{s.name}</span>
-                          <span style={{ fontSize: 9, color: "#555", fontFamily: MONO }}>{s.source === 'you' ? 'YOUR HISTORY' : 'POPULAR'}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div style={{ fontSize: 10, color: "#333", marginTop: 5, fontFamily: MONO }}>tap category · type name · time · duration</div>
-              </div>
-            )}
-
-            {/* Pending tasks */}
-            {hasTasks && pendingTasks.map((task, i) => {
-              const isWork = task.type === "work"; const accent = isWork ? "#5DCAA5" : "#7F77DD";
-              const isActive = task.status === "active"; const isExpanded = expandedTask === task.id;
-              const displayTime = getDisplayTime(task);
-              const displayTimeMin = getDisplayTimeMin(task);
-              const endTimeMin = displayTimeMin + task.duration;
-              const endTime = fmtTime(Math.floor(endTimeMin / 60) % 24, endTimeMin % 60);
-              const isAdjusted = task.adjustedTimeMin !== null && task.adjustedTimeMin !== task.timeMin;
-
-              if (isActive) return (
-                <div key={task.id} style={{ marginBottom: 8, animation: `fadeUp 0.3s ease ${i * 0.04}s both` }}>
-                  <div style={{ background: "#13131a", borderRadius: 16, padding: "16px 18px", border: `1px solid ${accent}50` }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 10, color: accent, fontFamily: MONO, letterSpacing: 1, marginBottom: 4 }}>
-                          {displayTime} — {endTime}
-                          {isAdjusted && <span style={{ marginLeft: 6, fontSize: 8, color: "#EF9F27", background: "#EF9F2715", padding: "1px 5px", borderRadius: 3 }}>SHIFTED</span>}
-                        </div>
-                        <div style={{ fontSize: 16, color: "#eee", fontWeight: 700, fontFamily: DISPLAY }}>{task.name}</div>
-                        <div style={{ display: "flex", gap: 6, marginTop: 6 }}><span style={{ fontSize: 9, color: "#666", background: "#ffffff08", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{task.type.toUpperCase()}</span><span style={{ fontSize: 9, color: "#666", background: "#ffffff08", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{fmtDur(task.duration)}</span>{task.urgent && <span style={{ fontSize: 9, color: "#D4537E", background: "#D4537E15", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>⚡ URGENT</span>}</div>
-                      </div>
-                      <div className="pulse-dot" style={{ width: 10, height: 10, borderRadius: "50%", background: accent, boxShadow: `0 0 0 3px ${accent}30` }} />
-                    </div>
-                  </div>
-                </div>
-              );
-
-              return (
-                <div key={task.id} style={{ marginBottom: 8, animation: `fadeUp 0.3s ease ${i * 0.04}s both` }}>
-                  <div style={{ background: "#13131a", borderRadius: isExpanded ? "16px 16px 0 0" : 16, border: "1px solid #1e1e24", borderBottom: isExpanded ? "none" : undefined }}>
-                    <div style={{ display: "flex", alignItems: "center" }}>
-                      <div className="tap" onClick={() => setExpandedTask(isExpanded ? null : task.id)} style={{ flex: 1, padding: "16px 0 16px 18px" }}>
-                        <div style={{ fontSize: 10, color: accent, fontFamily: MONO, letterSpacing: 1, marginBottom: 4 }}>
-                          {displayTime} — {endTime}
-                          {isAdjusted && <span style={{ marginLeft: 6, fontSize: 8, color: "#EF9F27", background: "#EF9F2715", padding: "1px 5px", borderRadius: 3 }}>SHIFTED</span>}
-                        </div>
-                        <div style={{ fontSize: 16, color: "#ccc", fontWeight: 700, fontFamily: DISPLAY }}>{task.name}</div>
-                        <div style={{ display: "flex", gap: 6, marginTop: 6 }}><span style={{ fontSize: 9, color: "#666", background: "#ffffff08", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{task.type.toUpperCase()}</span><span style={{ fontSize: 9, color: "#666", background: "#ffffff08", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{fmtDur(task.duration)}</span>{task.urgent && <span style={{ fontSize: 9, color: "#D4537E", background: "#D4537E15", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>⚡ URGENT</span>}</div>
-                      </div>
-                      <div className="tap" onClick={(e) => { e.stopPropagation(); startTask(task); }} style={{ padding: "16px 18px 16px 12px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        <div style={{ width: 36, height: 36, borderRadius: 10, background: `${accent}15`, border: `1px solid ${accent}30`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          <PlayIcon size={16} color={accent} />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {isExpanded && (
-                    <div style={{ background: "#13131a", borderRadius: "0 0 16px 16px", padding: "12px 14px 14px", border: "1px solid #1e1e24", borderTop: "1px dashed #2a2a30" }}>
-                      {/* Urgent toggle */}
-                      <div className="tap" onClick={() => toggleUrgent(task)} style={{
-                        display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                        padding: "10px 12px", borderRadius: 10, marginBottom: 8,
-                        background: task.urgent ? "#D4537E18" : "#0e0e12",
-                        border: `1px solid ${task.urgent ? "#D4537E40" : "#2a2a30"}`,
-                      }}>
-                        <span style={{ fontSize: 13 }}>⚡</span>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: task.urgent ? "#D4537E" : "#555", fontFamily: MONO }}>
-                          {task.urgent ? "URGENT — 1.5x drain" : "Mark as urgent"}
-                        </span>
-                      </div>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                        <div className="tap" onClick={() => toggleRest(task)} style={{ background: task.type === "rest" ? "#1e1a4d" : "#0d2a3a", borderRadius: 14, padding: "14px 12px", textAlign: "center" }}>
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={task.type === "rest" ? "#AFA9EC" : "#5DCAA5"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ margin: "0 auto 6px" }}><path d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z" /></svg>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: task.type === "rest" ? "#EEEDFE" : "#E1F5EE", fontFamily: DISPLAY }}>{task.type === "rest" ? "Set as work" : "Set as rest"}</div>
-                          <div style={{ fontSize: 10, color: task.type === "rest" ? "#AFA9EC" : "#9FE1CB", fontFamily: MONO, marginTop: 3 }}>{task.type === "rest" ? "drains energy" : "charges energy"}</div>
-                        </div>
-                        <div className="tap" onClick={() => markDone(task)} style={{ background: "#063d30", borderRadius: 14, padding: "14px 12px", textAlign: "center" }}>
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9FE1CB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ margin: "0 auto 6px" }}><polyline points="20 6 9 17 4 12" /></svg>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: "#E1F5EE", fontFamily: DISPLAY }}>Mark as done</div>
-                          <div style={{ fontSize: 10, color: "#9FE1CB", fontFamily: MONO, marginTop: 3 }}>complete task</div>
-                        </div>
-                        <div className="tap" onClick={() => openEditModal(task)} style={{ background: "#1e1a4d", borderRadius: 14, padding: "14px 12px", textAlign: "center" }}>
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#AFA9EC" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ margin: "0 auto 6px" }}><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: "#EEEDFE", fontFamily: DISPLAY }}>Edit</div>
-                          <div style={{ fontSize: 10, color: "#AFA9EC", fontFamily: MONO, marginTop: 3 }}>rename task</div>
-                        </div>
-                        <div className="tap" onClick={() => deleteTask(task)} style={{ background: "#3a140a", borderRadius: 14, padding: "14px 12px", textAlign: "center" }}>
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F5C4B3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ margin: "0 auto 6px" }}><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: "#FAECE7", fontFamily: DISPLAY }}>Delete</div>
-                          <div style={{ fontSize: 10, color: "#F5C4B3", fontFamily: MONO, marginTop: 3 }}>remove task</div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-
-            {/* ═══ CREATE TASK — between pending and completed ═══ */}
-            {hasTasks && (
-              <div style={{ marginTop: 14, marginBottom: 14, position: "relative" }}>
-                <div style={{ background: "#13131a", borderRadius: 14, padding: "12px 14px", border: "1px solid #5DCAA530", display: "flex", alignItems: "center", gap: 8 }}>
-                  <div className="tap" onClick={() => setCmdCategory(c => c === 'task' ? 'rest' : c === 'rest' ? 'life' : 'task')} style={{ background: cmdCategory === 'task' ? '#5DCAA520' : cmdCategory === 'rest' ? '#7F77DD20' : '#EF9F2720', border: `1px solid ${cmdCategory === 'task' ? '#5DCAA5' : cmdCategory === 'rest' ? '#7F77DD' : '#EF9F27'}`, borderRadius: 8, padding: "5px 10px", fontSize: 9, fontWeight: 700, fontFamily: MONO, color: cmdCategory === 'task' ? '#5DCAA5' : cmdCategory === 'rest' ? '#7F77DD' : '#EF9F27', cursor: "pointer", flexShrink: 0, letterSpacing: 1, userSelect: "none" }}>{cmdCategory.toUpperCase()}</div>
-                  <input value={cmdInput} onChange={e => { setCmdInput(e.target.value); fetchSuggestions(e.target.value); }} onKeyDown={e => e.key === "Enter" && addTask()} onFocus={() => suggestions.length > 0 && setShowSuggestions(true)} onBlur={() => setTimeout(() => setShowSuggestions(false), 200)} placeholder="study C 7pm 1.5h" style={{ flex: 1, background: "none", border: "none", color: "#ccc", fontSize: 13, fontFamily: BODY, outline: "none" }} />
-                  {cmdInput && <div className="tap" onClick={addTask} style={{ background: "#5DCAA5", borderRadius: 8, padding: "6px 14px", fontSize: 11, color: "#063d30", fontWeight: 700, fontFamily: MONO }}>GO</div>}
-                </div>
-                {showSuggestions && suggestions.length > 0 && (
-                  <div style={{ position: "absolute", top: "100%", left: 0, right: 0, marginTop: 4, background: "#1a1a24", border: "1px solid #2a2a34", borderRadius: 12, overflow: "hidden", zIndex: 20 }}>
-                    {suggestions.map((s: any, i: number) => (
-                      <div key={i} className="tap" onMouseDown={() => pickSuggestion(s)} style={{ padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: i < suggestions.length - 1 ? "1px solid #1e1e28" : "none", cursor: "pointer" }}>
-                        <span style={{ fontSize: 12, color: "#ccc", fontFamily: BODY }}>{s.name}</span>
-                        <span style={{ fontSize: 9, color: "#555", fontFamily: MONO }}>{s.source === 'you' ? 'YOUR HISTORY' : 'POPULAR'}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* ═══ SKIPPED TASKS — subtle, not guilt-inducing ═══ */}
-            {skippedTasks.length > 0 && (
-              <div style={{ marginTop: 8 }}>
-                <div style={{ fontSize: 10, color: "#3a3a42", fontFamily: MONO, letterSpacing: 2, marginBottom: 6, padding: "0 4px" }}>
-                  {skippedTasks.length} MOVED TO TOMORROW
-                </div>
-                {skippedTasks.map((task) => {
-                  const isWork = task.type === "work";
-                  const accent = isWork ? "#5DCAA5" : "#7F77DD";
+          {/* Date strip */}
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ display: "flex", gap: 5, alignItems: "stretch" }}>
+              <div ref={dateScrollRef} style={{ display: "flex", gap: 5, overflowX: "auto", flex: 1, scrollbarWidth: "none" }} className="no-scroll">
+                {allDates.map(d => {
+                  const isT = isSameDay(d, today); const isSel = isSameDay(d, selectedDate); const ev = EVENTS[dateKey(d)];
                   return (
-                    <div key={task.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", marginBottom: 4, borderRadius: 12, background: "#13131a08", border: "1px solid #1a1a20", opacity: 0.4 }}>
-                      <div style={{ fontSize: 10, color: "#3a3a42", fontFamily: MONO, minWidth: 38 }}>{getDisplayTime(task)}</div>
-                      <div style={{ fontSize: 13, color: "#3a3a42", flex: 1, fontFamily: DISPLAY }}>{task.name}</div>
-                      {task.actual_duration != null && task.actual_duration > 0 && (
-                        <div style={{ fontSize: 9, color: "#555", fontFamily: MONO }}>{fmtDur(task.actual_duration)}/{fmtDur(task.duration)}</div>
-                      )}
-                      <div className="tap" onClick={() => { const u = tasks.map(t => t.id === task.id ? { ...t, status: "pending", skippedAt: null, actual_duration: null } : t); setTasks(u); save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom); }} style={{ fontSize: 9, color: "#555", fontFamily: MONO, padding: "4px 8px", borderRadius: 6, border: "1px solid #2a2a30" }}>
-                        UNDO
-                      </div>
+                    <div key={d.getTime()} className={isSel ? "" : "tap"} onClick={() => !isSel && setSelectedDate(new Date(d))}
+                      style={{ flexShrink: 0, width: isSel ? 80 : 46, height: PILL_H, borderRadius: 12, background: isSel ? "var(--accent-10)" : "var(--card)", border: isSel ? "1.5px solid var(--accent-30)" : "1px solid var(--border)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: isSel ? "default" : "pointer" }}>
+                      <div style={{ fontSize: 11, color: isSel ? "var(--accent)" : "var(--t4)" }}>{DAYS[d.getDay()]}</div>
+                      <div style={{ fontSize: isSel ? 20 : 14, fontWeight: 700, color: isSel ? "var(--accent)" : "var(--t4)", lineHeight: 1.1 }}>{d.getDate()}</div>
+                      <div style={{ width: 5, height: 5, borderRadius: "50%", marginTop: 2, background: isT ? "var(--accent)" : "transparent" }} />
+                      {ev && isSel && <div style={{ fontSize: 7, color: "var(--warn)", fontFamily: MONO, marginTop: 1, whiteSpace: "nowrap", maxWidth: 72, overflow: "hidden", textOverflow: "ellipsis" }}>{ev}</div>}
                     </div>
                   );
                 })}
               </div>
-            )}
+            </div>
+          </div>
 
-            {/* Completed stack */}
-            {doneTasks.length > 0 && (
-              <div style={{ marginTop: 12 }}>
-                <div className="tap" onClick={() => setShowCompleted(!showCompleted)}>
-                  {!showCompleted && (
-                    <div style={{ position: "relative", height: Math.min(doneTasks.length, 3) * 6 + 48 }}>
-                      {doneTasks.slice(-3).map((t, i, arr) => { const isWork = t.type === "work"; const bg = isWork ? "#063d30" : "#1e1a4d"; const accent = isWork ? "#5DCAA5" : "#7F77DD"; const light = isWork ? "#E1F5EE" : "#EEEDFE"; const off = (arr.length - 1 - i) * 6; return (
-                        <div key={t.id} style={{ position: i === arr.length - 1 ? "relative" : "absolute", top: off, left: 0, right: 0, background: bg, borderRadius: 12, padding: "12px 14px", border: `1px solid ${accent}30`, display: "flex", alignItems: "center", gap: 10, zIndex: i }}>
-                          <div style={{ fontSize: 10, color: accent, fontFamily: MONO, minWidth: 38, fontWeight: 600 }}>{getDisplayTime(t)}</div>
-                          <div style={{ fontSize: 13, color: light, fontWeight: 700, flex: 1, textDecoration: "line-through", textDecorationColor: `${accent}60`, fontFamily: DISPLAY }}>{t.name}</div>
-                          <div style={{ fontSize: 9, color: accent, fontFamily: MONO, fontWeight: 600 }}>{t.actual_duration != null && t.actual_duration !== t.duration ? `${fmtDur(t.actual_duration)}/${fmtDur(t.duration)}` : fmtDur(t.duration)}</div>
-                        </div>
-                      ); })}
-                    </div>
-                  )}
+          {/* Tags */}
+          <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 4 }}>
+            {["today", "categories", "income", ...customGroups].map(t => (
+              <div key={t} className="tap" onClick={() => setActiveTab(t)}
+                style={{ padding: "7px 16px", borderRadius: 100, fontFamily: MONO, fontSize: 11, fontWeight: 700, letterSpacing: 1, background: activeTab === t ? "var(--accent)" : "var(--card)", color: activeTab === t ? "var(--accent-bg)" : "var(--t4)" }}>{t.toUpperCase()}</div>
+            ))}
+            <div className="tap" onClick={addGroup} style={{ width: 30, height: 30, borderRadius: "50%", background: "var(--card)", display: "flex", alignItems: "center", justifyContent: "center", border: "1px dashed var(--t5)" }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t4)" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+            </div>
+          </div>
+
+          <Divider />
+
+          {/* ── TODAY TAB CONTENT ── */}
+          {activeTab === "today" && (
+            <>
+              {/* Command bar */}
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ background: "var(--card)", borderRadius: 16, padding: "12px 14px", border: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 8 }}>
+                  <div className="tap" onClick={() => setCmdCategory(c => c === "task" ? "rest" : c === "rest" ? "life" : "task")}
+                    style={{ background: cmdCategory === "task" ? "var(--accent-20)" : cmdCategory === "rest" ? "var(--rest-20)" : "var(--warn-20)", border: `1px solid ${cmdCategory === "task" ? "var(--accent)" : cmdCategory === "rest" ? "var(--rest)" : "var(--warn)"}`, borderRadius: 8, padding: "5px 10px", fontSize: 9, fontWeight: 700, fontFamily: MONO, color: cmdCategory === "task" ? "var(--accent)" : cmdCategory === "rest" ? "var(--rest)" : "var(--warn)", cursor: "pointer", flexShrink: 0, letterSpacing: 1 }}>{cmdCategory.toUpperCase()}</div>
+                  <input value={cmdInput} onChange={e => { setCmdInput(e.target.value); fetchSuggestions(e.target.value); }} onKeyDown={e => e.key === "Enter" && addTask()} placeholder="study C 7pm 1.5h"
+                    style={{ flex: 1, background: "none", border: "none", color: "var(--t2)", fontSize: 13, fontFamily: BODY, outline: "none" }} />
+                  {cmdInput && <div className="tap" onClick={addTask} style={{ background: "var(--accent)", borderRadius: 8, padding: "6px 14px", fontSize: 11, color: "var(--accent-bg)", fontWeight: 700, fontFamily: MONO }}>GO</div>}
                 </div>
-                {showCompleted && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    {doneTasks.map((task, i) => { const isWork = task.type === "work"; const bg = isWork ? "#063d30" : "#1e1a4d"; const accent = isWork ? "#5DCAA5" : "#7F77DD"; const light = isWork ? "#E1F5EE" : "#EEEDFE"; const isExp = expandedTask === task.id; return (
-                      <div key={task.id}>
-                        <div className="tap" onClick={() => setExpandedTask(isExp ? null : task.id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", background: bg, borderRadius: isExp ? "12px 12px 0 0" : 12, border: `1px solid ${accent}30`, borderBottom: isExp ? "none" : undefined, animation: `fadeUp 0.2s ease ${i * 0.03}s both` }}>
-                          <div style={{ fontSize: 10, color: accent, fontFamily: MONO, minWidth: 38, fontWeight: 600 }}>{getDisplayTime(task)}</div>
-                          <div style={{ fontSize: 13, color: light, fontWeight: 700, flex: 1, textDecoration: "line-through", textDecorationColor: `${accent}60`, fontFamily: DISPLAY }}>{task.name}</div>
-                          <div style={{ fontSize: 9, color: accent, fontFamily: MONO, fontWeight: 600 }}>{task.actual_duration != null && task.actual_duration !== task.duration ? `${fmtDur(task.actual_duration)}/${fmtDur(task.duration)}` : fmtDur(task.duration)}</div>
+              </div>
+
+              {/* Pending tasks */}
+              {pendingTasks.map((task, i) => {
+                const accent = accentForType(task.type);
+                const displayTime = getDisplayTime(task);
+                const endTime = fmtTime(Math.floor((getDisplayTimeMin(task) + task.duration) / 60) % 24, (getDisplayTimeMin(task) + task.duration) % 60);
+                const isActive = task.status === "active";
+                const isExpanded = expandedTask === task.id;
+
+                return (
+                  <div key={task.id} style={{ marginBottom: 8, animation: `fadeUp 0.3s ease ${i * 0.04}s both` }}>
+                    <div style={{ background: "var(--card)", borderRadius: isExpanded ? "20px 20px 0 0" : 20, border: `1px solid ${isActive ? "var(--accent-30)" : "var(--border)"}`, borderBottom: isExpanded ? "none" : undefined }}>
+                      <div style={{ display: "flex", alignItems: "center" }}>
+                        <div className="tap" onClick={() => setExpandedTask(isExpanded ? null : task.id)} style={{ flex: 1, padding: "16px 0 16px 18px" }}>
+                          <div style={{ fontSize: 10, color: accent, fontFamily: MONO, letterSpacing: 1, marginBottom: 4 }}>{displayTime} — {endTime}</div>
+                          <div style={{ fontSize: 16, color: isActive ? "var(--t1)" : "var(--t2)", fontWeight: 700, fontFamily: DISPLAY }}>{task.name}</div>
+                          <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                            <span style={{ fontSize: 9, color: "var(--t4)", background: "var(--glow)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{task.type.toUpperCase()}</span>
+                            <span style={{ fontSize: 9, color: "var(--t4)", background: "var(--glow)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{fmtDur(task.duration)}</span>
+                            {task.urgent && <span style={{ fontSize: 9, color: "var(--pink)", background: "var(--pink-dim)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>⚡ URGENT</span>}
+                          </div>
                         </div>
-                        {isExp && (
-                          <div style={{ background: bg, borderRadius: "0 0 12px 12px", padding: "10px 14px", border: `1px solid ${accent}30`, borderTop: `1px dashed ${accent}20`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                            <div style={{ display: "flex", gap: 8, fontSize: 11, color: accent + "aa", fontFamily: MONO, flexWrap: "wrap" }}><span>{getDisplayTime(task)} — {fmtTime(Math.floor((getDisplayTimeMin(task) + task.duration) / 60) % 24, (getDisplayTimeMin(task) + task.duration) % 60)}</span><span>{task.type.toUpperCase()}</span>{task.actual_duration != null && task.actual_duration !== task.duration ? <span style={{ color: accent }}>Set: {fmtDur(task.duration)} · Actual: {fmtDur(task.actual_duration)}</span> : <span>{fmtDur(task.duration)}</span>}</div>
-                            <div className="tap" onClick={(e) => { e.stopPropagation(); markUndone(task); }} style={{ width: 32, height: 32, borderRadius: 8, background: `${accent}20`, border: `1.5px solid ${accent}50`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                        {isActive ? (
+                          <div className="anim-pulse" style={{ width: 10, height: 10, borderRadius: "50%", background: accent, margin: "0 18px", boxShadow: `0 0 0 3px var(--accent-30)` }} />
+                        ) : (
+                          <div className="tap" onClick={(e) => { e.stopPropagation(); startTask(task); }} style={{ padding: "16px 18px 16px 12px" }}>
+                            <div style={{ width: 36, height: 36, borderRadius: 12, background: "var(--accent-10)", border: "1px solid var(--accent-20)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                              <PlayIcon size={16} color={accent} />
                             </div>
                           </div>
                         )}
                       </div>
-                    ); })}
-                    <div className="tap" onClick={() => setShowCompleted(false)} style={{ textAlign: "center", padding: 8 }}><div style={{ fontSize: 10, color: "#333" }}>{"\u25B2"}</div></div>
-                  </div>
-                )}
-              </div>
-            )}
-          </>
-        )}
-
-        {/* ═══ COLLAB TASKS (in today view) ═══ */}
-        {activeTab === "today" && MOCK_COLLAB_TASKS.length > 0 && (
-          <>
-            <Divider />
-            <div style={{ marginBottom: 4 }}>
-              <div style={{ fontSize: 10, color: "#D4537E", fontFamily: MONO, letterSpacing: 2, marginBottom: 10 }}>COLLAB TASKS</div>
-              {MOCK_COLLAB_TASKS.map((ct, i) => (
-                <div key={ct.id} style={{
-                  background: "#13131a", borderRadius: 16, padding: "14px 16px", marginBottom: 8,
-                  border: "1px solid #D4537E20",
-                  display: "flex", alignItems: "center", gap: 12,
-                  animation: `fadeUp 0.3s ease ${i * 0.05}s both`,
-                }}>
-                  {/* Friend avatar */}
-                  <div style={{
-                    width: 34, height: 34, borderRadius: 10,
-                    background: "#D4537E15",
-                    display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-                  }}>
-                    <span style={{ fontSize: 13, fontWeight: 800, color: "#D4537E", fontFamily: DISPLAY }}>{ct.friend[0]}</span>
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, color: "#ccc", fontWeight: 700, fontFamily: DISPLAY }}>{ct.name}</div>
-                    <div style={{ display: "flex", gap: 6, marginTop: 4, alignItems: "center" }}>
-                      <span style={{ fontSize: 9, color: "#D4537E", background: "#D4537E15", padding: "2px 7px", borderRadius: 4, fontFamily: MONO, fontWeight: 600 }}>COLLAB</span>
-                      <span style={{ fontSize: 10, color: "#555", fontFamily: MONO }}>{ct.time} · {fmtDur(ct.duration)}</span>
                     </div>
-                  </div>
-                  <div style={{ display: "flex", gap: 6, flexShrink: 0, alignItems: "center" }}>
-                    <span style={{ fontSize: 10, color: "#D4537E80", fontFamily: MONO }}>w/ {ct.friend}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-
-        {/* ═══ FRIENDS ACTIVITY FEED (in today view) ═══ */}
-        {activeTab === "today" && (
-          <>
-            <Divider />
-            <div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                <div style={{ fontSize: 10, color: "#7F77DD", fontFamily: MONO, letterSpacing: 2 }}>FRIENDS ACTIVITY</div>
-                <div className="tap" onClick={() => setBottomTab('friends')} style={{ fontSize: 9, color: "#555", fontFamily: MONO, cursor: "pointer", letterSpacing: 1 }}>VIEW ALL →</div>
-              </div>
-
-              {/* Live status strip */}
-              <div style={{ display: "flex", gap: 8, overflowX: "auto", marginBottom: 12, paddingBottom: 2 }} className="no-scroll">
-                {MOCK_FRIENDS.filter(f => f.statusType !== "idle").map(friend => {
-                  const sc = friend.statusType === "work" ? "#5DCAA5" : "#7F77DD";
-                  return (
-                    <div key={friend.id} className="tap" onClick={() => { setBottomTab('friends'); setFriendChatOpen(friend.id); }} style={{
-                      flexShrink: 0, display: "flex", alignItems: "center", gap: 8,
-                      background: `${sc}08`, border: `1px solid ${sc}20`,
-                      borderRadius: 12, padding: "8px 12px", cursor: "pointer",
-                    }}>
-                      <div style={{ position: "relative" }}>
-                        <div style={{
-                          width: 28, height: 28, borderRadius: 8,
-                          background: `${sc}18`,
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                        }}>
-                          <span style={{ fontSize: 11, fontWeight: 800, color: sc, fontFamily: DISPLAY }}>{friend.name[0]}</span>
-                        </div>
-                        <div style={{ position: "absolute", bottom: -2, right: -2, width: 8, height: 8, borderRadius: "50%", background: sc, border: "2px solid #0e0e12" }} />
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: "#E1F5EE", fontFamily: DISPLAY, whiteSpace: "nowrap" }}>{friend.name}</div>
-                        <div style={{ fontSize: 9, color: sc, fontFamily: MONO, whiteSpace: "nowrap", maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis" }}>{friend.status}</div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Activity feed */}
-              {FRIEND_ACTIVITY.slice(0, 4).map((activity, i) => {
-                const isComplete = activity.action === "completed";
-                const isRest = activity.type === "rest";
-                const accent = isRest ? "#7F77DD" : isComplete ? "#5DCAA5" : "#EF9F27";
-                const actionLabel = isComplete ? "✓ done" : isRest ? "◆ resting" : "▶ started";
-                return (
-                  <div key={i} className="tap" onClick={() => { setBottomTab('friends'); setFriendChatOpen(activity.friendId); }} style={{
-                    display: "flex", alignItems: "center", gap: 12,
-                    padding: "10px 14px", marginBottom: 4, borderRadius: 12,
-                    background: "rgba(255,255,255,0.015)",
-                    border: "1px solid #1e1e24",
-                    cursor: "pointer",
-                    animation: `fadeUp 0.25s ease ${i * 0.04}s both`,
-                  }}>
-                    <div style={{
-                      width: 28, height: 28, borderRadius: 8,
-                      background: `${accent}12`,
-                      display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-                    }}>
-                      <span style={{ fontSize: 11, fontWeight: 800, color: accent, fontFamily: DISPLAY }}>{activity.name[0]}</span>
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: "#ccc", fontFamily: DISPLAY }}>{activity.name}</span>
-                        <span style={{ fontSize: 9, color: accent, fontFamily: MONO, fontWeight: 600 }}>{actionLabel}</span>
-                      </div>
-                      <div style={{ fontSize: 11, color: "#555", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{activity.task}</div>
-                    </div>
-                    <div style={{ fontSize: 9, color: "#3a3a42", fontFamily: MONO, flexShrink: 0 }}>{activity.time}</div>
-                  </div>
-                );
-              })}
-            </div>
-          </>
-        )}
-
-        {activeTab === "categories" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {PHASE_CARDS.map((p, i) => (
-              <div key={p.id} style={{ background: p.bg, borderRadius: 16, padding: "18px 20px", animation: `fadeUp 0.35s ease ${i * 0.06}s both` }}>
-                <div style={{ display: "flex", justifyContent: "space-between" }}><div><div style={{ fontSize: 10, fontFamily: MONO, fontWeight: 600, letterSpacing: 2, color: p.mid }}>{p.label}</div><div style={{ fontSize: 18, fontWeight: 700, color: p.light, fontFamily: DISPLAY, marginTop: 4 }}>{p.title}</div></div><div style={{ textAlign: "right" }}><div style={{ fontSize: 30, fontWeight: 800, color: p.light, fontFamily: DISPLAY, lineHeight: 1 }}>{p.pct}<span style={{ fontSize: 14, color: p.mid }}>%</span></div><div style={{ fontSize: 11, color: p.mid, fontFamily: MONO }}>{p.done}/{p.total}</div></div></div>
-                <div style={{ height: 3, background: p.dim, borderRadius: 2, marginTop: 12, overflow: "hidden" }}><div style={{ height: "100%", width: `${p.pct}%`, background: p.accent, borderRadius: 2 }} /></div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {activeTab === "income" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {INCOME.map((m, i) => (
-              <div key={m.label} style={{ background: m.bg, borderRadius: 16, padding: "20px 22px", animation: `fadeUp 0.35s ease ${i * 0.07}s both` }}>
-                <div style={{ fontSize: 26, fontWeight: 800, color: m.light, fontFamily: DISPLAY, letterSpacing: -0.5 }}>{m.label}</div>
-                <div style={{ fontSize: 12, color: m.mid, marginTop: 2, fontFamily: MONO }}>{m.desc}</div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {!["today", "categories", "income"].includes(activeTab) && (
-          <div style={{ textAlign: "center", padding: "40px 20px", border: "1px dashed #2a2a30", borderRadius: 16 }}><div style={{ fontSize: 14, color: "#444" }}>{activeTab}</div><div style={{ fontSize: 12, color: "#333", fontFamily: MONO, marginTop: 4 }}>Custom group</div></div>
-        )}
-      </div>
-      )}
-
-      {/* ═══ TAB 2: COMMUNITY / MARKETPLACE ═══ */}
-      {bottomTab === 'community' && (
-        <div style={{ padding: "16px 14px 0" }}>
-          <div style={{ marginBottom: 20 }}>
-            <div style={{ fontSize: 20, fontWeight: 800, color: "#E1F5EE", fontFamily: DISPLAY }}>Community</div>
-            <div style={{ fontSize: 11, color: "#555", marginTop: 4 }}>Marketplace, coins & support</div>
-          </div>
-
-          {/* Coin balance card */}
-          <div style={{ background: "#351c02", borderRadius: 20, padding: "24px 20px", border: "1px solid #EF9F2720", marginBottom: 16 }}>
-            <div style={{ fontSize: 10, color: "#EF9F27", fontFamily: MONO, letterSpacing: 2, marginBottom: 8 }}>PIT COINS</div>
-            <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-              <div style={{ fontSize: 40, fontWeight: 800, color: "#FAEEDA", fontFamily: DISPLAY, lineHeight: 1 }}>0</div>
-              <div style={{ fontSize: 12, color: "#EF9F2780", fontFamily: MONO }}>coins</div>
-            </div>
-            <div style={{ fontSize: 11, color: "#854F0B", marginTop: 8 }}>Earn coins by completing tasks</div>
-          </div>
-
-          {/* Coming soon cards */}
-          {[
-            { title: "Task marketplace", desc: "Post and find tasks in the community", icon: "◈", color: "#EF9F27" },
-            { title: "Stake & contracts", desc: "Bet coins on your own goals", icon: "◆", color: "#D4537E" },
-            { title: "Support others", desc: "Invest coins in people you believe in", icon: "♡", color: "#5DCAA5" },
-          ].map((item, i) => (
-            <div key={i} style={{ background: "#13131a", borderRadius: 16, padding: "18px 20px", border: "1px solid #1e1e24", marginBottom: 8, display: "flex", alignItems: "center", gap: 14, animation: `fadeUp 0.3s ease ${i * 0.06}s both` }}>
-              <div style={{ width: 40, height: 40, borderRadius: 12, background: `${item.color}12`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: item.color, flexShrink: 0 }}>{item.icon}</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: "#E1F5EE", fontFamily: DISPLAY }}>{item.title}</div>
-                <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>{item.desc}</div>
-              </div>
-              <div style={{ fontSize: 9, color: "#333", fontFamily: MONO, letterSpacing: 1, background: "#1e1e24", padding: "4px 8px", borderRadius: 6 }}>SOON</div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* ═══ TAB 3: FRIENDS & CHAT ═══ */}
-      {bottomTab === 'friends' && (
-        <div style={{ padding: "16px 14px 0" }}>
-
-          {!friendChatOpen ? (
-            <>
-              {/* Header */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-                <div>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: "#E1F5EE", fontFamily: DISPLAY }}>Friends</div>
-                  <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>{MOCK_FRIENDS.length} connected</div>
-                </div>
-                <div className="tap" style={{ background: "#D4537E", borderRadius: 12, padding: "10px 16px", fontSize: 11, fontWeight: 700, color: "#fff", fontFamily: MONO, cursor: "pointer" }}>+ ADD</div>
-              </div>
-
-              {/* Search */}
-              <div style={{ background: "#13131a", borderRadius: 14, padding: "12px 14px", border: "1px solid #1e1e24", marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-                <input value={friendSearch} onChange={e => setFriendSearch(e.target.value)} placeholder="Search friends..." style={{ flex: 1, background: "none", border: "none", color: "#ccc", fontSize: 13, fontFamily: BODY, outline: "none" }} />
-              </div>
-
-              {/* Friend list */}
-              {MOCK_FRIENDS.filter(f => !friendSearch || f.name.toLowerCase().includes(friendSearch.toLowerCase())).map((friend, i) => {
-                const statusColor = friend.statusType === "work" ? "#5DCAA5" : friend.statusType === "rest" ? "#7F77DD" : "#333";
-                const statusBg = friend.statusType === "work" ? "#063d30" : friend.statusType === "rest" ? "#1e1a4d" : "#13131a";
-                return (
-                  <div key={friend.id} className="tap" onClick={() => setFriendChatOpen(friend.id)} style={{ background: statusBg, borderRadius: 16, padding: "16px 18px", marginBottom: 8, border: `1px solid ${statusColor}20`, cursor: "pointer", animation: `fadeUp 0.25s ease ${i * 0.05}s both` }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                      {/* Avatar */}
-                      <div style={{ width: 44, height: 44, borderRadius: 14, background: `${statusColor}18`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, position: "relative" }}>
-                        <span style={{ fontSize: 18, fontWeight: 800, color: statusColor, fontFamily: DISPLAY }}>{friend.name[0]}</span>
-                        {/* Online indicator */}
-                        <div style={{ position: "absolute", bottom: -1, right: -1, width: 12, height: 12, borderRadius: "50%", background: friend.statusType !== "idle" ? "#5DCAA5" : "#333", border: "2px solid " + statusBg }} />
-                      </div>
-
-                      {/* Info */}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <span style={{ fontSize: 15, fontWeight: 700, color: "#E1F5EE", fontFamily: DISPLAY }}>{friend.name}</span>
-                          {friend.streak > 0 && (
-                            <span style={{ fontSize: 9, color: "#EF9F27", background: "#EF9F2715", padding: "2px 6px", borderRadius: 4, fontFamily: MONO, fontWeight: 600 }}>{friend.streak}d</span>
-                          )}
-                        </div>
-                        <div style={{ fontSize: 12, color: statusColor, marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                          {friend.statusType !== "idle" && <span className="pulse-dot" style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: statusColor, marginRight: 6, verticalAlign: "middle" }} />}
-                          {friend.status}
-                        </div>
-                      </div>
-
-                      {/* Right side */}
-                      <div style={{ textAlign: "right", flexShrink: 0 }}>
-                        <div style={{ fontSize: 10, color: "#555", fontFamily: MONO }}>{friend.lastActive}</div>
-                        {MOCK_CHATS[friend.id] && (
-                          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#D4537E", marginTop: 6, marginLeft: "auto" }} />
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-
-              {/* Verify tasks section */}
-              <div style={{ marginTop: 20 }}>
-                <div style={{ fontSize: 10, color: "#D4537E", fontFamily: MONO, letterSpacing: 2, marginBottom: 10 }}>VERIFY TASKS</div>
-                <div style={{ background: "#13131a", borderRadius: 16, padding: "20px", border: "1px dashed #D4537E25", textAlign: "center" }}>
-                  <div style={{ fontSize: 13, color: "#444" }}>No tasks waiting for verification</div>
-                  <div style={{ fontSize: 11, color: "#333", marginTop: 4 }}>When friends complete tasks, you can verify them here</div>
-                </div>
-              </div>
-
-              {/* Collab invites section */}
-              <div style={{ marginTop: 20 }}>
-                <div style={{ fontSize: 10, color: "#5DCAA5", fontFamily: MONO, letterSpacing: 2, marginBottom: 10 }}>COLLAB INVITES</div>
-                <div style={{ background: "#13131a", borderRadius: 16, padding: "20px", border: "1px dashed #5DCAA525", textAlign: "center" }}>
-                  <div style={{ fontSize: 13, color: "#444" }}>No pending invites</div>
-                  <div style={{ fontSize: 11, color: "#333", marginTop: 4 }}>Send a collab task to work on something together</div>
-                </div>
-              </div>
-            </>
-          ) : (
-            <>
-              {/* Chat view */}
-              {(() => {
-                const friend = MOCK_FRIENDS.find(f => f.id === friendChatOpen);
-                const chats = MOCK_CHATS[friendChatOpen] || [];
-                if (!friend) return null;
-                const statusColor = friend.statusType === "work" ? "#5DCAA5" : friend.statusType === "rest" ? "#7F77DD" : "#555";
-                return (
-                  <div style={{ display: "flex", flexDirection: "column", minHeight: "calc(100vh - 200px)" }}>
-                    {/* Chat header */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-                      <div className="tap" onClick={() => setFriendChatOpen(null)} style={{ width: 36, height: 36, borderRadius: 10, background: "#1e1e24", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2" strokeLinecap="round"><polyline points="15 18 9 12 15 6" /></svg>
-                      </div>
-                      <div style={{ width: 36, height: 36, borderRadius: 10, background: `${statusColor}18`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                        <span style={{ fontSize: 14, fontWeight: 800, color: statusColor, fontFamily: DISPLAY }}>{friend.name[0]}</span>
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 15, fontWeight: 700, color: "#E1F5EE", fontFamily: DISPLAY }}>{friend.name}</div>
-                        <div style={{ fontSize: 10, color: statusColor, fontFamily: MONO }}>{friend.status}</div>
-                      </div>
-                      <div className="tap" style={{ fontSize: 9, color: "#D4537E", fontFamily: MONO, letterSpacing: 1, background: "#D4537E12", padding: "6px 10px", borderRadius: 8, border: "1px solid #D4537E25", cursor: "pointer", fontWeight: 600 }}>COLLAB</div>
-                    </div>
-
-                    {/* Messages */}
-                    <div style={{ flex: 1 }}>
-                      {chats.length === 0 && (
-                        <div style={{ textAlign: "center", padding: "40px 20px" }}>
-                          <div style={{ fontSize: 13, color: "#444" }}>No messages yet</div>
-                          <div style={{ fontSize: 11, color: "#333", marginTop: 4 }}>Say hi to {friend.name}</div>
-                        </div>
-                      )}
-                      {chats.map((msg, i) => (
-                        <div key={i} style={{ display: "flex", justifyContent: msg.from === "me" ? "flex-end" : "flex-start", marginBottom: 8 }}>
-                          <div style={{
-                            maxWidth: "75%",
-                            padding: "10px 14px",
-                            borderRadius: msg.from === "me" ? "14px 14px 4px 14px" : "14px 14px 14px 4px",
-                            background: msg.from === "me" ? "#5DCAA518" : "#1e1e24",
-                            border: `1px solid ${msg.from === "me" ? "#5DCAA525" : "#2a2a30"}`,
-                          }}>
-                            <div style={{ fontSize: 13, color: msg.from === "me" ? "#E1F5EE" : "#ccc", lineHeight: 1.5 }}>{msg.text}</div>
-                            <div style={{ fontSize: 9, color: "#555", fontFamily: MONO, marginTop: 4, textAlign: "right" }}>{msg.time}</div>
+                    {isExpanded && (
+                      <div style={{ background: "var(--card)", borderRadius: "0 0 20px 20px", padding: "12px 14px 14px", border: "1px solid var(--border)", borderTop: "1px dashed var(--border2)" }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                          <div className="tap" onClick={() => markDone(task)} style={{ background: "var(--accent-bg)", borderRadius: 14, padding: "14px 12px", textAlign: "center" }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--t1)", fontFamily: DISPLAY }}>Mark done</div>
+                          </div>
+                          <div className="tap" onClick={() => openEditModal(task)} style={{ background: "var(--rest-bg)", borderRadius: 14, padding: "14px 12px", textAlign: "center" }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--t1)", fontFamily: DISPLAY }}>Edit</div>
+                          </div>
+                          <div className="tap" onClick={() => toggleRest(task)} style={{ background: "var(--card)", borderRadius: 14, padding: "14px 12px", textAlign: "center", border: "1px solid var(--border)" }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--t2)", fontFamily: DISPLAY }}>{task.type === "rest" ? "Set as work" : "Set as rest"}</div>
+                          </div>
+                          <div className="tap" onClick={() => deleteTask(task)} style={{ background: "var(--danger-bg)", borderRadius: 14, padding: "14px 12px", textAlign: "center" }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--danger)", fontFamily: DISPLAY }}>Delete</div>
                           </div>
                         </div>
-                      ))}
-                    </div>
-
-                    {/* Chat input */}
-                    <div style={{ position: "sticky", bottom: 80, background: "#0e0e12", paddingTop: 10, paddingBottom: 10 }}>
-                      <div style={{ background: "#13131a", borderRadius: 14, padding: "10px 14px", border: "1px solid #1e1e24", display: "flex", alignItems: "center", gap: 10 }}>
-                        <input value={chatInput} onChange={e => setChatInput(e.target.value)} placeholder={`Message ${friend.name}...`} style={{ flex: 1, background: "none", border: "none", color: "#ccc", fontSize: 13, fontFamily: BODY, outline: "none" }} />
-                        {chatInput && (
-                          <div className="tap" onClick={() => setChatInput("")} style={{ background: "#D4537E", borderRadius: 8, padding: "6px 14px", fontSize: 11, color: "#fff", fontWeight: 700, fontFamily: MONO, cursor: "pointer" }}>SEND</div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
-            </>
-          )}
-        </div>
-      )}
-
-      {/* ═══ TAB 4: PROFILE ═══ */}
-      {bottomTab === 'profile' && (
-        <div style={{ padding: "16px 14px 0" }}>
-
-          {profileView === 'main' ? (
-            <>
-              {/* Header */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-                <div style={{ fontSize: 20, fontWeight: 800, color: "#E1F5EE", fontFamily: DISPLAY }}>Profile</div>
-                <div className="tap" onClick={() => { setProfileView('settings'); setSettingsSection(null); }} style={{ width: 36, height: 36, borderRadius: 12, background: "#1e1e24", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" /></svg>
-                </div>
-              </div>
-
-              {/* User card */}
-              <div style={{ background: "#13131a", borderRadius: 20, padding: "24px 20px", border: "1px solid #1e1e24", marginBottom: 16 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20 }}>
-                  <div style={{ width: 56, height: 56, borderRadius: 18, background: "#5DCAA515", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <span style={{ fontSize: 22, fontWeight: 800, color: "#5DCAA5", fontFamily: DISPLAY }}>{displayName[0]?.toUpperCase()}</span>
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 18, fontWeight: 800, color: "#E1F5EE", fontFamily: DISPLAY }}>{displayName}</div>
-                    <div style={{ fontSize: 10, color: "#555", fontFamily: MONO }}>{userId ? `ID: ${userId.slice(0, 8)}...` : 'Offline mode'}</div>
-                  </div>
-                </div>
-
-                {/* Stats grid */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-                  {[
-                    { v: tasksDoneCount, l: "TODAY", c: "#5DCAA5", bg: "#063d30" },
-                    { v: streak, l: "STREAK", c: "#EF9F27", bg: "#351c02" },
-                    { v: "0", l: "COINS", c: "#D4537E", bg: "#3e1022" },
-                  ].map((s, i) => (
-                    <div key={i} style={{ background: s.bg, borderRadius: 14, padding: "14px 10px", textAlign: "center" }}>
-                      <div style={{ fontSize: 24, fontWeight: 800, color: "#fff", fontFamily: DISPLAY, lineHeight: 1 }}>{s.v}</div>
-                      <div style={{ fontSize: 9, color: s.c, fontFamily: MONO, letterSpacing: 1, marginTop: 4 }}>{s.l}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Quick links */}
-              {[
-                { icon: "⚡", label: "Energy settings", desc: `${ePct}% remaining · ${drainRates.maxEnergyHours}h max`, color: "#5DCAA5", bg: "#5DCAA515", action: () => { setProfileView('settings'); setSettingsSection('energy'); } },
-                { icon: "🐾", label: "Pet settings", desc: "Manage your digital companion", color: "#7F77DD", bg: "#7F77DD15", action: null, soon: true },
-                { icon: "◈", label: "Coin history", desc: "Earned, spent, invested", color: "#EF9F27", bg: "#EF9F2715", action: null, soon: true },
-              ].map((item, i) => (
-                <div key={i} className={item.action ? "tap" : ""} onClick={item.action || undefined} style={{ background: "#13131a", borderRadius: 16, padding: "18px 20px", border: "1px solid #1e1e24", marginBottom: 8, display: "flex", alignItems: "center", gap: 14, cursor: item.action ? "pointer" : "default" }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 12, background: item.bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>{item.icon}</div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: "#E1F5EE", fontFamily: DISPLAY }}>{item.label}</div>
-                    <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>{item.desc}</div>
-                  </div>
-                  {item.soon ? (
-                    <div style={{ fontSize: 9, color: "#333", fontFamily: MONO, letterSpacing: 1, background: "#1e1e24", padding: "4px 8px", borderRadius: 6 }}>SOON</div>
-                  ) : (
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6" /></svg>
-                  )}
-                </div>
-              ))}
-
-              {/* Sync status */}
-              <div style={{ background: "#13131a", borderRadius: 16, padding: "14px 20px", border: "1px solid #1e1e24", marginBottom: 8, display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ width: 8, height: 8, borderRadius: "50%", background: userId ? "#5DCAA5" : "#D4537E", flexShrink: 0 }} />
-                <span style={{ fontSize: 12, color: userId ? "#5DCAA580" : "#D4537E80" }}>{userId ? 'Synced to Supabase' : 'Offline — local only'}</span>
-              </div>
-
-              <div style={{ fontSize: 11, color: "#333", fontFamily: MONO, textAlign: "center", marginTop: 20 }}>PITGOAL v8.5</div>
-            </>
-          ) : (
-            /* ═══ SETTINGS VIEW ═══ */
-            <>
-              {/* Settings header */}
-              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-                <div className="tap" onClick={() => { if (settingsSection) setSettingsSection(null); else setProfileView('main'); }} style={{ width: 36, height: 36, borderRadius: 10, background: "#1e1e24", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2" strokeLinecap="round"><polyline points="15 18 9 12 15 6" /></svg>
-                </div>
-                <div style={{ fontSize: 20, fontWeight: 800, color: "#E1F5EE", fontFamily: DISPLAY }}>
-                  {settingsSection === 'energy' ? 'Energy' : settingsSection === 'account' ? 'Account' : settingsSection === 'notifications' ? 'Notifications' : settingsSection === 'data' ? 'Data' : 'Settings'}
-                </div>
-              </div>
-
-              {!settingsSection && (
-                <>
-                  {/* Settings menu items */}
-                  {[
-                    { id: 'account', icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5DCAA5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>, label: "Account", desc: displayName, color: "#5DCAA5" },
-                    { id: 'energy', icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#EF9F27" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>, label: "Energy & sleep", desc: `Wake ${fmtTime(drainRates.wakeHour, drainRates.wakeMinute)} · Sleep ${fmtTime(drainRates.sleepHour, drainRates.sleepMinute)}`, color: "#EF9F27" },
-                    { id: 'notifications', icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7F77DD" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 01-3.46 0" /></svg>, label: "Notifications", desc: notifEnabled ? 'Enabled' : 'Disabled', color: "#7F77DD" },
-                    { id: 'data', icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D4537E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>, label: "Data & storage", desc: "Export, reset, manage", color: "#D4537E" },
-                  ].map((item) => (
-                    <div key={item.id} className="tap" onClick={() => setSettingsSection(item.id)} style={{
-                      background: "#13131a", borderRadius: 16, padding: "16px 18px", border: "1px solid #1e1e24", marginBottom: 8,
-                      display: "flex", alignItems: "center", gap: 14, cursor: "pointer",
-                    }}>
-                      <div style={{ width: 40, height: 40, borderRadius: 12, background: `${item.color}10`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                        {item.icon}
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: "#E1F5EE", fontFamily: DISPLAY }}>{item.label}</div>
-                        <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>{item.desc}</div>
-                      </div>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6" /></svg>
-                    </div>
-                  ))}
-                </>
-              )}
-
-              {/* ── ACCOUNT SETTINGS ── */}
-              {settingsSection === 'account' && (
-                <div>
-                  <div style={{ background: "#13131a", borderRadius: 16, padding: "20px", border: "1px solid #1e1e24", marginBottom: 12 }}>
-                    <div style={{ fontSize: 10, color: "#5DCAA5", fontFamily: MONO, letterSpacing: 2, marginBottom: 10 }}>DISPLAY NAME</div>
-                    {editingName ? (
-                      <div style={{ display: "flex", gap: 8 }}>
-                        <input autoFocus value={displayName} onChange={e => setDisplayName(e.target.value)} onKeyDown={e => e.key === "Enter" && setEditingName(false)} style={{ flex: 1, background: "#0e0e12", border: "1px solid #5DCAA530", borderRadius: 12, padding: "12px 14px", color: "#ccc", fontSize: 14, fontFamily: BODY, outline: "none" }} />
-                        <div className="tap" onClick={() => setEditingName(false)} style={{ background: "#5DCAA5", borderRadius: 12, padding: "12px 16px", fontSize: 12, fontWeight: 700, color: "#063d30", fontFamily: MONO, cursor: "pointer", display: "flex", alignItems: "center" }}>SAVE</div>
-                      </div>
-                    ) : (
-                      <div className="tap" onClick={() => setEditingName(true)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", background: "#0e0e12", borderRadius: 12, border: "1px solid #2a2a30", cursor: "pointer" }}>
-                        <span style={{ fontSize: 14, color: "#ccc" }}>{displayName}</span>
-                        <span style={{ fontSize: 10, color: "#555", fontFamily: MONO }}>TAP TO EDIT</span>
                       </div>
                     )}
                   </div>
+                );
+              })}
 
-                  <div style={{ background: "#13131a", borderRadius: 16, padding: "20px", border: "1px solid #1e1e24", marginBottom: 12 }}>
-                    <div style={{ fontSize: 10, color: "#5DCAA5", fontFamily: MONO, letterSpacing: 2, marginBottom: 10 }}>USER ID</div>
-                    <div style={{ fontSize: 12, color: "#555", fontFamily: MONO, wordBreak: "break-all" }}>{userId || 'Not connected'}</div>
-                  </div>
-
-                  <div style={{ background: "#13131a", borderRadius: 16, padding: "20px", border: "1px solid #1e1e24" }}>
-                    <div style={{ fontSize: 10, color: "#5DCAA5", fontFamily: MONO, letterSpacing: 2, marginBottom: 10 }}>SYNC STATUS</div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <div style={{ width: 10, height: 10, borderRadius: "50%", background: userId ? "#5DCAA5" : "#D4537E" }} />
-                      <span style={{ fontSize: 13, color: userId ? "#5DCAA5" : "#D4537E" }}>{userId ? 'Connected to Supabase' : 'Offline mode'}</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* ── ENERGY SETTINGS ── */}
-              {settingsSection === 'energy' && (
-                <div>
-                  {/* Wake/sleep times */}
-                  <div style={{ background: "#13131a", borderRadius: 16, padding: "20px", border: "1px solid #1e1e24", marginBottom: 12 }}>
-                    <div style={{ fontSize: 10, color: "#EF9F27", fontFamily: MONO, letterSpacing: 2, marginBottom: 14 }}>SCHEDULE</div>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                      <div>
-                        <div style={{ fontSize: 10, color: "#555", fontFamily: MONO, marginBottom: 6 }}>WAKE UP</div>
-                        <input type="time" value={fmtTime(drainRates.wakeHour, drainRates.wakeMinute)} onChange={e => { const [h, m] = e.target.value.split(":").map(Number); saveDrainRates({ ...drainRates, wakeHour: h, wakeMinute: m }); }} style={{ width: "100%", background: "#0e0e12", border: "1px solid #2a2a30", borderRadius: 12, padding: "12px 14px", color: "#EF9F27", fontSize: 16, fontFamily: MONO, outline: "none", colorScheme: "dark", fontWeight: 700 }} />
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 10, color: "#555", fontFamily: MONO, marginBottom: 6 }}>SLEEP</div>
-                        <input type="time" value={fmtTime(drainRates.sleepHour, drainRates.sleepMinute)} onChange={e => { const [h, m] = e.target.value.split(":").map(Number); saveDrainRates({ ...drainRates, sleepHour: h, sleepMinute: m }); }} style={{ width: "100%", background: "#0e0e12", border: "1px solid #2a2a30", borderRadius: 12, padding: "12px 14px", color: "#EF9F27", fontSize: 16, fontFamily: MONO, outline: "none", colorScheme: "dark", fontWeight: 700 }} />
-                      </div>
-                    </div>
-                    <div style={{ marginTop: 12 }}>
-                      <div style={{ fontSize: 10, color: "#555", fontFamily: MONO, marginBottom: 6 }}>MAX ENERGY (HOURS)</div>
-                      <input type="number" value={drainRates.maxEnergyHours} onChange={e => { const v = Math.min(24, Math.max(1, parseInt(e.target.value) || 17)); saveDrainRates({ ...drainRates, maxEnergyHours: v }); }} style={{ width: "100%", background: "#0e0e12", border: "1px solid #2a2a30", borderRadius: 12, padding: "12px 14px", color: "#EF9F27", fontSize: 16, fontFamily: MONO, outline: "none", fontWeight: 700 }} />
-                    </div>
-                  </div>
-
-                  {/* Drain rates */}
-                  <div style={{ background: "#13131a", borderRadius: 16, padding: "20px", border: "1px solid #1e1e24" }}>
-                    <div style={{ fontSize: 10, color: "#EF9F27", fontFamily: MONO, letterSpacing: 2, marginBottom: 6 }}>DRAIN RATES</div>
-                    <div style={{ fontSize: 11, color: "#444", marginBottom: 14 }}>How fast each state consumes energy. 1x = 1 min per real min.</div>
-                    {([
-                      { key: "idle" as const, label: "IDLE", desc: "No task running", color: "#555", icon: "○" },
-                      { key: "work" as const, label: "WORK", desc: "Normal task drain", color: "#5DCAA5", icon: "▶" },
-                      { key: "urgent" as const, label: "URGENT", desc: "High intensity", color: "#D4537E", icon: "⚡" },
-                      { key: "rest" as const, label: "REST", desc: "Recharge rate", color: "#7F77DD", icon: "◆" },
-                    ]).map(item => {
-                      const val = drainRates[item.key];
-                      const limits = RATE_LIMITS[item.key];
-                      return (
-                        <div key={item.key} style={{ marginBottom: 16 }}>
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <span style={{ color: item.color, fontSize: 12 }}>{item.icon}</span>
-                              <span style={{ fontSize: 12, fontWeight: 700, color: item.color, fontFamily: MONO }}>{item.label}</span>
-                              <span style={{ fontSize: 10, color: "#444" }}>{item.desc}</span>
+              {/* Done tasks (stacked) */}
+              {doneTasks.length > 0 && (
+                <div style={{ marginTop: 12 }}>
+                  <div className="tap" onClick={() => setShowCompleted(!showCompleted)}>
+                    {!showCompleted && (
+                      <div style={{ position: "relative", height: Math.min(doneTasks.length, 3) * 6 + 48 }}>
+                        {doneTasks.slice(-3).map((t, i, arr) => {
+                          const bg = bgForType(t.type); const accent = accentForType(t.type);
+                          return (
+                            <div key={t.id} style={{ position: i === arr.length - 1 ? "relative" : "absolute", top: (arr.length - 1 - i) * 6, left: 0, right: 0, background: bg, borderRadius: 14, padding: "12px 14px", border: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 10, zIndex: i }}>
+                              <div style={{ fontSize: 10, color: accent, fontFamily: MONO, minWidth: 38, fontWeight: 600 }}>{getDisplayTime(t)}</div>
+                              <div style={{ fontSize: 13, color: "var(--t1)", fontWeight: 700, flex: 1, textDecoration: "line-through", textDecorationColor: "var(--t5)", fontFamily: DISPLAY }}>{t.name}</div>
+                              <div style={{ fontSize: 9, color: accent, fontFamily: MONO, fontWeight: 600 }}>{fmtDur(t.duration)}</div>
                             </div>
-                            <span style={{ fontSize: 14, fontWeight: 700, color: item.color, fontFamily: MONO }}>{val}x</span>
-                          </div>
-                          <input type="range" min={limits.min * 10} max={limits.max * 10} value={val * 10} onChange={e => saveDrainRates({ ...drainRates, [item.key]: parseInt(e.target.value) / 10 })} style={{ width: "100%", accentColor: item.color }} />
-                        </div>
-                      );
-                    })}
-                    <div className="tap" onClick={() => saveDrainRates(DEFAULT_RATES)} style={{ textAlign: "center", padding: "10px", borderRadius: 10, border: "1px solid #2a2a30", fontSize: 11, color: "#555", fontFamily: MONO, cursor: "pointer", marginTop: 4 }}>RESET TO DEFAULTS</div>
-                  </div>
-                </div>
-              )}
-
-              {/* ── NOTIFICATION SETTINGS ── */}
-              {settingsSection === 'notifications' && (
-                <div>
-                  <div style={{ background: "#13131a", borderRadius: 16, padding: "20px", border: "1px solid #1e1e24", marginBottom: 12 }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <div>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: "#E1F5EE", fontFamily: DISPLAY }}>Task reminders</div>
-                        <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>Get notified when tasks are about to start</div>
+                          );
+                        })}
                       </div>
-                      <div className="tap" onClick={async () => {
-                        if (notifEnabled) {
-                          clearAllNotifications();
-                          setNotifEnabled(false);
-                        } else {
-                          const ok = await initNotifications();
-                          setNotifEnabled(ok);
-                          if (ok) {
-                            scheduleTaskNotifications(tasks);
-                            scheduleDaySummary(drainRates.sleepHour, drainRates.sleepMinute);
-                          }
-                        }
-                      }} style={{
-                        width: 50, height: 28, borderRadius: 14, cursor: "pointer",
-                        background: notifEnabled ? "#5DCAA5" : "#2a2a30",
-                        display: "flex", alignItems: "center",
-                        padding: "2px",
-                        transition: "background 0.2s",
-                      }}>
-                        <div style={{
-                          width: 24, height: 24, borderRadius: 12,
-                          background: "#fff",
-                          transform: notifEnabled ? "translateX(22px)" : "translateX(0)",
-                          transition: "transform 0.2s",
-                        }} />
+                    )}
+                  </div>
+                  {showCompleted && doneTasks.map((t, i) => {
+                    const bg = bgForType(t.type); const accent = accentForType(t.type);
+                    return (
+                      <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", background: bg, borderRadius: 14, border: "1px solid var(--border)", marginBottom: 4, animation: `fadeUp 0.2s ease ${i * 0.03}s both` }}>
+                        <div style={{ fontSize: 10, color: accent, fontFamily: MONO, minWidth: 38, fontWeight: 600 }}>{getDisplayTime(t)}</div>
+                        <div style={{ fontSize: 13, color: "var(--t1)", fontWeight: 700, flex: 1, textDecoration: "line-through", textDecorationColor: "var(--t5)", fontFamily: DISPLAY }}>{t.name}</div>
+                        <div style={{ fontSize: 9, color: accent, fontFamily: MONO, fontWeight: 600 }}>{fmtDur(t.duration)}</div>
                       </div>
-                    </div>
-                  </div>
-
-                  <div style={{ background: "#13131a", borderRadius: 16, padding: "20px", border: "1px solid #1e1e24", marginBottom: 12 }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: "#E1F5EE", fontFamily: DISPLAY }}>Day summary</div>
-                    <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>Summary notification at bedtime ({fmtTime(drainRates.sleepHour, drainRates.sleepMinute)})</div>
-                    <div style={{ marginTop: 8, fontSize: 10, color: notifEnabled ? "#5DCAA580" : "#D4537E80", fontFamily: MONO }}>{notifEnabled ? "ACTIVE" : "REQUIRES NOTIFICATIONS ON"}</div>
-                  </div>
-
-                  <div style={{ background: "#13131a", borderRadius: 16, padding: "20px", border: "1px solid #1e1e24" }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: "#E1F5EE", fontFamily: DISPLAY }}>Pause reminders</div>
-                    <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>Reminds you to resume after 30 min pause</div>
-                    <div style={{ marginTop: 8, fontSize: 10, color: notifEnabled ? "#5DCAA580" : "#D4537E80", fontFamily: MONO }}>{notifEnabled ? "ACTIVE" : "REQUIRES NOTIFICATIONS ON"}</div>
-                  </div>
+                    );
+                  })}
                 </div>
               )}
 
-              {/* ── DATA SETTINGS ── */}
-              {settingsSection === 'data' && (
-                <div>
-                  <div style={{ background: "#13131a", borderRadius: 16, padding: "20px", border: "1px solid #1e1e24", marginBottom: 12 }}>
-                    <div style={{ fontSize: 10, color: "#D4537E", fontFamily: MONO, letterSpacing: 2, marginBottom: 12 }}>STORAGE</div>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                      <span style={{ fontSize: 12, color: "#888" }}>Tasks today</span>
-                      <span style={{ fontSize: 12, color: "#ccc", fontFamily: MONO }}>{tasks.length}</span>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                      <span style={{ fontSize: 12, color: "#888" }}>Templates</span>
-                      <span style={{ fontSize: 12, color: "#ccc", fontFamily: MONO }}>{templates.length}</span>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                      <span style={{ fontSize: 12, color: "#888" }}>History days</span>
-                      <span style={{ fontSize: 12, color: "#ccc", fontFamily: MONO }}>{Object.keys(history).length}</span>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between" }}>
-                      <span style={{ fontSize: 12, color: "#888" }}>Custom groups</span>
-                      <span style={{ fontSize: 12, color: "#ccc", fontFamily: MONO }}>{customGroups.length}</span>
-                    </div>
-                  </div>
-
-                  <div className="tap" onClick={() => {
-                    const exportData = {
-                      tasks, dayLog, templates, history, customGroups, drainRates, streak,
-                      exportedAt: new Date().toISOString(),
-                      version: "v8.5",
-                    };
-                    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement("a");
-                    a.href = url; a.download = `pitgoal-export-${getMYDate()}.json`;
-                    a.click(); URL.revokeObjectURL(url);
-                  }} style={{ background: "#13131a", borderRadius: 16, padding: "18px 20px", border: "1px solid #5DCAA530", marginBottom: 8, display: "flex", alignItems: "center", gap: 14, cursor: "pointer" }}>
-                    <div style={{ width: 40, height: 40, borderRadius: 12, background: "#5DCAA515", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5DCAA5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: "#E1F5EE", fontFamily: DISPLAY }}>Export data</div>
-                      <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>Download as JSON file</div>
-                    </div>
-                  </div>
-
-                  <div className="tap" onClick={() => {
-                    if (confirm("Reset ALL data? Tasks, templates, history — everything. Cannot be undone.")) {
-                      setTasks([]); setDayLog([]); setTemplates([]); setHistory({}); setStreak(0);
-                      setCustomGroups([]); setEnergyUsed(0); setEnergyCharged(0);
-                      setActiveTask(null); setPausedTask(null); setSwitchingFrom(null);
-                      try { localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(PLAN_KEY); localStorage.removeItem(SETTINGS_KEY); } catch (e) {}
-                      setSettingsSection(null);
-                    }
-                  }} style={{ background: "#13131a", borderRadius: 16, padding: "18px 20px", border: "1px solid #D4537E30", marginBottom: 8, display: "flex", alignItems: "center", gap: 14, cursor: "pointer" }}>
-                    <div style={{ width: 40, height: 40, borderRadius: 12, background: "#D4537E15", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D4537E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: "#D4537E", fontFamily: DISPLAY }}>Reset all data</div>
-                      <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>Clear everything and start fresh</div>
-                    </div>
-                  </div>
-                </div>
-              )}
+              {/* Friends feed */}
+              <Divider />
+              <FriendsFeed onNavigate={handleFriendsNav} />
             </>
+          )}
+
+          {/* Categories tab */}
+          {activeTab === "categories" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {PHASE_CARDS.map((p, i) => (
+                <div key={p.id} style={{ background: "var(--card)", borderRadius: 20, padding: "22px 24px", animation: `fadeUp 0.35s ease ${i * 0.06}s both`, border: "1px solid var(--border)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <div><div style={{ fontSize: 10, fontFamily: MONO, fontWeight: 600, letterSpacing: 2, color: "var(--accent)" }}>{p.label}</div><div style={{ fontSize: 18, fontWeight: 700, color: "var(--t1)", fontFamily: DISPLAY, marginTop: 4 }}>{p.title}</div></div>
+                    <div style={{ textAlign: "right" }}><div style={{ fontSize: 30, fontWeight: 800, color: "var(--t1)", fontFamily: DISPLAY, lineHeight: 1 }}>{p.pct}<span style={{ fontSize: 14, color: "var(--t3)" }}>%</span></div><div style={{ fontSize: 11, color: "var(--t3)", fontFamily: MONO }}>{p.done}/{p.total}</div></div>
+                  </div>
+                  <div style={{ height: 3, background: "var(--border)", borderRadius: 2, marginTop: 14, overflow: "hidden" }}><div style={{ height: "100%", width: `${p.pct}%`, background: "var(--accent)", borderRadius: 2 }} /></div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Income tab */}
+          {activeTab === "income" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {INCOME.map((m, i) => (
+                <div key={m.label} style={{ background: "var(--card)", borderRadius: 20, padding: "22px 24px", border: "1px solid var(--border)", animation: `fadeUp 0.35s ease ${i * 0.07}s both` }}>
+                  <div style={{ fontSize: 26, fontWeight: 800, color: "var(--t1)", fontFamily: DISPLAY }}>{m.label}</div>
+                  <div style={{ fontSize: 12, color: "var(--accent)", marginTop: 2, fontFamily: MONO }}>{m.desc}</div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       )}
 
-      {/* ═══ BOTTOM NAV BAR ═══ */}
-      <div style={{
-        position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
-        width: "100%", maxWidth: 430, zIndex: 80,
-        background: "rgba(14,14,18,0.97)", backdropFilter: "blur(16px)",
-        borderTop: "1px solid #1e1e24",
-        padding: "8px 14px calc(8px + env(safe-area-inset-bottom, 0px))",
-        display: "flex", justifyContent: "space-around", alignItems: "center",
-      }}>
-        {([
-          { id: 'main' as const, label: 'MAIN', icon: (c: string) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg> },
-          { id: 'community' as const, label: 'HUB', icon: (c: string) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" /></svg> },
-          { id: 'friends' as const, label: 'FRIENDS', icon: (c: string) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87" /><path d="M16 3.13a4 4 0 010 7.75" /></svg> },
-          { id: 'profile' as const, label: 'ME', icon: (c: string) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg> },
-        ]).map(tab => {
-          const isActive = bottomTab === tab.id;
-          const color = isActive ? "#5DCAA5" : "#3a3a42";
-          return (
-            <div key={tab.id} className="tap" onClick={() => { setBottomTab(tab.id); if (tab.id === 'friends') setFriendChatOpen(null); if (tab.id === 'profile') { setProfileView('main'); setSettingsSection(null); } }} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "4px 12px", cursor: "pointer" }}>
-              {tab.icon(color)}
-              <span style={{ fontSize: 9, fontWeight: 700, color, fontFamily: MONO, letterSpacing: 1 }}>{tab.label}</span>
-            </div>
-          );
-        })}
-      </div>
-      {showPowerSettings && (
-        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-          <div onClick={() => setShowPowerSettings(false)} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)" }} />
-          <div style={{ position: "relative", width: "100%", maxWidth: 430, background: "#13131a", borderRadius: "24px 24px 0 0", padding: "24px 20px 36px", zIndex: 201, border: "1px solid #1e1e24", borderBottom: "none", maxHeight: "85vh", overflowY: "auto" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <div style={{ fontSize: 18, fontWeight: 700, color: "#E1F5EE", fontFamily: DISPLAY }}>Power settings</div>
-              <div className="tap" onClick={() => setShowPowerSettings(false)} style={{ width: 32, height: 32, borderRadius: 10, background: "#1e1e24", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-              </div>
-            </div>
+      {/* ── OTHER TABS (imported components) ── */}
+      {bottomTab === "community" && <CommunityTab />}
+      {bottomTab === "friends" && <FriendsTab onNavigate={handleFriendsNav} />}
+      {bottomTab === "profile" && (
+        <ProfileTab
+          userId={userId} theme={theme} setTheme={setTheme}
+          tasksDoneCount={tasksDoneCount} streak={streak} ePct={ePct}
+          drainRates={drainRates} saveDrainRates={saveDrainRates}
+          notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled}
+          initNotifications={initNotifications} clearAllNotifications={clearAllNotifications}
+          scheduleTaskNotifications={scheduleTaskNotifications} scheduleDaySummary={scheduleDaySummary}
+          tasks={tasks} templates={templates} history={history}
+          customGroups={customGroups} dayLog={dayLog} resetAll={resetAll}
+        />
+      )}
 
-            <div style={{ fontSize: 10, color: "#5DCAA5", fontFamily: MONO, letterSpacing: 2, marginBottom: 12 }}>DRAIN RATES</div>
-            <div style={{ fontSize: 11, color: "#444", marginBottom: 16 }}>How fast each state consumes your energy. 1x = 1 min per real min.</div>
-
-            {([
-              { key: "idle" as const, label: "IDLE", desc: "No task running", color: "#555", icon: "○" },
-              { key: "work" as const, label: "WORK", desc: "Normal task drain", color: "#5DCAA5", icon: "▶" },
-              { key: "urgent" as const, label: "URGENT", desc: "Switched / high intensity", color: "#D4537E", icon: "⚡" },
-              { key: "rest" as const, label: "REST", desc: "Recharge rate", color: "#7F77DD", icon: "◆" },
-            ]).map(item => {
-              const val = drainRates[item.key];
-              const limits = RATE_LIMITS[item.key];
-              return (
-                <div key={item.key} style={{ marginBottom: 16, background: "#0e0e12", borderRadius: 14, padding: "14px 16px", border: "1px solid #1e1e24" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                    <span style={{ fontSize: 14 }}>{item.icon}</span>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: item.color, fontFamily: MONO, letterSpacing: 1 }}>{item.label}</span>
-                    <span style={{ fontSize: 10, color: "#444", flex: 1 }}>{item.desc}</span>
-                    <span style={{ fontSize: 16, fontWeight: 800, color: item.color, fontFamily: MONO }}>{val}x</span>
-                  </div>
-                  <input type="range" min={limits.min * 10} max={limits.max * 10} step="1" value={val * 10}
-                    onChange={e => {
-                      const newVal = parseInt(e.target.value) / 10;
-                      const updated = { ...drainRates, [item.key]: newVal };
-                      saveDrainRates(updated);
-                    }}
-                    style={{ width: "100%", accentColor: item.color, height: 4, WebkitAppearance: "none", appearance: "none", background: "#1e1e24", borderRadius: 2, outline: "none" }}
-                  />
-                  <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
-                    <span style={{ fontSize: 9, color: "#333", fontFamily: MONO }}>{limits.min}x</span>
-                    <span style={{ fontSize: 9, color: "#333", fontFamily: MONO }}>{limits.max}x</span>
-                  </div>
+      {/* ── STATUS POPUP ── */}
+      {hasActivePopup && (
+        <div style={{ position: "fixed", bottom: "calc(72px + env(safe-area-inset-bottom, 0px))", left: "50%", transform: "translateX(-50%)", width: "calc(100% - 28px)", maxWidth: 402, zIndex: 90 }}>
+          <div style={{ background: "var(--card)", borderRadius: 24, padding: "18px 20px", border: "1px solid var(--border)", backdropFilter: "blur(16px)" }}>
+            {popupState === "working" || popupState === "resting" ? (
+              <div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                  <div><div style={{ fontSize: 14, fontWeight: 700, color: "var(--t1)", fontFamily: DISPLAY }}>{activeTask?.name}</div><div style={{ fontSize: 10, color: "var(--t4)", fontFamily: MONO, marginTop: 2 }}>{activeTask?.type.toUpperCase()} · {fmtDur(activeTask?.duration || 0)}</div></div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: "var(--accent)", fontFamily: MONO }}>{activeTimerStr}</div>
                 </div>
-              );
-            })}
-
-            <div style={{ fontSize: 10, color: "#5DCAA5", fontFamily: MONO, letterSpacing: 2, marginBottom: 12, marginTop: 8 }}>MAX ENERGY</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10, marginBottom: 20 }}>
-              <div style={{ background: "#0e0e12", borderRadius: 14, padding: "14px 16px", border: "1px solid #1e1e24" }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                  <span style={{ fontSize: 12, color: "#888" }}>Daily energy hours</span>
-                  <span style={{ fontSize: 18, fontWeight: 800, color: "#5DCAA5", fontFamily: MONO }}>{drainRates.maxEnergyHours}h</span>
-                </div>
-                <input type="range" min="10" max="20" step="1" value={drainRates.maxEnergyHours}
-                  onChange={e => {
-                    const updated = { ...drainRates, maxEnergyHours: parseInt(e.target.value) };
-                    saveDrainRates(updated);
-                  }}
-                  style={{ width: "100%", accentColor: "#5DCAA5", height: 4, WebkitAppearance: "none", appearance: "none", background: "#1e1e24", borderRadius: 2, outline: "none" }}
-                />
-                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
-                  <span style={{ fontSize: 9, color: "#333", fontFamily: MONO }}>10h</span>
-                  <span style={{ fontSize: 9, color: "#333", fontFamily: MONO }}>20h</span>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <div className="tap" onClick={stopAndComplete} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "12px", borderRadius: 14, background: "var(--accent-bg)", cursor: "pointer" }}><StopIcon size={14} color="var(--accent)" /><span style={{ fontSize: 11, fontWeight: 700, color: "var(--accent)", fontFamily: MONO }}>DONE</span></div>
+                  <div className="tap" onClick={pauseTask} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "12px", borderRadius: 14, background: "var(--warn-bg)", cursor: "pointer" }}><PauseIcon size={14} /><span style={{ fontSize: 11, fontWeight: 700, color: "var(--warn)", fontFamily: MONO }}>PAUSE</span></div>
+                  <div className="tap" onClick={skipTask} style={{ padding: "12px", borderRadius: 14, background: "var(--card2)", cursor: "pointer", display: "flex", alignItems: "center" }}><SkipIcon size={14} /></div>
+                  <div className="tap" onClick={switchTask} style={{ padding: "12px", borderRadius: 14, background: "var(--pink-dim)", cursor: "pointer", display: "flex", alignItems: "center" }}><SwitchIcon size={14} /></div>
                 </div>
               </div>
-            </div>
-
-            <div className="tap" onClick={() => { saveDrainRates(DEFAULT_RATES); }} style={{ background: "#1e1e24", borderRadius: 14, padding: "12px", textAlign: "center", fontSize: 12, color: "#555", fontFamily: MONO }}>Reset to defaults</div>
+            ) : popupState === "paused" ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                <div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 700, color: "var(--warn)", fontFamily: DISPLAY }}>Paused</div><div style={{ fontSize: 10, color: "var(--t4)", fontFamily: MONO }}>{pausedTask?.name} · {pauseTimerStr}</div></div>
+                <div className="tap" onClick={resumePaused} style={{ padding: "10px 16px", borderRadius: 12, background: "var(--accent)", fontSize: 11, fontWeight: 700, color: "var(--accent-bg)", fontFamily: MONO, cursor: "pointer" }}>RESUME</div>
+                <div className="tap" onClick={dismissPaused} style={{ padding: "10px 12px", borderRadius: 12, background: "var(--card2)", cursor: "pointer" }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t4)" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></div>
+              </div>
+            ) : popupState === "grace" && overdueTask ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                <div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 700, color: "var(--warn)", fontFamily: DISPLAY }}>Overdue</div><div style={{ fontSize: 10, color: "var(--t4)", fontFamily: MONO }}>{overdueTask.name} · {Math.ceil(graceRemainingSec / 60)}m left</div></div>
+                <div className="tap" onClick={() => startTask(overdueTask)} style={{ padding: "10px 16px", borderRadius: 12, background: "var(--accent)", fontSize: 11, fontWeight: 700, color: "var(--accent-bg)", fontFamily: MONO, cursor: "pointer" }}>START</div>
+                <div className="tap" onClick={() => skipPendingTask(overdueTask)} style={{ padding: "10px 12px", borderRadius: 12, background: "var(--card2)", fontSize: 11, fontWeight: 700, color: "var(--t4)", fontFamily: MONO, cursor: "pointer" }}>SKIP</div>
+              </div>
+            ) : upcoming ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                <div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 700, color: "var(--t1)", fontFamily: DISPLAY }}>{upcoming.name}</div><div style={{ fontSize: 10, color: "var(--t4)", fontFamily: MONO }}>in {upcomingMins}m · {getDisplayTime(upcoming)}</div></div>
+                <div className="tap" onClick={() => startTask(upcoming)} style={{ padding: "10px 16px", borderRadius: 12, background: "var(--accent)", fontSize: 11, fontWeight: 700, color: "var(--accent-bg)", fontFamily: MONO, cursor: "pointer" }}>START NOW</div>
+              </div>
+            ) : null}
           </div>
         </div>
       )}
 
-      {(popupState === "working" || popupState === "resting") && activeTask && (() => {
-        const isW = popupState === "working"; const pc = isW ? "#5DCAA5" : "#7F77DD"; const pcBg = isW ? "#063d30" : "#1e1a4d"; const pcLight = isW ? "#E1F5EE" : "#EEEDFE";
-        return (
-          <div style={{ position: "fixed", bottom: "calc(76px + env(safe-area-inset-bottom, 0px))", left: "50%", transform: "translateX(-50%)", width: "calc(100% - 28px)", maxWidth: 402, zIndex: 90 }}>
-            <div style={{ background: "#0c0c14", borderRadius: 20, padding: "18px 20px", border: `1.5px solid ${pc}35` }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14 }}>
-                {/* Progress ring */}
-                <div style={{ position: "relative", width: 48, height: 48, flexShrink: 0 }}>
-                  <svg width="48" height="48" viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" fill="none" stroke="#1e1e24" strokeWidth="3" /><circle cx="24" cy="24" r="20" fill="none" stroke={pc} strokeWidth="3" strokeDasharray="125.7" strokeDashoffset={isW ? 125.7 - (125.7 * Math.min(1, activeElapsedMin / Math.max(1, activeTask.duration))) : 125.7 * 0.3} strokeLinecap="round" transform="rotate(-90 24 24)" /></svg>
-                  <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", fontSize: 10, color: pc, fontWeight: 700, fontFamily: MONO }}>{isW ? `${Math.round((activeElapsedMin / Math.max(1, activeTask.duration)) * 100)}%` : "\u2723"}</div>
-                </div>
-
-                {/* Info */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-                    <div className="pulse-dot" style={{ width: 6, height: 6, borderRadius: "50%", background: pc, flexShrink: 0 }} />
-                    <div style={{ fontSize: 10, color: pc, fontWeight: 700, fontFamily: MONO, letterSpacing: 1.5 }}>{isW ? "WORKING" : "RESTING"}</div>
-                  </div>
-                  <div style={{ fontSize: 14, color: pcLight, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{activeTask.name}</div>
-                </div>
-
-                {/* Timer */}
-                <div style={{ textAlign: "center", flexShrink: 0 }}>
-                  <div style={{ fontSize: 18, color: pcLight, fontWeight: 800, fontFamily: MONO, lineHeight: 1 }}>{activeTimerStr}</div>
-                  <div style={{ fontSize: 9, color: "#555", fontFamily: MONO, marginTop: 2 }}>{fmtDur(activeTask.duration)} planned</div>
-                </div>
-              </div>
-
-              {/* ═══ 3 ACTION BUTTONS: PAUSE / SKIP / SWITCH ═══ */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-                <div className="tap" onClick={pauseTask} style={{ background: "#EF9F2712", border: "1px solid #EF9F2730", borderRadius: 12, padding: "10px 8px", textAlign: "center" }}>
-                  <PauseIcon size={16} color="#EF9F27" />
-                  <div style={{ fontSize: 9, fontWeight: 700, color: "#EF9F27", fontFamily: MONO, marginTop: 4, letterSpacing: 1 }}>PAUSE</div>
-                </div>
-                <div className="tap" onClick={skipTask} style={{ background: "#ffffff06", border: "1px solid #2a2a30", borderRadius: 12, padding: "10px 8px", textAlign: "center" }}>
-                  <SkipIcon size={16} color="#888" />
-                  <div style={{ fontSize: 9, fontWeight: 700, color: "#888", fontFamily: MONO, marginTop: 4, letterSpacing: 1 }}>SKIP</div>
-                </div>
-                <div className="tap" onClick={switchTask} style={{ background: "#D4537E12", border: "1px solid #D4537E30", borderRadius: 12, padding: "10px 8px", textAlign: "center" }}>
-                  <SwitchIcon size={16} color="#D4537E" />
-                  <div style={{ fontSize: 9, fontWeight: 700, color: "#D4537E", fontFamily: MONO, marginTop: 4, letterSpacing: 1 }}>SWITCH</div>
-                </div>
-              </div>
-
-              {/* Stop / Complete button below */}
-              <div className="tap" onClick={stopAndComplete} style={{ marginTop: 10, background: `${pc}15`, border: `1px solid ${pc}30`, borderRadius: 12, padding: "10px", textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                <StopIcon size={14} color={pc} />
-                <div style={{ fontSize: 11, fontWeight: 700, color: pc, fontFamily: MONO, letterSpacing: 1 }}>DONE</div>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* ═══ PAUSED POPUP ═══ */}
-      {popupState === "paused" && pausedTask && (
-        <div style={{ position: "fixed", bottom: "calc(76px + env(safe-area-inset-bottom, 0px))", left: "50%", transform: "translateX(-50%)", width: "calc(100% - 28px)", maxWidth: 402, zIndex: 90 }}>
-          <div style={{ background: "#0c0c14", borderRadius: 20, padding: "18px 20px", border: "1.5px solid #EF9F2735" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <div style={{ position: "relative", width: 48, height: 48, flexShrink: 0 }}>
-                <svg width="48" height="48" viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" fill="none" stroke="#1e1e24" strokeWidth="3" /><circle cx="24" cy="24" r="20" fill="none" stroke="#EF9F27" strokeWidth="3" strokeDasharray="125.7" strokeDashoffset="62.85" strokeLinecap="round" transform="rotate(-90 24 24)" /></svg>
-                <PauseIcon size={16} color="#EF9F27" />
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-                  <div style={{ fontSize: 10, color: "#EF9F27", fontWeight: 700, fontFamily: MONO, letterSpacing: 1.5 }}>PAUSED</div>
-                </div>
-                <div style={{ fontSize: 14, color: "#FAEEDA", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{pausedTask.name}</div>
-                <div style={{ fontSize: 9, color: "#555", fontFamily: MONO, marginTop: 2 }}>paused {fmtDur(Math.round(pauseElapsedSec / 60))} ago</div>
-              </div>
-              <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-                <div className="tap" onClick={resumePaused} style={{ width: 40, height: 40, borderRadius: 10, background: "#5DCAA518", border: "1px solid #5DCAA530", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <PlayIcon size={16} color="#5DCAA5" />
-                </div>
-                <div className="tap" onClick={dismissPaused} style={{ width: 40, height: 40, borderRadius: 10, background: "#ffffff08", border: "1px solid #2a2a30", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <SkipIcon size={14} color="#666" />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ═══ GRACE PERIOD POPUP — overdue task within 15 min ═══ */}
-      {popupState === "grace" && overdueTask && (
-        <div style={{ position: "fixed", bottom: "calc(76px + env(safe-area-inset-bottom, 0px))", left: "50%", transform: "translateX(-50%)", width: "calc(100% - 28px)", maxWidth: 402, zIndex: 90 }}>
-          <div style={{ background: "#0c0c14", borderRadius: 20, padding: "18px 20px", border: "1.5px solid #EF9F2740", animation: "graceFlash 2s infinite" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <div style={{ position: "relative", width: 48, height: 48, flexShrink: 0 }}>
-                <svg width="48" height="48" viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" fill="none" stroke="#1e1e24" strokeWidth="3" /><circle cx="24" cy="24" r="20" fill="none" stroke="#EF9F27" strokeWidth="3" strokeDasharray="125.7" strokeDashoffset={125.7 * (1 - graceRemainingSec / 900)} strokeLinecap="round" transform="rotate(-90 24 24)" /></svg>
-                <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", fontSize: 11, color: "#EF9F27", fontWeight: 700, fontFamily: MONO }}>{graceRemainingMin}m</div>
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-                  <div style={{ fontSize: 10, color: "#EF9F27", fontWeight: 700, fontFamily: MONO, letterSpacing: 1.5 }}>OVERDUE</div>
-                </div>
-                <div style={{ fontSize: 14, color: "#FAEEDA", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{overdueTask.name}</div>
-                <div style={{ fontSize: 9, color: "#555", fontFamily: MONO, marginTop: 2 }}>auto-skips in {graceRemainingMin}m</div>
-              </div>
-              <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-                <div className="tap" onClick={() => startTask(overdueTask)} style={{ width: 40, height: 40, borderRadius: 10, background: "#5DCAA518", border: "1px solid #5DCAA530", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <PlayIcon size={16} color="#5DCAA5" />
-                </div>
-                <div className="tap" onClick={() => skipPendingTask(overdueTask)} style={{ width: 40, height: 40, borderRadius: 10, background: "#ffffff08", border: "1px solid #2a2a30", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <SkipIcon size={14} color="#666" />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ═══ UPCOMING POPUP ═══ */}
-      {popupState === "upcoming" && upcoming && (
-        <div style={{ position: "fixed", bottom: "calc(76px + env(safe-area-inset-bottom, 0px))", left: "50%", transform: "translateX(-50%)", width: "calc(100% - 28px)", maxWidth: 402, zIndex: 90 }}>
-          <div style={{ background: "#0c0c14", borderRadius: 20, padding: "20px", border: "1.5px solid #EF9F2735" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-              <div style={{ position: "relative", width: 52, height: 52, flexShrink: 0 }}>
-                <svg width="52" height="52" viewBox="0 0 52 52"><circle cx="26" cy="26" r="22" fill="none" stroke="#1e1e24" strokeWidth="3" /><circle cx="26" cy="26" r="22" fill="none" stroke="#EF9F27" strokeWidth="3" strokeDasharray="138.2" strokeDashoffset={138.2 * (upcomingMins / 60)} strokeLinecap="round" transform="rotate(-90 26 26)" /></svg>
-                <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", fontSize: 11, color: "#EF9F27", fontWeight: 700, fontFamily: MONO }}>{upcomingMins}m</div>
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}><div style={{ width: 7, height: 7, borderRadius: "50%", background: "#EF9F27", flexShrink: 0 }} /><div style={{ fontSize: 11, color: "#EF9F27", fontWeight: 700, fontFamily: MONO, letterSpacing: 1.5 }}>NEXT UP</div></div>
-                <div style={{ fontSize: 15, color: "#FAEEDA", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{upcoming.name}</div>
-                <div style={{ fontSize: 10, color: "#555", fontFamily: MONO, marginTop: 3 }}>{fmtDur(upcoming.duration)} · {upcoming.type}</div>
-              </div>
-              <div style={{ textAlign: "center", flexShrink: 0 }}>
-                <div style={{ fontSize: 20, color: "#FAC775", fontWeight: 800, fontFamily: MONO, lineHeight: 1 }}>0:{pad(upcomingMins)}</div>
-                <div className="tap" onClick={() => startTask(upcoming)} style={{ width: 36, height: 36, borderRadius: 10, background: "#5DCAA518", border: "1px solid #5DCAA530", display: "flex", alignItems: "center", justifyContent: "center", margin: "8px auto 0" }}>
-                  <PlayIcon size={16} color="#5DCAA5" />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ═══ SWITCH INPUT MODAL ═══ */}
-      {showSwitchInput && (
-        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-          <div onClick={() => { setShowSwitchInput(false); }} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)" }} />
-          <div style={{ position: "relative", width: "100%", maxWidth: 430, background: "#13131a", borderRadius: "24px 24px 0 0", padding: "24px 20px 36px", zIndex: 201, border: "1px solid #D4537E30", borderBottom: "none" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-              <SwitchIcon size={18} color="#D4537E" />
-              <div style={{ fontSize: 16, fontWeight: 700, color: "#FBEAF0", fontFamily: DISPLAY }}>Urgent task</div>
-              <div style={{ flex: 1 }} />
-              <div className="tap" onClick={() => setShowSwitchInput(false)} style={{ width: 32, height: 32, borderRadius: 10, background: "#1e1e24", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-              </div>
-            </div>
-            {switchingFrom && (
-              <div style={{ fontSize: 10, color: "#D4537E", fontFamily: MONO, marginBottom: 12, padding: "8px 12px", background: "#D4537E10", borderRadius: 8, border: "1px solid #D4537E20" }}>
-                ⏸ {switchingFrom.name} paused — will resume after
-              </div>
-            )}
-            <div style={{ background: "#0e0e12", borderRadius: 14, padding: "12px 14px", border: "1px solid #D4537E30", display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ fontSize: 16, color: "#D4537E" }}>⚡</span>
-              <input autoFocus value={switchInput} onChange={e => setSwitchInput(e.target.value)} onKeyDown={e => e.key === "Enter" && addSwitchTask()} placeholder="urgent task 30m work" style={{ flex: 1, background: "none", border: "none", color: "#ccc", fontSize: 13, fontFamily: BODY, outline: "none" }} />
-              {switchInput && <div className="tap" onClick={addSwitchTask} style={{ background: "#D4537E", borderRadius: 8, padding: "6px 14px", fontSize: 11, color: "#fff", fontWeight: 700, fontFamily: MONO }}>GO</div>}
-            </div>
-            <div style={{ fontSize: 10, color: "#333", marginTop: 5, fontFamily: MONO }}>name + duration + work/rest</div>
-          </div>
-        </div>
-      )}
-
-      {/* ═══ EDIT TASK MODAL ═══ */}
+      {/* ── EDIT MODAL ── */}
       {editModal && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-          <div onClick={() => setEditModal(null)} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)" }} />
-          <div style={{ position: "relative", width: "100%", maxWidth: 430, background: "#13131a", borderRadius: "24px 24px 0 0", padding: "24px 20px 36px", zIndex: 201, border: "1px solid #1e1e24", borderBottom: "none" }}>
+          <div onClick={() => setEditModal(null)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.6)" }} />
+          <div style={{ position: "relative", width: "100%", maxWidth: 430, background: "var(--card)", borderRadius: "24px 24px 0 0", padding: "24px 20px 36px", zIndex: 201, border: "1px solid var(--border)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <div style={{ fontSize: 18, fontWeight: 700, color: "#E1F5EE", fontFamily: DISPLAY }}>Edit task</div>
-              <div className="tap" onClick={() => setEditModal(null)} style={{ width: 32, height: 32, borderRadius: 10, background: "#1e1e24", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+              <div style={{ fontSize: 18, fontWeight: 700, color: "var(--t1)", fontFamily: DISPLAY }}>Edit task</div>
+              <div className="tap" onClick={() => setEditModal(null)} style={{ width: 32, height: 32, borderRadius: 10, background: "var(--card2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--t4)" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
               </div>
             </div>
             <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 10, color: "#5DCAA5", fontFamily: MONO, letterSpacing: 2, marginBottom: 6 }}>TITLE</div>
-              <input value={editFields.name} onChange={e => setEditFields({ ...editFields, name: e.target.value })} style={{ width: "100%", background: "#0e0e12", border: "1px solid #2a2a30", borderRadius: 12, padding: "12px 14px", color: "#ccc", fontSize: 14, fontFamily: BODY, outline: "none" }} />
+              <div style={{ fontSize: 10, color: "var(--accent)", fontFamily: MONO, letterSpacing: 2, marginBottom: 6 }}>TITLE</div>
+              <input value={editFields.name} onChange={e => setEditFields({ ...editFields, name: e.target.value })} style={{ width: "100%", background: "var(--bg)", border: "1px solid var(--border2)", borderRadius: 12, padding: "12px 14px", color: "var(--t2)", fontSize: 14, fontFamily: BODY, outline: "none" }} />
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
-              <div>
-                <div style={{ fontSize: 10, color: "#5DCAA5", fontFamily: MONO, letterSpacing: 2, marginBottom: 6 }}>TIME</div>
-                <input type="time" value={editFields.time} onChange={e => setEditFields({ ...editFields, time: e.target.value })} style={{ width: "100%", background: "#0e0e12", border: "1px solid #2a2a30", borderRadius: 12, padding: "12px 14px", color: "#ccc", fontSize: 14, fontFamily: MONO, outline: "none", colorScheme: "dark" }} />
-              </div>
-              <div>
-                <div style={{ fontSize: 10, color: "#5DCAA5", fontFamily: MONO, letterSpacing: 2, marginBottom: 6 }}>DURATION (MIN)</div>
-                <input type="number" value={editFields.duration} onChange={e => setEditFields({ ...editFields, duration: e.target.value })} style={{ width: "100%", background: "#0e0e12", border: "1px solid #2a2a30", borderRadius: 12, padding: "12px 14px", color: "#ccc", fontSize: 14, fontFamily: MONO, outline: "none" }} />
-              </div>
+              <div><div style={{ fontSize: 10, color: "var(--accent)", fontFamily: MONO, letterSpacing: 2, marginBottom: 6 }}>TIME</div><input type="time" value={editFields.time} onChange={e => setEditFields({ ...editFields, time: e.target.value })} style={{ width: "100%", background: "var(--bg)", border: "1px solid var(--border2)", borderRadius: 12, padding: "12px 14px", color: "var(--t2)", fontSize: 14, fontFamily: MONO, outline: "none" }} /></div>
+              <div><div style={{ fontSize: 10, color: "var(--accent)", fontFamily: MONO, letterSpacing: 2, marginBottom: 6 }}>DURATION</div><input type="number" value={editFields.duration} onChange={e => setEditFields({ ...editFields, duration: e.target.value })} style={{ width: "100%", background: "var(--bg)", border: "1px solid var(--border2)", borderRadius: 12, padding: "12px 14px", color: "var(--t2)", fontSize: 14, fontFamily: MONO, outline: "none" }} /></div>
             </div>
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 10, color: "#5DCAA5", fontFamily: MONO, letterSpacing: 2, marginBottom: 6 }}>DESCRIPTION</div>
-              <input value={editFields.desc} onChange={e => setEditFields({ ...editFields, desc: e.target.value })} placeholder="Optional notes..." style={{ width: "100%", background: "#0e0e12", border: "1px solid #2a2a30", borderRadius: 12, padding: "12px 14px", color: "#ccc", fontSize: 14, fontFamily: BODY, outline: "none" }} />
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
-              <div>
-                <div style={{ fontSize: 10, color: "#5DCAA5", fontFamily: MONO, letterSpacing: 2, marginBottom: 6 }}>TYPE</div>
-                <div style={{ display: "flex", gap: 6 }}>
-                  {["work", "rest"].map(t => (
-                    <div key={t} className="tap" onClick={() => setEditFields({ ...editFields, type: t })} style={{
-                      flex: 1, padding: "10px 8px", borderRadius: 10, textAlign: "center", fontSize: 12, fontWeight: 700, fontFamily: MONO,
-                      background: editFields.type === t ? (t === "work" ? "#063d30" : "#1e1a4d") : "#0e0e12",
-                      border: `1px solid ${editFields.type === t ? (t === "work" ? "#5DCAA540" : "#7F77DD40") : "#2a2a30"}`,
-                      color: editFields.type === t ? (t === "work" ? "#5DCAA5" : "#7F77DD") : "#555"
-                    }}>{t.toUpperCase()}</div>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <div style={{ fontSize: 10, color: "#5DCAA5", fontFamily: MONO, letterSpacing: 2, marginBottom: 6 }}>HOUR RATE (RM)</div>
-                <input type="number" value={editFields.rate} onChange={e => setEditFields({ ...editFields, rate: e.target.value })} placeholder="0" style={{ width: "100%", background: "#0e0e12", border: "1px solid #2a2a30", borderRadius: 12, padding: "12px 14px", color: "#ccc", fontSize: 14, fontFamily: MONO, outline: "none" }} />
-              </div>
-            </div>
-            <div className="tap" onClick={saveEdit} style={{ background: "#5DCAA5", borderRadius: 14, padding: "14px", textAlign: "center", fontSize: 14, fontWeight: 700, color: "#063d30", fontFamily: DISPLAY }}>Save changes</div>
+            <div className="tap" onClick={saveEdit} style={{ background: "var(--accent)", borderRadius: 14, padding: "14px", textAlign: "center", fontSize: 14, fontWeight: 700, color: "var(--accent-bg)", fontFamily: DISPLAY }}>Save changes</div>
           </div>
         </div>
       )}
 
-      {/* ═══ ADD GROUP MODAL ═══ */}
-      {showGroupModal && (
+      {/* ── SWITCH INPUT ── */}
+      {showSwitchInput && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-          <div onClick={() => setShowGroupModal(false)} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)" }} />
-          <div style={{ position: "relative", width: "100%", maxWidth: 430, background: "#13131a", borderRadius: "24px 24px 0 0", padding: "24px 20px 36px", zIndex: 201, border: "1px solid #1e1e24", borderBottom: "none" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <div style={{ fontSize: 18, fontWeight: 700, color: "#E1F5EE", fontFamily: DISPLAY }}>New group</div>
-              <div className="tap" onClick={() => setShowGroupModal(false)} style={{ width: 32, height: 32, borderRadius: 10, background: "#1e1e24", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-              </div>
-            </div>
-            <div style={{ fontSize: 10, color: "#5DCAA5", fontFamily: MONO, letterSpacing: 2, marginBottom: 6 }}>GROUP NAME</div>
-            <input autoFocus value={groupInput} onChange={e => setGroupInput(e.target.value)} onKeyDown={e => e.key === "Enter" && confirmAddGroup()} placeholder="e.g. PERSONAL, FITNESS..." style={{ width: "100%", background: "#0e0e12", border: "1px solid #2a2a30", borderRadius: 12, padding: "12px 14px", color: "#ccc", fontSize: 14, fontFamily: BODY, outline: "none", marginBottom: 20 }} />
-            <div className="tap" onClick={confirmAddGroup} style={{ background: "#5DCAA5", borderRadius: 14, padding: "14px", textAlign: "center", fontSize: 14, fontWeight: 700, color: "#063d30", fontFamily: DISPLAY }}>Add group</div>
-          </div>
-        </div>
-      )}
-
-      {/* ═══ NOTIFICATION PERMISSION BANNER ═══ */}
-      {notifBanner && !notifEnabled && (
-        <div style={{
-          position: "fixed",
-          bottom: "calc(80px + env(safe-area-inset-bottom, 0px))",
-          left: "50%",
-          transform: "translateX(-50%)",
-          width: "calc(100% - 28px)",
-          maxWidth: 402,
-          zIndex: 95,
-          animation: "fadeUp 0.3s ease",
-        }}>
-          <div style={{
-            background: "#13131a",
-            borderRadius: 20,
-            padding: "18px 20px",
-            border: "1.5px solid #5DCAA530",
-            display: "flex",
-            alignItems: "center",
-            gap: 14,
-          }}>
-            <div style={{
-              width: 40, height: 40, borderRadius: 12,
-              background: "#5DCAA515",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              flexShrink: 0,
-            }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5DCAA5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                <path d="M13.73 21a2 2 0 01-3.46 0" />
-              </svg>
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "#E1F5EE", marginBottom: 2 }}>
-                Enable autopilot?
-              </div>
-              <div style={{ fontSize: 11, color: "#555" }}>
-                Get task reminders when the app is closed
-              </div>
-            </div>
-            <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-              <div
-                className="tap"
-                onClick={() => setNotifBanner(false)}
-                style={{
-                  padding: "8px 12px", borderRadius: 10,
-                  background: "#1e1e24", border: "1px solid #2a2a30",
-                  fontSize: 11, fontWeight: 600, color: "#555",
-                  fontFamily: "'IBM Plex Mono', monospace",
-                  cursor: "pointer",
-                }}
-              >
-                LATER
-              </div>
-              <div
-                className="tap"
-                onClick={async () => {
-                  const ok = await initNotifications();
-                  setNotifEnabled(ok);
-                  setNotifBanner(false);
-                  if (ok) {
-                    scheduleTaskNotifications(tasks);
-                    scheduleDaySummary(drainRates.sleepHour, drainRates.sleepMinute);
-                  }
-                }}
-                style={{
-                  padding: "8px 14px", borderRadius: 10,
-                  background: "#5DCAA5", border: "none",
-                  fontSize: 11, fontWeight: 700, color: "#063d30",
-                  fontFamily: "'IBM Plex Mono', monospace",
-                  cursor: "pointer",
-                }}
-              >
-                YES
-              </div>
+          <div onClick={() => setShowSwitchInput(false)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.6)" }} />
+          <div style={{ position: "relative", width: "100%", maxWidth: 430, background: "var(--card)", borderRadius: "24px 24px 0 0", padding: "24px 20px 36px", zIndex: 201, border: "1px solid var(--border)" }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: "var(--pink)", fontFamily: DISPLAY, marginBottom: 16 }}>⚡ Switch to urgent task</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input autoFocus value={switchInput} onChange={e => setSwitchInput(e.target.value)} onKeyDown={e => e.key === "Enter" && addSwitchTask()} placeholder="urgent task name 30m"
+                style={{ flex: 1, background: "var(--bg)", border: "1px solid var(--pink-30)", borderRadius: 12, padding: "12px 14px", color: "var(--t2)", fontSize: 13, fontFamily: BODY, outline: "none" }} />
+              <div className="tap" onClick={addSwitchTask} style={{ background: "var(--pink)", borderRadius: 12, padding: "12px 16px", fontSize: 11, fontWeight: 700, color: "#fff", fontFamily: MONO, cursor: "pointer" }}>GO</div>
             </div>
           </div>
         </div>
       )}
 
+      <BottomNav active={bottomTab} onChange={handleTabChange} />
     </div>
   );
 }
