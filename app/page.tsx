@@ -88,6 +88,27 @@ const INCOME = [
 ];
 
 const EVENTS: { [key: string]: string } = {
+
+// Mock friends data for Tab 3 shell
+const MOCK_FRIENDS = [
+  { id: "f1", name: "Amir", status: "Studying C pointers", statusType: "work" as const, lastActive: "2m ago", streak: 12, pet: "healthy" as const },
+  { id: "f2", name: "Mei Ling", status: "Rest — coffee break", statusType: "rest" as const, lastActive: "now", streak: 7, pet: "healthy" as const },
+  { id: "f3", name: "Raj", status: "Offline", statusType: "idle" as const, lastActive: "3h ago", streak: 0, pet: "hungry" as const },
+  { id: "f4", name: "Siti", status: "TryHackMe SOC path", statusType: "work" as const, lastActive: "15m ago", streak: 23, pet: "healthy" as const },
+];
+
+const MOCK_CHATS: { [key: string]: { from: string; text: string; time: string }[] } = {
+  f1: [
+    { from: "them", text: "bro how far are u with the C stuff", time: "14:20" },
+    { from: "me", text: "still on pointers lol", time: "14:22" },
+    { from: "them", text: "same 😂 lets grind tmrw", time: "14:23" },
+  ],
+  f2: [
+    { from: "them", text: "just finished my Security+ chapter 3", time: "10:15" },
+    { from: "me", text: "nice how long did it take", time: "10:18" },
+    { from: "them", text: "about 2h, the networking part is tough", time: "10:20" },
+  ],
+};
   "2026-01-01": "New Year", "2026-01-29": "Thaipusam", "2026-02-01": "Fed Territory",
   "2026-02-17": "CNY Day 1", "2026-02-18": "CNY Day 2", "2026-03-20": "Nuzul Quran",
   "2026-03-31": "Hari Raya", "2026-04-01": "Raya Day 2", "2026-04-06": "Piscine starts",
@@ -221,6 +242,10 @@ export default function Home() {
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [showSwitchInput, setShowSwitchInput] = useState(false);
   const [switchInput, setSwitchInput] = useState("");
+  const [bottomTab, setBottomTab] = useState<'main' | 'community' | 'friends' | 'profile'>('main');
+  const [friendSearch, setFriendSearch] = useState("");
+  const [friendChatOpen, setFriendChatOpen] = useState<string | null>(null);
+  const [chatInput, setChatInput] = useState("");
   // Plan data (kept for template auto-gen on day rollover)
   const [templates, setTemplates] = useState<Template[]>([]);
   const [history, setHistory] = useState<{ [date: string]: DayHistory }>({});
@@ -778,7 +803,7 @@ export default function Home() {
   const PILL_H = 62;
 
   return (
-    <div style={{ background: "#0e0e12", minHeight: "100vh", fontFamily: BODY, color: "#c0c0c0", maxWidth: 430, margin: "0 auto", position: "relative", paddingBottom: hasActivePopup ? 130 : 40, paddingTop: "env(safe-area-inset-top, 0px)" }}>
+    <div style={{ background: "#0e0e12", minHeight: "100vh", fontFamily: BODY, color: "#c0c0c0", maxWidth: 430, margin: "0 auto", position: "relative", paddingBottom: hasActivePopup ? 200 : 110, paddingTop: "env(safe-area-inset-top, 0px)" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -793,6 +818,7 @@ export default function Home() {
         input:focus { outline: none; }
       `}</style>
 
+      {bottomTab === 'main' && (
       <div style={{ padding: "16px 14px 0" }}>
 
         {/* ═══ ZONE 1: STATS ═══ */}
@@ -1175,9 +1201,282 @@ export default function Home() {
           <div style={{ textAlign: "center", padding: "40px 20px", border: "1px dashed #2a2a30", borderRadius: 16 }}><div style={{ fontSize: 14, color: "#444" }}>{activeTab}</div><div style={{ fontSize: 12, color: "#333", fontFamily: MONO, marginTop: 4 }}>Custom group</div></div>
         )}
       </div>
+      )}
 
+      {/* ═══ TAB 2: COMMUNITY / MARKETPLACE ═══ */}
+      {bottomTab === 'community' && (
+        <div style={{ padding: "16px 14px 0" }}>
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 20, fontWeight: 800, color: "#E1F5EE", fontFamily: DISPLAY }}>Community</div>
+            <div style={{ fontSize: 11, color: "#555", marginTop: 4 }}>Marketplace, coins & support</div>
+          </div>
 
-      {/* ═══ POWER SETTINGS MODAL ═══ */}
+          {/* Coin balance card */}
+          <div style={{ background: "#351c02", borderRadius: 20, padding: "24px 20px", border: "1px solid #EF9F2720", marginBottom: 16 }}>
+            <div style={{ fontSize: 10, color: "#EF9F27", fontFamily: MONO, letterSpacing: 2, marginBottom: 8 }}>PIT COINS</div>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+              <div style={{ fontSize: 40, fontWeight: 800, color: "#FAEEDA", fontFamily: DISPLAY, lineHeight: 1 }}>0</div>
+              <div style={{ fontSize: 12, color: "#EF9F2780", fontFamily: MONO }}>coins</div>
+            </div>
+            <div style={{ fontSize: 11, color: "#854F0B", marginTop: 8 }}>Earn coins by completing tasks</div>
+          </div>
+
+          {/* Coming soon cards */}
+          {[
+            { title: "Task marketplace", desc: "Post and find tasks in the community", icon: "◈", color: "#EF9F27" },
+            { title: "Stake & contracts", desc: "Bet coins on your own goals", icon: "◆", color: "#D4537E" },
+            { title: "Support others", desc: "Invest coins in people you believe in", icon: "♡", color: "#5DCAA5" },
+          ].map((item, i) => (
+            <div key={i} style={{ background: "#13131a", borderRadius: 16, padding: "18px 20px", border: "1px solid #1e1e24", marginBottom: 8, display: "flex", alignItems: "center", gap: 14, animation: `fadeUp 0.3s ease ${i * 0.06}s both` }}>
+              <div style={{ width: 40, height: 40, borderRadius: 12, background: `${item.color}12`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: item.color, flexShrink: 0 }}>{item.icon}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#E1F5EE", fontFamily: DISPLAY }}>{item.title}</div>
+                <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>{item.desc}</div>
+              </div>
+              <div style={{ fontSize: 9, color: "#333", fontFamily: MONO, letterSpacing: 1, background: "#1e1e24", padding: "4px 8px", borderRadius: 6 }}>SOON</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ═══ TAB 3: FRIENDS & CHAT ═══ */}
+      {bottomTab === 'friends' && (
+        <div style={{ padding: "16px 14px 0" }}>
+
+          {!friendChatOpen ? (
+            <>
+              {/* Header */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                <div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: "#E1F5EE", fontFamily: DISPLAY }}>Friends</div>
+                  <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>{MOCK_FRIENDS.length} connected</div>
+                </div>
+                <div className="tap" style={{ background: "#D4537E", borderRadius: 12, padding: "10px 16px", fontSize: 11, fontWeight: 700, color: "#fff", fontFamily: MONO, cursor: "pointer" }}>+ ADD</div>
+              </div>
+
+              {/* Search */}
+              <div style={{ background: "#13131a", borderRadius: 14, padding: "12px 14px", border: "1px solid #1e1e24", marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                <input value={friendSearch} onChange={e => setFriendSearch(e.target.value)} placeholder="Search friends..." style={{ flex: 1, background: "none", border: "none", color: "#ccc", fontSize: 13, fontFamily: BODY, outline: "none" }} />
+              </div>
+
+              {/* Friend list */}
+              {MOCK_FRIENDS.filter(f => !friendSearch || f.name.toLowerCase().includes(friendSearch.toLowerCase())).map((friend, i) => {
+                const statusColor = friend.statusType === "work" ? "#5DCAA5" : friend.statusType === "rest" ? "#7F77DD" : "#333";
+                const statusBg = friend.statusType === "work" ? "#063d30" : friend.statusType === "rest" ? "#1e1a4d" : "#13131a";
+                return (
+                  <div key={friend.id} className="tap" onClick={() => setFriendChatOpen(friend.id)} style={{ background: statusBg, borderRadius: 16, padding: "16px 18px", marginBottom: 8, border: `1px solid ${statusColor}20`, cursor: "pointer", animation: `fadeUp 0.25s ease ${i * 0.05}s both` }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                      {/* Avatar */}
+                      <div style={{ width: 44, height: 44, borderRadius: 14, background: `${statusColor}18`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, position: "relative" }}>
+                        <span style={{ fontSize: 18, fontWeight: 800, color: statusColor, fontFamily: DISPLAY }}>{friend.name[0]}</span>
+                        {/* Online indicator */}
+                        <div style={{ position: "absolute", bottom: -1, right: -1, width: 12, height: 12, borderRadius: "50%", background: friend.statusType !== "idle" ? "#5DCAA5" : "#333", border: "2px solid " + statusBg }} />
+                      </div>
+
+                      {/* Info */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 15, fontWeight: 700, color: "#E1F5EE", fontFamily: DISPLAY }}>{friend.name}</span>
+                          {friend.streak > 0 && (
+                            <span style={{ fontSize: 9, color: "#EF9F27", background: "#EF9F2715", padding: "2px 6px", borderRadius: 4, fontFamily: MONO, fontWeight: 600 }}>{friend.streak}d</span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: 12, color: statusColor, marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {friend.statusType !== "idle" && <span className="pulse-dot" style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: statusColor, marginRight: 6, verticalAlign: "middle" }} />}
+                          {friend.status}
+                        </div>
+                      </div>
+
+                      {/* Right side */}
+                      <div style={{ textAlign: "right", flexShrink: 0 }}>
+                        <div style={{ fontSize: 10, color: "#555", fontFamily: MONO }}>{friend.lastActive}</div>
+                        {MOCK_CHATS[friend.id] && (
+                          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#D4537E", marginTop: 6, marginLeft: "auto" }} />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Verify tasks section */}
+              <div style={{ marginTop: 20 }}>
+                <div style={{ fontSize: 10, color: "#D4537E", fontFamily: MONO, letterSpacing: 2, marginBottom: 10 }}>VERIFY TASKS</div>
+                <div style={{ background: "#13131a", borderRadius: 16, padding: "20px", border: "1px dashed #D4537E25", textAlign: "center" }}>
+                  <div style={{ fontSize: 13, color: "#444" }}>No tasks waiting for verification</div>
+                  <div style={{ fontSize: 11, color: "#333", marginTop: 4 }}>When friends complete tasks, you can verify them here</div>
+                </div>
+              </div>
+
+              {/* Collab invites section */}
+              <div style={{ marginTop: 20 }}>
+                <div style={{ fontSize: 10, color: "#5DCAA5", fontFamily: MONO, letterSpacing: 2, marginBottom: 10 }}>COLLAB INVITES</div>
+                <div style={{ background: "#13131a", borderRadius: 16, padding: "20px", border: "1px dashed #5DCAA525", textAlign: "center" }}>
+                  <div style={{ fontSize: 13, color: "#444" }}>No pending invites</div>
+                  <div style={{ fontSize: 11, color: "#333", marginTop: 4 }}>Send a collab task to work on something together</div>
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Chat view */}
+              {(() => {
+                const friend = MOCK_FRIENDS.find(f => f.id === friendChatOpen);
+                const chats = MOCK_CHATS[friendChatOpen] || [];
+                if (!friend) return null;
+                const statusColor = friend.statusType === "work" ? "#5DCAA5" : friend.statusType === "rest" ? "#7F77DD" : "#555";
+                return (
+                  <div style={{ display: "flex", flexDirection: "column", minHeight: "calc(100vh - 200px)" }}>
+                    {/* Chat header */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+                      <div className="tap" onClick={() => setFriendChatOpen(null)} style={{ width: 36, height: 36, borderRadius: 10, background: "#1e1e24", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2" strokeLinecap="round"><polyline points="15 18 9 12 15 6" /></svg>
+                      </div>
+                      <div style={{ width: 36, height: 36, borderRadius: 10, background: `${statusColor}18`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <span style={{ fontSize: 14, fontWeight: 800, color: statusColor, fontFamily: DISPLAY }}>{friend.name[0]}</span>
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: "#E1F5EE", fontFamily: DISPLAY }}>{friend.name}</div>
+                        <div style={{ fontSize: 10, color: statusColor, fontFamily: MONO }}>{friend.status}</div>
+                      </div>
+                      <div className="tap" style={{ fontSize: 9, color: "#D4537E", fontFamily: MONO, letterSpacing: 1, background: "#D4537E12", padding: "6px 10px", borderRadius: 8, border: "1px solid #D4537E25", cursor: "pointer", fontWeight: 600 }}>COLLAB</div>
+                    </div>
+
+                    {/* Messages */}
+                    <div style={{ flex: 1 }}>
+                      {chats.length === 0 && (
+                        <div style={{ textAlign: "center", padding: "40px 20px" }}>
+                          <div style={{ fontSize: 13, color: "#444" }}>No messages yet</div>
+                          <div style={{ fontSize: 11, color: "#333", marginTop: 4 }}>Say hi to {friend.name}</div>
+                        </div>
+                      )}
+                      {chats.map((msg, i) => (
+                        <div key={i} style={{ display: "flex", justifyContent: msg.from === "me" ? "flex-end" : "flex-start", marginBottom: 8 }}>
+                          <div style={{
+                            maxWidth: "75%",
+                            padding: "10px 14px",
+                            borderRadius: msg.from === "me" ? "14px 14px 4px 14px" : "14px 14px 14px 4px",
+                            background: msg.from === "me" ? "#5DCAA518" : "#1e1e24",
+                            border: `1px solid ${msg.from === "me" ? "#5DCAA525" : "#2a2a30"}`,
+                          }}>
+                            <div style={{ fontSize: 13, color: msg.from === "me" ? "#E1F5EE" : "#ccc", lineHeight: 1.5 }}>{msg.text}</div>
+                            <div style={{ fontSize: 9, color: "#555", fontFamily: MONO, marginTop: 4, textAlign: "right" }}>{msg.time}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Chat input */}
+                    <div style={{ position: "sticky", bottom: 80, background: "#0e0e12", paddingTop: 10, paddingBottom: 10 }}>
+                      <div style={{ background: "#13131a", borderRadius: 14, padding: "10px 14px", border: "1px solid #1e1e24", display: "flex", alignItems: "center", gap: 10 }}>
+                        <input value={chatInput} onChange={e => setChatInput(e.target.value)} placeholder={`Message ${friend.name}...`} style={{ flex: 1, background: "none", border: "none", color: "#ccc", fontSize: 13, fontFamily: BODY, outline: "none" }} />
+                        {chatInput && (
+                          <div className="tap" onClick={() => setChatInput("")} style={{ background: "#D4537E", borderRadius: 8, padding: "6px 14px", fontSize: 11, color: "#fff", fontWeight: 700, fontFamily: MONO, cursor: "pointer" }}>SEND</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ═══ TAB 4: PROFILE ═══ */}
+      {bottomTab === 'profile' && (
+        <div style={{ padding: "16px 14px 0" }}>
+          {/* Header with settings gear */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+            <div style={{ fontSize: 20, fontWeight: 800, color: "#E1F5EE", fontFamily: DISPLAY }}>Profile</div>
+            <div className="tap" onClick={() => setShowPowerSettings(true)} style={{ width: 36, height: 36, borderRadius: 12, background: "#1e1e24", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" /></svg>
+            </div>
+          </div>
+
+          {/* User card */}
+          <div style={{ background: "#13131a", borderRadius: 20, padding: "24px 20px", border: "1px solid #1e1e24", marginBottom: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20 }}>
+              <div style={{ width: 56, height: 56, borderRadius: 18, background: "#5DCAA515", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#5DCAA5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+              </div>
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: "#E1F5EE", fontFamily: DISPLAY }}>Anonymous</div>
+                <div style={{ fontSize: 10, color: "#555", fontFamily: MONO }}>{userId ? `ID: ${userId.slice(0, 8)}...` : 'Offline mode'}</div>
+              </div>
+            </div>
+
+            {/* Stats grid */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+              {[
+                { v: tasksDoneCount, l: "TODAY", c: "#5DCAA5", bg: "#063d30" },
+                { v: streak, l: "STREAK", c: "#EF9F27", bg: "#351c02" },
+                { v: "0", l: "COINS", c: "#D4537E", bg: "#3e1022" },
+              ].map((s, i) => (
+                <div key={i} style={{ background: s.bg, borderRadius: 14, padding: "14px 10px", textAlign: "center" }}>
+                  <div style={{ fontSize: 24, fontWeight: 800, color: "#fff", fontFamily: DISPLAY, lineHeight: 1 }}>{s.v}</div>
+                  <div style={{ fontSize: 9, color: s.c, fontFamily: MONO, letterSpacing: 1, marginTop: 4 }}>{s.l}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Pet settings placeholder */}
+          <div style={{ background: "#13131a", borderRadius: 16, padding: "18px 20px", border: "1px solid #1e1e24", marginBottom: 8, display: "flex", alignItems: "center", gap: 14 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 12, background: "#7F77DD15", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>🐾</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "#E1F5EE", fontFamily: DISPLAY }}>Pet settings</div>
+              <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>Manage your digital companion</div>
+            </div>
+            <div style={{ fontSize: 9, color: "#333", fontFamily: MONO, letterSpacing: 1, background: "#1e1e24", padding: "4px 8px", borderRadius: 6 }}>SOON</div>
+          </div>
+
+          {/* Coin history placeholder */}
+          <div style={{ background: "#13131a", borderRadius: 16, padding: "18px 20px", border: "1px solid #1e1e24", marginBottom: 8, display: "flex", alignItems: "center", gap: 14 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 12, background: "#EF9F2715", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, color: "#EF9F27", flexShrink: 0 }}>◈</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "#E1F5EE", fontFamily: DISPLAY }}>Coin history</div>
+              <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>Earned, spent, invested</div>
+            </div>
+            <div style={{ fontSize: 9, color: "#333", fontFamily: MONO, letterSpacing: 1, background: "#1e1e24", padding: "4px 8px", borderRadius: 6 }}>SOON</div>
+          </div>
+
+          {/* Sync status */}
+          <div style={{ background: "#13131a", borderRadius: 16, padding: "14px 20px", border: "1px solid #1e1e24", marginBottom: 8, display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: userId ? "#5DCAA5" : "#D4537E", flexShrink: 0 }} />
+            <span style={{ fontSize: 12, color: userId ? "#5DCAA580" : "#D4537E80" }}>{userId ? 'Synced to Supabase' : 'Offline — local only'}</span>
+          </div>
+
+          <div style={{ fontSize: 11, color: "#333", fontFamily: MONO, textAlign: "center", marginTop: 20 }}>PITGOAL v8.4</div>
+        </div>
+      )}
+
+      {/* ═══ BOTTOM NAV BAR ═══ */}
+      <div style={{
+        position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
+        width: "100%", maxWidth: 430, zIndex: 80,
+        background: "rgba(14,14,18,0.97)", backdropFilter: "blur(16px)",
+        borderTop: "1px solid #1e1e24",
+        padding: "8px 14px calc(8px + env(safe-area-inset-bottom, 0px))",
+        display: "flex", justifyContent: "space-around", alignItems: "center",
+      }}>
+        {([
+          { id: 'main' as const, label: 'MAIN', icon: (c: string) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg> },
+          { id: 'community' as const, label: 'HUB', icon: (c: string) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" /></svg> },
+          { id: 'friends' as const, label: 'FRIENDS', icon: (c: string) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87" /><path d="M16 3.13a4 4 0 010 7.75" /></svg> },
+          { id: 'profile' as const, label: 'ME', icon: (c: string) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg> },
+        ]).map(tab => {
+          const isActive = bottomTab === tab.id;
+          const color = isActive ? "#5DCAA5" : "#3a3a42";
+          return (
+            <div key={tab.id} className="tap" onClick={() => { setBottomTab(tab.id); if (tab.id === 'friends') setFriendChatOpen(null); }} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "4px 12px", cursor: "pointer" }}>
+              {tab.icon(color)}
+              <span style={{ fontSize: 9, fontWeight: 700, color, fontFamily: MONO, letterSpacing: 1 }}>{tab.label}</span>
+            </div>
+          );
+        })}
+      </div>
       {showPowerSettings && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
           <div onClick={() => setShowPowerSettings(false)} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)" }} />
@@ -1253,7 +1552,7 @@ export default function Home() {
       {(popupState === "working" || popupState === "resting") && activeTask && (() => {
         const isW = popupState === "working"; const pc = isW ? "#5DCAA5" : "#7F77DD"; const pcBg = isW ? "#063d30" : "#1e1a4d"; const pcLight = isW ? "#E1F5EE" : "#EEEDFE";
         return (
-          <div style={{ position: "fixed", bottom: "calc(16px + env(safe-area-inset-bottom, 0px))", left: "50%", transform: "translateX(-50%)", width: "calc(100% - 28px)", maxWidth: 402, zIndex: 90 }}>
+          <div style={{ position: "fixed", bottom: "calc(76px + env(safe-area-inset-bottom, 0px))", left: "50%", transform: "translateX(-50%)", width: "calc(100% - 28px)", maxWidth: 402, zIndex: 90 }}>
             <div style={{ background: "#0c0c14", borderRadius: 20, padding: "18px 20px", border: `1.5px solid ${pc}35` }}>
               <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14 }}>
                 {/* Progress ring */}
@@ -1306,7 +1605,7 @@ export default function Home() {
 
       {/* ═══ PAUSED POPUP ═══ */}
       {popupState === "paused" && pausedTask && (
-        <div style={{ position: "fixed", bottom: "calc(16px + env(safe-area-inset-bottom, 0px))", left: "50%", transform: "translateX(-50%)", width: "calc(100% - 28px)", maxWidth: 402, zIndex: 90 }}>
+        <div style={{ position: "fixed", bottom: "calc(76px + env(safe-area-inset-bottom, 0px))", left: "50%", transform: "translateX(-50%)", width: "calc(100% - 28px)", maxWidth: 402, zIndex: 90 }}>
           <div style={{ background: "#0c0c14", borderRadius: 20, padding: "18px 20px", border: "1.5px solid #EF9F2735" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
               <div style={{ position: "relative", width: 48, height: 48, flexShrink: 0 }}>
@@ -1335,7 +1634,7 @@ export default function Home() {
 
       {/* ═══ GRACE PERIOD POPUP — overdue task within 15 min ═══ */}
       {popupState === "grace" && overdueTask && (
-        <div style={{ position: "fixed", bottom: "calc(16px + env(safe-area-inset-bottom, 0px))", left: "50%", transform: "translateX(-50%)", width: "calc(100% - 28px)", maxWidth: 402, zIndex: 90 }}>
+        <div style={{ position: "fixed", bottom: "calc(76px + env(safe-area-inset-bottom, 0px))", left: "50%", transform: "translateX(-50%)", width: "calc(100% - 28px)", maxWidth: 402, zIndex: 90 }}>
           <div style={{ background: "#0c0c14", borderRadius: 20, padding: "18px 20px", border: "1.5px solid #EF9F2740", animation: "graceFlash 2s infinite" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
               <div style={{ position: "relative", width: 48, height: 48, flexShrink: 0 }}>
@@ -1364,7 +1663,7 @@ export default function Home() {
 
       {/* ═══ UPCOMING POPUP ═══ */}
       {popupState === "upcoming" && upcoming && (
-        <div style={{ position: "fixed", bottom: "calc(16px + env(safe-area-inset-bottom, 0px))", left: "50%", transform: "translateX(-50%)", width: "calc(100% - 28px)", maxWidth: 402, zIndex: 90 }}>
+        <div style={{ position: "fixed", bottom: "calc(76px + env(safe-area-inset-bottom, 0px))", left: "50%", transform: "translateX(-50%)", width: "calc(100% - 28px)", maxWidth: 402, zIndex: 90 }}>
           <div style={{ background: "#0c0c14", borderRadius: 20, padding: "20px", border: "1.5px solid #EF9F2735" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
               <div style={{ position: "relative", width: 52, height: 52, flexShrink: 0 }}>
