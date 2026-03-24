@@ -87,7 +87,6 @@ const INCOME = [
   { label: "RM15-25K+", desc: "GRC / Sales Eng", bg: "#351c02", accent: "#EF9F27", light: "#FAEEDA", mid: "#FAC775" },
 ];
 
-const EVENTS: { [key: string]: string } = {
 
 // Mock friends data for Tab 3 shell
 const MOCK_FRIENDS = [
@@ -109,6 +108,8 @@ const MOCK_CHATS: { [key: string]: { from: string; text: string; time: string }[
     { from: "them", text: "about 2h, the networking part is tough", time: "10:20" },
   ],
 };
+
+const EVENTS: { [key: string]: string } = {
   "2026-01-01": "New Year", "2026-01-29": "Thaipusam", "2026-02-01": "Fed Territory",
   "2026-02-17": "CNY Day 1", "2026-02-18": "CNY Day 2", "2026-03-20": "Nuzul Quran",
   "2026-03-31": "Hari Raya", "2026-04-01": "Raya Day 2", "2026-04-06": "Piscine starts",
