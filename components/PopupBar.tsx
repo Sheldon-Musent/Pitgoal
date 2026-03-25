@@ -575,7 +575,7 @@ export default function PopupBar({
                   fontFamily: BODY,
                   cursor: "pointer",
                   background: a.primary ? "var(--accent)" : "var(--card2)",
-                  color: a.primary ? "#fff" : "var(--t3)",
+                  color: a.primary ? "#fff" : "var(--t2)",
                 }}
               >
                 {a.label}
