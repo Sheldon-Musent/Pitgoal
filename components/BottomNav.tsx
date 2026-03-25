@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 
 type BottomTab = "main" | "community" | "friends" | "profile";
 
@@ -11,7 +11,7 @@ interface BottomNavProps {
 const MONO = "'IBM Plex Mono', monospace";
 
 // ── Tab definitions ──
-const TABS: { id: BottomTab; label: string; icon: (active: boolean) => JSX.Element }[] = [
+const TABS: { id: BottomTab; label: string; icon: (active: boolean) => React.ReactNode }[] = [
   {
     id: "main",
     label: "Main",
