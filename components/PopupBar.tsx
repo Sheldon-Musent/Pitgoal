@@ -51,6 +51,7 @@ const fmtDur = (m: number) => {
 
 // ── Component ──
 export default function PopupBar({
+  currentTab,
   popupState,
   activeTask,
   pausedTask,
