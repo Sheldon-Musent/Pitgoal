@@ -341,7 +341,7 @@ export default function Home() {
   // ═══ LOADING ═══
   if (!loaded) return (
     <div style={{ background: "#050505", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ fontSize: 13, letterSpacing: 6, color: "#FFCB05", fontFamily: MONO, fontWeight: 500 }} className="anim-pulse">PITGOAL</div>
+      <div style={{ fontSize: 13, letterSpacing: 6, color: "#2ECDA7", fontFamily: MONO, fontWeight: 500 }} className="anim-pulse">PITGOAL</div>
     </div>
   );
 
@@ -418,7 +418,7 @@ export default function Home() {
           <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 14 }}>
             {["today", "categories", "income", ...customGroups].map(t => (
               <div key={t} className="tap" onClick={() => setActiveTab(t)}
-                style={{ padding: "7px 16px", borderRadius: 100, fontFamily: MONO, fontSize: 11, fontWeight: 700, letterSpacing: 1, background: activeTab === t ? "var(--accent)" : "var(--card)", color: activeTab === t ? "var(--accent-bg)" : "var(--t4)" }}>{t.toUpperCase()}</div>
+                style={{ padding: "7px 16px", borderRadius: 100, fontFamily: MONO, fontSize: 11, fontWeight: 700, letterSpacing: 1, background: activeTab === t ? "var(--accent)" : "var(--card)", color: activeTab === t ? "#fff" : "var(--t4)" }}>{t.toUpperCase()}</div>
             ))}
             <div className="tap" onClick={addGroup} style={{ width: 30, height: 30, borderRadius: "50%", background: "var(--card)", display: "flex", alignItems: "center", justifyContent: "center", border: "1px dashed var(--t5)" }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t4)" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
@@ -460,25 +460,36 @@ export default function Home() {
                   const endTime = fmtTime(Math.floor((getDisplayTimeMin(task) + task.duration) / 60) % 24, (getDisplayTimeMin(task) + task.duration) % 60);
                   const isActive = task.status === "active";
                   const isExpanded = expandedTask === task.id;
+                  const isFilled = isActive || task.urgent;
+                  const fillBg = isActive ? "var(--warn-fill)" : task.urgent ? "var(--danger-fill)" : "var(--card)";
+                  const fillBorder = isFilled ? "transparent" : isExpanded ? "var(--border)" : "var(--border)";
                   return (
                     <div key={task.id} style={{ marginBottom: 8, animation: `fadeUp 0.3s ease ${i * 0.04}s both` }}>
-                      <div style={{ background: "var(--card)", borderRadius: isExpanded ? "20px 20px 0 0" : 20, border: `1px solid ${isActive ? "var(--accent-30)" : "var(--border)"}`, borderBottom: isExpanded ? "none" : undefined }}>
+                      <div style={{ background: fillBg, borderRadius: isExpanded ? "20px 20px 0 0" : 20, border: `1px solid ${fillBorder}`, borderBottom: isExpanded ? "none" : undefined }}>
                         <div style={{ display: "flex", alignItems: "center" }}>
                           <div className="tap" onClick={() => setExpandedTask(isExpanded ? null : task.id)} style={{ flex: 1, padding: "14px 0 14px 16px" }}>
-                            <div style={{ fontSize: 10, color: accent, fontFamily: MONO, letterSpacing: 1, marginBottom: 4 }}>{displayTime} — {endTime}</div>
-                            <div style={{ fontSize: 16, color: isActive ? "var(--t1)" : "var(--t2)", fontWeight: 700, fontFamily: DISPLAY }}>{task.name}</div>
+                            {/* Status label for filled cards */}
+                            {isFilled && (
+                              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                                {isActive && <div className="anim-pulse" style={{ width: 8, height: 8, borderRadius: "50%", background: "#fff" }} />}
+                                {isActive && <span style={{ fontSize: 8, color: "var(--fill-sub)", fontFamily: MONO, fontWeight: 700, letterSpacing: 1 }}>LIVE</span>}
+                                {task.urgent && !isActive && <span style={{ fontSize: 8, color: "var(--fill-sub)", fontFamily: MONO, fontWeight: 700, letterSpacing: 1 }}>! URGENT</span>}
+                              </div>
+                            )}
+                            <div style={{ fontSize: 10, color: isFilled ? "var(--fill-sub)" : accent, fontFamily: MONO, letterSpacing: 1, marginBottom: 4 }}>{displayTime} — {endTime}</div>
+                            <div style={{ fontSize: 16, color: isFilled ? "var(--fill-title)" : isActive ? "var(--t1)" : "var(--t2)", fontWeight: 700, fontFamily: DISPLAY }}>{task.name}</div>
                             <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-                              <span style={{ fontSize: 9, color: "var(--t4)", background: "var(--glow)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{task.type.toUpperCase()}</span>
-                              <span style={{ fontSize: 9, color: "var(--t4)", background: "var(--glow)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{fmtDur(task.duration)}</span>
-                              {task.urgent && <span style={{ fontSize: 9, color: "var(--pink)", background: "var(--pink-dim)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>⚡ URGENT</span>}
+                              <span style={{ fontSize: 9, color: isFilled ? "var(--fill-sub)" : "var(--t4)", background: isFilled ? "rgba(255,255,255,0.12)" : "var(--glow)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{task.type.toUpperCase()}</span>
+                              <span style={{ fontSize: 9, color: isFilled ? "var(--fill-sub)" : "var(--t4)", background: isFilled ? "rgba(255,255,255,0.12)" : "var(--glow)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{fmtDur(task.duration)}</span>
+                              {task.urgent && !isFilled && <span style={{ fontSize: 9, color: "var(--danger)", background: "var(--danger-dim)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>⚡ URGENT</span>}
                             </div>
                           </div>
                           {isActive ? (
-                            <div className="anim-pulse" style={{ width: 10, height: 10, borderRadius: "50%", background: accent, margin: "0 18px", boxShadow: `0 0 0 3px var(--accent-30)` }} />
+                            <div className="anim-pulse" style={{ width: 10, height: 10, borderRadius: "50%", background: "#fff", margin: "0 18px", boxShadow: "0 0 0 3px rgba(255,255,255,0.25)" }} />
                           ) : (
                             <div className="tap" onClick={(e) => { e.stopPropagation(); startTask(task); }} style={{ padding: "14px 16px 14px 10px" }}>
-                              <div style={{ width: 36, height: 36, borderRadius: 12, background: "var(--accent-10)", border: "1px solid var(--accent-20)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                <PlayIcon size={16} color={accent} />
+                              <div style={{ width: 36, height: 36, borderRadius: 12, background: isFilled ? "rgba(255,255,255,0.15)" : "var(--accent-10)", border: `1px solid ${isFilled ? "rgba(255,255,255,0.25)" : "var(--accent-20)"}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                <PlayIcon size={16} color={isFilled ? "#fff" : accent} />
                               </div>
                             </div>
                           )}
@@ -488,10 +499,10 @@ export default function Home() {
                         <div style={{ background: "var(--card)", borderRadius: "0 0 20px 20px", padding: "12px 14px 14px", border: "1px solid var(--border)", borderTop: "1px dashed var(--border2)" }}>
                           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                             <div className="tap" onClick={() => markDone(task)} style={{ background: "var(--accent-bg)", borderRadius: 14, padding: "14px 12px", textAlign: "center" }}>
-                              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--t1)", fontFamily: DISPLAY }}>Mark done</div>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--accent)", fontFamily: DISPLAY }}>Mark done</div>
                             </div>
                             <div className="tap" onClick={() => openEditModal(task)} style={{ background: "var(--rest-bg)", borderRadius: 14, padding: "14px 12px", textAlign: "center" }}>
-                              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--t1)", fontFamily: DISPLAY }}>Edit</div>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--rest)", fontFamily: DISPLAY }}>Edit</div>
                             </div>
                             <div className="tap" onClick={() => toggleRest(task)} style={{ background: "var(--card)", borderRadius: 14, padding: "14px 12px", textAlign: "center", border: "1px solid var(--border)" }}>
                               <div style={{ fontSize: 13, fontWeight: 700, color: "var(--t2)", fontFamily: DISPLAY }}>{task.type === "rest" ? "Set as work" : "Set as rest"}</div>
@@ -546,7 +557,7 @@ export default function Home() {
                     style={{ background: cmdCategory === "task" ? "var(--accent-20)" : cmdCategory === "rest" ? "var(--rest-20)" : "var(--warn-20)", border: `1px solid ${cmdCategory === "task" ? "var(--accent)" : cmdCategory === "rest" ? "var(--rest)" : "var(--warn)"}`, borderRadius: 8, padding: "5px 10px", fontSize: 9, fontWeight: 700, fontFamily: MONO, color: cmdCategory === "task" ? "var(--accent)" : cmdCategory === "rest" ? "var(--rest)" : "var(--warn)", cursor: "pointer", flexShrink: 0, letterSpacing: 1 }}>{cmdCategory.toUpperCase()}</div>
                   <input value={cmdInput} onChange={e => { setCmdInput(e.target.value); fetchSuggestions(e.target.value); }} onKeyDown={e => e.key === "Enter" && addTask()} placeholder="add task... 7pm 1.5h"
                     style={{ flex: 1, background: "none", border: "none", color: "var(--t2)", fontSize: 13, fontFamily: BODY, outline: "none" }} />
-                  {cmdInput && <div className="tap" onClick={addTask} style={{ background: "var(--accent)", borderRadius: 8, padding: "6px 14px", fontSize: 11, color: "var(--accent-bg)", fontWeight: 700, fontFamily: MONO }}>GO</div>}
+                  {cmdInput && <div className="tap" onClick={addTask} style={{ background: "var(--accent)", borderRadius: 8, padding: "6px 14px", fontSize: 11, color: "#fff", fontWeight: 700, fontFamily: MONO }}>GO</div>}
                 </div>
               </div>
 
@@ -617,7 +628,7 @@ export default function Home() {
               <div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
                   <div><div style={{ fontSize: 14, fontWeight: 700, color: "var(--t1)", fontFamily: DISPLAY }}>{activeTask?.name}</div><div style={{ fontSize: 10, color: "var(--t4)", fontFamily: MONO, marginTop: 2 }}>{activeTask?.type.toUpperCase()} · {fmtDur(activeTask?.duration || 0)}</div></div>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: "var(--accent)", fontFamily: MONO }}>{activeTimerStr}</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: activeTask?.type === "rest" ? "var(--rest)" : activeTask?.urgent ? "var(--danger)" : "var(--warn)", fontFamily: MONO }}>{activeTimerStr}</div>
                 </div>
                 <div style={{ display: "flex", gap: 8 }}>
                   <div className="tap" onClick={stopAndComplete} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "12px", borderRadius: 14, background: "var(--accent-bg)", cursor: "pointer" }}><StopIcon size={14} color="var(--accent)" /><span style={{ fontSize: 11, fontWeight: 700, color: "var(--accent)", fontFamily: MONO }}>DONE</span></div>
@@ -629,19 +640,19 @@ export default function Home() {
             ) : popupState === "paused" ? (
               <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                 <div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 700, color: "var(--warn)", fontFamily: DISPLAY }}>Paused</div><div style={{ fontSize: 10, color: "var(--t4)", fontFamily: MONO }}>{pausedTask?.name} · {pauseTimerStr}</div></div>
-                <div className="tap" onClick={resumePaused} style={{ padding: "10px 16px", borderRadius: 12, background: "var(--accent)", fontSize: 11, fontWeight: 700, color: "var(--accent-bg)", fontFamily: MONO, cursor: "pointer" }}>RESUME</div>
+                <div className="tap" onClick={resumePaused} style={{ padding: "10px 16px", borderRadius: 12, background: "var(--accent)", fontSize: 11, fontWeight: 700, color: "#fff", fontFamily: MONO, cursor: "pointer" }}>RESUME</div>
                 <div className="tap" onClick={dismissPaused} style={{ padding: "10px 12px", borderRadius: 12, background: "var(--card2)", cursor: "pointer" }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t4)" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></div>
               </div>
             ) : popupState === "grace" && overdueTask ? (
               <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                 <div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 700, color: "var(--warn)", fontFamily: DISPLAY }}>Overdue</div><div style={{ fontSize: 10, color: "var(--t4)", fontFamily: MONO }}>{overdueTask.name} · {Math.ceil(graceRemainingSec / 60)}m left</div></div>
-                <div className="tap" onClick={() => startTask(overdueTask)} style={{ padding: "10px 16px", borderRadius: 12, background: "var(--accent)", fontSize: 11, fontWeight: 700, color: "var(--accent-bg)", fontFamily: MONO, cursor: "pointer" }}>START</div>
+                <div className="tap" onClick={() => startTask(overdueTask)} style={{ padding: "10px 16px", borderRadius: 12, background: "var(--accent)", fontSize: 11, fontWeight: 700, color: "#fff", fontFamily: MONO, cursor: "pointer" }}>START</div>
                 <div className="tap" onClick={() => skipPendingTask(overdueTask)} style={{ padding: "10px 12px", borderRadius: 12, background: "var(--card2)", fontSize: 11, fontWeight: 700, color: "var(--t4)", fontFamily: MONO, cursor: "pointer" }}>SKIP</div>
               </div>
             ) : upcoming ? (
               <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                 <div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 700, color: "var(--t1)", fontFamily: DISPLAY }}>{upcoming.name}</div><div style={{ fontSize: 10, color: "var(--t4)", fontFamily: MONO }}>in {upcomingMins}m · {getDisplayTime(upcoming)}</div></div>
-                <div className="tap" onClick={() => startTask(upcoming)} style={{ padding: "10px 16px", borderRadius: 12, background: "var(--accent)", fontSize: 11, fontWeight: 700, color: "var(--accent-bg)", fontFamily: MONO, cursor: "pointer" }}>START NOW</div>
+                <div className="tap" onClick={() => startTask(upcoming)} style={{ padding: "10px 16px", borderRadius: 12, background: "var(--accent)", fontSize: 11, fontWeight: 700, color: "#fff", fontFamily: MONO, cursor: "pointer" }}>START NOW</div>
               </div>
             ) : null}
           </div>
@@ -668,7 +679,7 @@ export default function Home() {
               <div><div style={{ fontSize: 10, color: "var(--accent)", fontFamily: MONO, letterSpacing: 2, marginBottom: 6 }}>TIME</div><input type="time" value={editFields.time} onChange={e => setEditFields({ ...editFields, time: e.target.value })} style={{ width: "100%", background: "var(--bg)", border: "1px solid var(--border2)", borderRadius: 12, padding: "12px 14px", color: "var(--t2)", fontSize: 14, fontFamily: MONO, outline: "none" }} /></div>
               <div><div style={{ fontSize: 10, color: "var(--accent)", fontFamily: MONO, letterSpacing: 2, marginBottom: 6 }}>DURATION</div><input type="number" value={editFields.duration} onChange={e => setEditFields({ ...editFields, duration: e.target.value })} style={{ width: "100%", background: "var(--bg)", border: "1px solid var(--border2)", borderRadius: 12, padding: "12px 14px", color: "var(--t2)", fontSize: 14, fontFamily: MONO, outline: "none" }} /></div>
             </div>
-            <div className="tap" onClick={saveEdit} style={{ background: "var(--accent)", borderRadius: 14, padding: "14px", textAlign: "center", fontSize: 14, fontWeight: 700, color: "var(--accent-bg)", fontFamily: DISPLAY }}>Save changes</div>
+            <div className="tap" onClick={saveEdit} style={{ background: "var(--accent)", borderRadius: 14, padding: "14px", textAlign: "center", fontSize: 14, fontWeight: 700, color: "#fff", fontFamily: DISPLAY }}>Save changes</div>
           </div>
         </div>
       )}

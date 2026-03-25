@@ -1,30 +1,50 @@
-/* ═══ PITGOAL v9.0 — Any Distance-inspired theme ═══ */
+/* ═══ PITGOAL v10.0 — Functional Color System ═══ */
+/* Color = status. Everything else is grayscale.     */
+/* Inspired by Any Distance: black canvas, color     */
+/* only appears when it means something.             */
 
 @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
 
 /* ── Dark theme (default) ── */
 :root,
 [data-theme="dark"] {
+  /* Canvas — true black + gray cards */
   --bg:       #050505;
   --card:     #111111;
   --card2:    #1A1A1A;
   --border:   #1C1C1E;
   --border2:  #2C2C2E;
 
-  --accent:      #FFCB05;
-  --accent-bg:   #2A2308;
-  --accent-dim:  rgba(255,203,5,0.06);
-  --accent-10:   rgba(255,203,5,0.10);
-  --accent-20:   rgba(255,203,5,0.15);
-  --accent-30:   rgba(255,203,5,0.22);
-  --accent-50:   rgba(255,203,5,0.35);
+  /* Accent — teal green (primary action: buttons, tabs, progress) */
+  --accent:      #2ECDA7;
+  --accent-bg:   #0A2620;
+  --accent-dim:  rgba(46,205,167,0.06);
+  --accent-10:   rgba(46,205,167,0.10);
+  --accent-20:   rgba(46,205,167,0.15);
+  --accent-30:   rgba(46,205,167,0.22);
+  --accent-50:   rgba(46,205,167,0.35);
 
-  --rest:        #7B8CDE;
-  --rest-bg:     #161932;
-  --rest-dim:    rgba(123,140,222,0.06);
-  --rest-10:     rgba(123,140,222,0.10);
-  --rest-20:     rgba(123,140,222,0.15);
+  /* Done — same teal as accent (checkmarks, completion) */
+  --done:        #2ECDA7;
+  --done-bg:     #0A2620;
 
+  /* Active / Live — amber (currently running task) */
+  --warn:        #FFB340;
+  --warn-bg:     #2A1A08;
+  --warn-dim:    rgba(255,179,64,0.06);
+  --warn-10:     rgba(255,179,64,0.10);
+  --warn-20:     rgba(255,179,64,0.15);
+  --warn-fill:   #C47A00;
+
+  /* Urgent / Overdue — red (stop, attention needed) */
+  --danger:      #FF453A;
+  --danger-bg:   #2E1010;
+  --danger-dim:  rgba(255,69,58,0.06);
+  --danger-10:   rgba(255,69,58,0.10);
+  --danger-20:   rgba(255,69,58,0.15);
+  --danger-fill: #CC2D24;
+
+  /* Social / Collab — pink (friends, shared tasks) */
   --pink:        #E8627A;
   --pink-bg:     #2D1020;
   --pink-dim:    rgba(232,98,122,0.06);
@@ -32,15 +52,19 @@
   --pink-20:     rgba(232,98,122,0.15);
   --pink-30:     rgba(232,98,122,0.22);
 
-  --warn:        #F0A030;
-  --warn-bg:     #2A1A08;
-  --warn-dim:    rgba(240,160,48,0.06);
-  --warn-10:     rgba(240,160,48,0.10);
-  --warn-20:     rgba(240,160,48,0.15);
+  /* Rest / Recovery — blue-purple (wind down, passive) */
+  --rest:        #7B8CDE;
+  --rest-bg:     #161932;
+  --rest-dim:    rgba(123,140,222,0.06);
+  --rest-10:     rgba(123,140,222,0.10);
+  --rest-20:     rgba(123,140,222,0.15);
 
-  --danger:      #FF5B5B;
-  --danger-bg:   #2E1010;
+  /* Full-fill card text (white on colored background) */
+  --fill-title:  #FFFFFF;
+  --fill-sub:    rgba(255,255,255,0.85);
+  --fill-muted:  rgba(255,255,255,0.55);
 
+  /* Text hierarchy — iOS-style grays */
   --t1: #FFFFFF;
   --t2: #D1D1D6;
   --t3: #8E8E93;
@@ -48,32 +72,50 @@
   --t5: #48484A;
   --t6: #3A3A3C;
 
-  --glow: rgba(255,203,5,0.04);
+  /* Utility */
+  --glow:   rgba(46,205,167,0.04);
   --nav-bg: rgba(5,5,5,0.97);
 }
 
 /* ── Light theme ── */
 [data-theme="light"] {
+  /* Canvas — white + light gray cards */
   --bg:       #FFFFFF;
   --card:     #F2F2F7;
   --card2:    #E5E5EA;
   --border:   #D1D1D6;
   --border2:  #E5E5EA;
 
-  --accent:      #B8960A;
-  --accent-bg:   #FFF8E0;
-  --accent-dim:  rgba(184,150,10,0.05);
-  --accent-10:   rgba(184,150,10,0.10);
-  --accent-20:   rgba(184,150,10,0.16);
-  --accent-30:   rgba(184,150,10,0.22);
-  --accent-50:   rgba(184,150,10,0.35);
+  /* Accent — deeper teal for contrast on white */
+  --accent:      #0FA87E;
+  --accent-bg:   #E6F7F1;
+  --accent-dim:  rgba(15,168,126,0.05);
+  --accent-10:   rgba(15,168,126,0.10);
+  --accent-20:   rgba(15,168,126,0.16);
+  --accent-30:   rgba(15,168,126,0.22);
+  --accent-50:   rgba(15,168,126,0.35);
 
-  --rest:        #5856D6;
-  --rest-bg:     #EEEDFE;
-  --rest-dim:    rgba(88,86,214,0.05);
-  --rest-10:     rgba(88,86,214,0.10);
-  --rest-20:     rgba(88,86,214,0.16);
+  /* Done */
+  --done:        #0FA87E;
+  --done-bg:     #E6F7F1;
 
+  /* Active / Live — darker amber for light bg */
+  --warn:        #E08A00;
+  --warn-bg:     #FFF8EE;
+  --warn-dim:    rgba(224,138,0,0.05);
+  --warn-10:     rgba(224,138,0,0.10);
+  --warn-20:     rgba(224,138,0,0.16);
+  --warn-fill:   #D48500;
+
+  /* Urgent / Overdue */
+  --danger:      #FF3B30;
+  --danger-bg:   #FFF0EF;
+  --danger-dim:  rgba(255,59,48,0.05);
+  --danger-10:   rgba(255,59,48,0.10);
+  --danger-20:   rgba(255,59,48,0.16);
+  --danger-fill: #D92D24;
+
+  /* Social / Collab */
   --pink:        #FF2D55;
   --pink-bg:     #FFE5EC;
   --pink-dim:    rgba(255,45,85,0.05);
@@ -81,15 +123,19 @@
   --pink-20:     rgba(255,45,85,0.16);
   --pink-30:     rgba(255,45,85,0.22);
 
-  --warn:        #FF9500;
-  --warn-bg:     #FFF3E0;
-  --warn-dim:    rgba(255,149,0,0.05);
-  --warn-10:     rgba(255,149,0,0.10);
-  --warn-20:     rgba(255,149,0,0.16);
+  /* Rest / Recovery */
+  --rest:        #5856D6;
+  --rest-bg:     #EEEDFE;
+  --rest-dim:    rgba(88,86,214,0.05);
+  --rest-10:     rgba(88,86,214,0.10);
+  --rest-20:     rgba(88,86,214,0.16);
 
-  --danger:      #FF3B30;
-  --danger-bg:   #FFE5E5;
+  /* Full-fill card text (same white on color) */
+  --fill-title:  #FFFFFF;
+  --fill-sub:    rgba(255,255,255,0.85);
+  --fill-muted:  rgba(255,255,255,0.55);
 
+  /* Text hierarchy */
   --t1: #000000;
   --t2: #3A3A3C;
   --t3: #636366;
@@ -97,7 +143,8 @@
   --t5: #AEAEB2;
   --t6: #C7C7CC;
 
-  --glow: rgba(184,150,10,0.03);
+  /* Utility */
+  --glow:   rgba(15,168,126,0.03);
   --nav-bg: rgba(255,255,255,0.97);
 }
 
@@ -112,7 +159,9 @@ input:focus { outline: none; }
 body {
   margin: 0;
   padding: 0;
-  background: #050505;
+  background: var(--bg);
+  color: var(--t1);
+  transition: background 0.3s ease, color 0.3s ease;
 }
 
 /* ── Scrollbar hiding ── */
@@ -139,6 +188,21 @@ body {
 .anim-fade { animation: fadeUp 0.25s ease both; }
 .anim-pulse { animation: pulse 2s infinite; }
 
+/* ── Full-fill card utility class ── */
+/* Apply to active/urgent task cards for the bold look */
+.card-fill-active {
+  background: var(--warn-fill) !important;
+  border-color: transparent !important;
+}
+.card-fill-urgent {
+  background: var(--danger-fill) !important;
+  border-color: transparent !important;
+}
+.card-fill-active *,
+.card-fill-urgent * {
+  /* Override text colors inside filled cards */
+}
+
 /* ── Range slider ── */
 input[type="range"] {
   height: 4px;
@@ -154,7 +218,7 @@ input[type="range"]::-webkit-slider-thumb {
   cursor: pointer;
 }
 
-/* ── Time/number inputs dark scheme ── */
+/* ── Time/number inputs color scheme ── */
 input[type="time"],
 input[type="number"] {
   color-scheme: dark;
