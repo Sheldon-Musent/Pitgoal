@@ -70,6 +70,8 @@ export default function Home() {
   const [cmdCategory, setCmdCategory] = useState<CmdCategory>("task");
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
   const [showCompleted, setShowCompleted] = useState(false);
+  const [popupMinimized, setPopupMinimized] = useState(false);
+  const [expandedDone, setExpandedDone] = useState<string | null>(null);
   const [powerExpanded, setPowerExpanded] = useState(false);
   const [showPowerSettings, setShowPowerSettings] = useState(false);
   const [recordExpanded, setRecordExpanded] = useState(false);
@@ -338,6 +340,10 @@ export default function Home() {
   const handleTabChange = (tab: BottomTab) => setBottomTab(tab);
   const handleFriendsNav = (tab: BottomTab) => setBottomTab(tab);
 
+  // Auto-restore popup when state transitions (new task, overdue, etc.)
+  const prevPopupState = useRef(popupState);
+  useEffect(() => { if (popupState !== prevPopupState.current) { setPopupMinimized(false); prevPopupState.current = popupState; } }, [popupState]);
+
   // ═══ LOADING ═══
   if (!loaded) return (
     <div style={{ background: "#050505", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -462,7 +468,12 @@ export default function Home() {
                   const isExpanded = expandedTask === task.id;
                   const isFilled = isActive || task.urgent;
                   const fillBg = isActive ? "var(--warn-fill)" : task.urgent ? "var(--danger-fill)" : "var(--card)";
-                  const fillBorder = isFilled ? "transparent" : isExpanded ? "var(--border)" : "var(--border)";
+                  const fillBorder = isFilled ? "transparent" : "var(--border)";
+                  // Active yellow = dark text, Urgent red = white text
+                  const fillText = isActive ? "var(--warn-fill-text)" : "var(--fill-title)";
+                  const fillSub = isActive ? "rgba(40,40,0,0.6)" : "var(--fill-sub)";
+                  const fillChip = isActive ? "rgba(40,40,0,0.1)" : "rgba(255,255,255,0.12)";
+                  const fillDot = isActive ? "var(--warn-fill-text)" : "#fff";
                   return (
                     <div key={task.id} style={{ marginBottom: 8, animation: `fadeUp 0.3s ease ${i * 0.04}s both` }}>
                       <div style={{ background: fillBg, borderRadius: isExpanded ? "20px 20px 0 0" : 20, border: `1px solid ${fillBorder}`, borderBottom: isExpanded ? "none" : undefined }}>
@@ -471,25 +482,25 @@ export default function Home() {
                             {/* Status label for filled cards */}
                             {isFilled && (
                               <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                                {isActive && <div className="anim-pulse" style={{ width: 8, height: 8, borderRadius: "50%", background: "#fff" }} />}
-                                {isActive && <span style={{ fontSize: 8, color: "var(--fill-sub)", fontFamily: MONO, fontWeight: 700, letterSpacing: 1 }}>LIVE</span>}
-                                {task.urgent && !isActive && <span style={{ fontSize: 8, color: "var(--fill-sub)", fontFamily: MONO, fontWeight: 700, letterSpacing: 1 }}>! URGENT</span>}
+                                {isActive && <div className="anim-pulse" style={{ width: 8, height: 8, borderRadius: "50%", background: fillDot }} />}
+                                {isActive && <span style={{ fontSize: 8, color: fillSub, fontFamily: MONO, fontWeight: 700, letterSpacing: 1 }}>LIVE</span>}
+                                {task.urgent && !isActive && <span style={{ fontSize: 8, color: fillSub, fontFamily: MONO, fontWeight: 700, letterSpacing: 1 }}>! URGENT</span>}
                               </div>
                             )}
-                            <div style={{ fontSize: 10, color: isFilled ? "var(--fill-sub)" : accent, fontFamily: MONO, letterSpacing: 1, marginBottom: 4 }}>{displayTime} — {endTime}</div>
-                            <div style={{ fontSize: 16, color: isFilled ? "var(--fill-title)" : isActive ? "var(--t1)" : "var(--t2)", fontWeight: 700, fontFamily: DISPLAY }}>{task.name}</div>
+                            <div style={{ fontSize: 10, color: isFilled ? fillSub : accent, fontFamily: MONO, letterSpacing: 1, marginBottom: 4 }}>{displayTime} — {endTime}</div>
+                            <div style={{ fontSize: 16, color: isFilled ? fillText : isActive ? "var(--t1)" : "var(--t2)", fontWeight: 700, fontFamily: DISPLAY }}>{task.name}</div>
                             <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-                              <span style={{ fontSize: 9, color: isFilled ? "var(--fill-sub)" : "var(--t4)", background: isFilled ? "rgba(255,255,255,0.12)" : "var(--glow)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{task.type.toUpperCase()}</span>
-                              <span style={{ fontSize: 9, color: isFilled ? "var(--fill-sub)" : "var(--t4)", background: isFilled ? "rgba(255,255,255,0.12)" : "var(--glow)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{fmtDur(task.duration)}</span>
+                              <span style={{ fontSize: 9, color: isFilled ? fillSub : "var(--t4)", background: isFilled ? fillChip : "var(--glow)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{task.type.toUpperCase()}</span>
+                              <span style={{ fontSize: 9, color: isFilled ? fillSub : "var(--t4)", background: isFilled ? fillChip : "var(--glow)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{fmtDur(task.duration)}</span>
                               {task.urgent && !isFilled && <span style={{ fontSize: 9, color: "var(--danger)", background: "var(--danger-dim)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>⚡ URGENT</span>}
                             </div>
                           </div>
                           {isActive ? (
-                            <div className="anim-pulse" style={{ width: 10, height: 10, borderRadius: "50%", background: "#fff", margin: "0 18px", boxShadow: "0 0 0 3px rgba(255,255,255,0.25)" }} />
+                            <div className="anim-pulse" style={{ width: 10, height: 10, borderRadius: "50%", background: fillDot, margin: "0 18px", boxShadow: `0 0 0 3px ${isActive ? "rgba(40,40,0,0.15)" : "rgba(255,255,255,0.25)"}` }} />
                           ) : (
                             <div className="tap" onClick={(e) => { e.stopPropagation(); startTask(task); }} style={{ padding: "14px 16px 14px 10px" }}>
-                              <div style={{ width: 36, height: 36, borderRadius: 12, background: isFilled ? "rgba(255,255,255,0.15)" : "var(--accent-10)", border: `1px solid ${isFilled ? "rgba(255,255,255,0.25)" : "var(--accent-20)"}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                <PlayIcon size={16} color={isFilled ? "#fff" : accent} />
+                              <div style={{ width: 36, height: 36, borderRadius: 12, background: isFilled ? fillChip : "var(--accent-10)", border: `1px solid ${isFilled ? (isActive ? "rgba(40,40,0,0.15)" : "rgba(255,255,255,0.25)") : "var(--accent-20)"}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                <PlayIcon size={16} color={isFilled ? fillText : accent} />
                               </div>
                             </div>
                           )}
@@ -521,7 +532,7 @@ export default function Home() {
               {/* Done tasks (stacked) */}
               {doneTasks.length > 0 && (
                 <div style={{ marginTop: 4, marginBottom: 8 }}>
-                  <div className="tap" onClick={() => setShowCompleted(!showCompleted)}>
+                  <div className="tap" onClick={() => { setShowCompleted(!showCompleted); setExpandedDone(null); }}>
                     {!showCompleted && (
                       <div style={{ position: "relative", height: Math.min(doneTasks.length, 3) * 6 + 48 }}>
                         {doneTasks.slice(-3).map((t, i, arr) => {
@@ -530,7 +541,7 @@ export default function Home() {
                             <div key={t.id} style={{ position: i === arr.length - 1 ? "relative" : "absolute", top: (arr.length - 1 - i) * 6, left: 0, right: 0, background: bg, borderRadius: 14, padding: "12px 14px", border: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 10, zIndex: i }}>
                               <div style={{ fontSize: 10, color: accent, fontFamily: MONO, minWidth: 38, fontWeight: 600 }}>{getDisplayTime(t)}</div>
                               <div style={{ fontSize: 13, color: "var(--t1)", fontWeight: 700, flex: 1, textDecoration: "line-through", textDecorationColor: "var(--t5)", fontFamily: DISPLAY }}>{t.name}</div>
-                              <div style={{ fontSize: 9, color: accent, fontFamily: MONO, fontWeight: 600 }}>{fmtDur(t.duration)}</div>
+                              <div style={{ fontSize: 9, color: accent, fontFamily: MONO, fontWeight: 600 }}>{fmtDur(t.actual_duration || t.duration)}</div>
                             </div>
                           );
                         })}
@@ -539,11 +550,43 @@ export default function Home() {
                   </div>
                   {showCompleted && doneTasks.map((t, i) => {
                     const bg = bgForType(t.type); const accent = accentForType(t.type);
+                    const isDoneExpanded = expandedDone === t.id;
+                    const doneTime = getDisplayTime(t);
+                    const doneEndTime = fmtTime(Math.floor((getDisplayTimeMin(t) + (t.actual_duration || t.duration)) / 60) % 24, (getDisplayTimeMin(t) + (t.actual_duration || t.duration)) % 60);
                     return (
-                      <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", background: bg, borderRadius: 14, border: "1px solid var(--border)", marginBottom: 4, animation: `fadeUp 0.2s ease ${i * 0.03}s both` }}>
-                        <div style={{ fontSize: 10, color: accent, fontFamily: MONO, minWidth: 38, fontWeight: 600 }}>{getDisplayTime(t)}</div>
-                        <div style={{ fontSize: 13, color: "var(--t1)", fontWeight: 700, flex: 1, textDecoration: "line-through", textDecorationColor: "var(--t5)", fontFamily: DISPLAY }}>{t.name}</div>
-                        <div style={{ fontSize: 9, color: accent, fontFamily: MONO, fontWeight: 600 }}>{fmtDur(t.duration)}</div>
+                      <div key={t.id} style={{ marginBottom: 4, animation: `fadeUp 0.2s ease ${i * 0.03}s both` }}>
+                        <div className="tap" onClick={() => setExpandedDone(isDoneExpanded ? null : t.id)}
+                          style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", background: bg, borderRadius: isDoneExpanded ? "14px 14px 0 0" : 14, border: "1px solid var(--border)", borderBottom: isDoneExpanded ? "none" : undefined, cursor: "pointer" }}>
+                          <div style={{ width: 20, height: 20, borderRadius: 6, background: "var(--done)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                            <span style={{ fontSize: 11, color: "#050505", fontWeight: 700 }}>✓</span>
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 13, color: "var(--t3)", fontWeight: 700, textDecoration: "line-through", textDecorationColor: "var(--t5)", fontFamily: DISPLAY, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.name}</div>
+                            <div style={{ fontSize: 9, color: "var(--t5)", fontFamily: MONO, marginTop: 2 }}>{doneTime} — {doneEndTime}</div>
+                          </div>
+                          <div style={{ fontSize: 9, color: accent, fontFamily: MONO, fontWeight: 600, flexShrink: 0 }}>{fmtDur(t.actual_duration || t.duration)}</div>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--t5)" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0, transform: isDoneExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}><polyline points="6 9 12 15 18 9" /></svg>
+                        </div>
+                        {isDoneExpanded && (
+                          <div style={{ background: bg, borderRadius: "0 0 14px 14px", padding: "10px 14px 12px", border: "1px solid var(--border)", borderTop: "1px dashed var(--border2)" }}>
+                            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+                              <span style={{ fontSize: 9, color: "var(--t4)", background: "var(--glow)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{t.type.toUpperCase()}</span>
+                              <span style={{ fontSize: 9, color: "var(--t4)", background: "var(--glow)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>PLANNED {fmtDur(t.planned_duration || t.duration)}</span>
+                              {t.actual_duration && t.actual_duration !== t.duration && (
+                                <span style={{ fontSize: 9, color: accent, background: "var(--glow)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>ACTUAL {fmtDur(t.actual_duration)}</span>
+                              )}
+                              {t.urgent && <span style={{ fontSize: 9, color: "var(--danger)", background: "var(--danger-dim)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>⚡ URGENT</span>}
+                            </div>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                              <div className="tap" onClick={(e) => { e.stopPropagation(); markUndone(t); setExpandedDone(null); }} style={{ background: "var(--card)", borderRadius: 12, padding: "12px 10px", textAlign: "center", border: "1px solid var(--border)" }}>
+                                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--warn)", fontFamily: DISPLAY }}>Undo</div>
+                              </div>
+                              <div className="tap" onClick={(e) => { e.stopPropagation(); deleteTask(t); setExpandedDone(null); }} style={{ background: "var(--danger-bg)", borderRadius: 12, padding: "12px 10px", textAlign: "center" }}>
+                                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--danger)", fontFamily: DISPLAY }}>Delete</div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -620,9 +663,24 @@ export default function Home() {
       {/* ── STATUS POPUP with dark overlay ── */}
       {hasActivePopup && (
         <>
-          {/* Dark overlay behind content */}
-          <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.3)", zIndex: 85, pointerEvents: "none" }} />
-          <div style={{ position: "fixed", bottom: "calc(72px + env(safe-area-inset-bottom, 0px))", left: "50%", transform: "translateX(-50%)", width: "calc(100% - 28px)", maxWidth: 402, zIndex: 90 }}>
+          {/* Dark overlay — tappable to minimize */}
+          {!popupMinimized && (
+            <div onClick={() => setPopupMinimized(true)} style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.3)", zIndex: 85, transition: "opacity 0.3s ease", cursor: "pointer" }} />
+          )}
+
+          {/* Full popup — slides down when minimized */}
+          <div style={{
+            position: "fixed",
+            bottom: "calc(72px + env(safe-area-inset-bottom, 0px))",
+            left: "50%",
+            width: "calc(100% - 28px)",
+            maxWidth: 402,
+            zIndex: 90,
+            transform: popupMinimized ? "translate(-50%, calc(100% + 20px))" : "translate(-50%, 0)",
+            opacity: popupMinimized ? 0 : 1,
+            transition: "transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease",
+            pointerEvents: popupMinimized ? "none" : "auto",
+          }}>
           <div style={{ background: "var(--card)", borderRadius: 24, padding: "18px 20px", border: "1px solid var(--border)", backdropFilter: "blur(16px)" }}>
             {popupState === "working" || popupState === "resting" ? (
               <div>
@@ -657,6 +715,47 @@ export default function Home() {
             ) : null}
           </div>
         </div>
+
+          {/* Minimized pill — tap to restore popup */}
+          {popupMinimized && (() => {
+            const isActiveWork = (popupState === "working") && !activeTask?.urgent && activeTask?.type !== "rest";
+            const pillBg = popupState === "working" || popupState === "resting"
+              ? (activeTask?.urgent ? "var(--danger-fill)" : activeTask?.type === "rest" ? "var(--rest)" : "var(--warn-fill)")
+              : popupState === "paused" ? "var(--warn)"
+              : popupState === "grace" ? "var(--danger)"
+              : "var(--accent)";
+            const pillText = isActiveWork ? "var(--warn-fill-text)" : "#fff";
+            return (
+            <div className="tap" onClick={() => setPopupMinimized(false)} style={{
+              position: "fixed",
+              bottom: "calc(78px + env(safe-area-inset-bottom, 0px))",
+              left: "50%",
+              transform: "translateX(-50%)",
+              zIndex: 90,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "8px 16px",
+              borderRadius: 100,
+              background: pillBg,
+              cursor: "pointer",
+              boxShadow: "0 4px 20px rgba(0,0,0,0.4)",
+              animation: "fadeUp 0.3s ease both",
+            }}>
+              {(popupState === "working" || popupState === "resting") && (
+                <div className="anim-pulse" style={{ width: 6, height: 6, borderRadius: "50%", background: pillText }} />
+              )}
+              <span style={{ fontSize: 10, fontWeight: 700, color: pillText, fontFamily: MONO, letterSpacing: 1 }}>
+                {popupState === "working" || popupState === "resting"
+                  ? activeTimerStr
+                  : popupState === "paused" ? "PAUSED"
+                  : popupState === "grace" ? "OVERDUE"
+                  : "UPCOMING"}
+              </span>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={pillText} strokeWidth="3" strokeLinecap="round"><polyline points="18 15 12 9 6 15" /></svg>
+            </div>
+            );
+          })()}
         </>
       )}
 

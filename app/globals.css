@@ -28,13 +28,14 @@
   --done:        #2ECDA7;
   --done-bg:     #0A2620;
 
-  /* Active / Live — amber (currently running task) */
+  /* Active / Live — bright yellow (currently running task) */
   --warn:        #FFB340;
   --warn-bg:     #2A1A08;
   --warn-dim:    rgba(255,179,64,0.06);
   --warn-10:     rgba(255,179,64,0.10);
   --warn-20:     rgba(255,179,64,0.15);
-  --warn-fill:   #C47A00;
+  --warn-fill:   #FFE106;
+  --warn-fill-text: #1A1A00;
 
   /* Urgent / Overdue — red (stop, attention needed) */
   --danger:      #FF453A;
@@ -99,13 +100,14 @@
   --done:        #0FA87E;
   --done-bg:     #E6F7F1;
 
-  /* Active / Live — darker amber for light bg */
+  /* Active / Live — bright yellow for light bg too */
   --warn:        #E08A00;
   --warn-bg:     #FFF8EE;
   --warn-dim:    rgba(224,138,0,0.05);
   --warn-10:     rgba(224,138,0,0.10);
   --warn-20:     rgba(224,138,0,0.16);
-  --warn-fill:   #D48500;
+  --warn-fill:   #FFE106;
+  --warn-fill-text: #1A1A00;
 
   /* Urgent / Overdue */
   --danger:      #FF3B30;
