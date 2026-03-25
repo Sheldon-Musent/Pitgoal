@@ -555,8 +555,7 @@ export default function PopupBar({
 
           {/* Compact action buttons */}
           <div
-            className="no-scroll"
-            style={{ display: "flex", gap: 6, marginTop: 12, overflowX: "auto", scrollbarWidth: "none", msOverflowStyle: "none" }}
+            style={{ display: "flex", gap: 6, marginTop: 12 }}
             onClick={(e) => e.stopPropagation()}
           >
             {mediumActions.map((a) => (
@@ -565,18 +564,18 @@ export default function PopupBar({
                 className="tap"
                 onClick={a.action}
                   style={{
-                  flexShrink: 0,
-                  minWidth: 75,
-                  padding: "9px 0",
-                  borderRadius: 10,
-                  textAlign: "center",
-                  fontSize: 12,
-                  fontWeight: 600,
-                  fontFamily: BODY,
-                  cursor: "pointer",
-                  background: a.primary ? "var(--accent)" : "var(--card2)",
-                  color: a.primary ? "#fff" : "var(--t2)",
-                }}
+                    flexShrink: 0,
+                    minWidth: 0,
+                    padding: "9px 12px",
+                    borderRadius: 10,
+                    textAlign: "center",
+                    fontSize: 11,
+                    fontWeight: 600,
+                    fontFamily: BODY,
+                    cursor: "pointer",
+                    background: a.primary ? "var(--accent)" : "var(--card2)",
+                    color: a.primary ? "#fff" : "var(--t2)",
+                  }}
               >
                 {a.label}
               </div>
