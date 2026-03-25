@@ -1,41 +1,153 @@
 "use client";
-import React from "react";
-import type { BottomTab } from "../lib/types";
-import { MONO } from "../lib/constants";
+import { useState, useEffect, useRef } from "react";
 
-const TABS: { id: BottomTab; label: string; icon: (c: string) => React.ReactNode }[] = [
-  { id: "main",      label: "MAIN",    icon: (c) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg> },
-  { id: "community", label: "HUB",     icon: (c) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" /></svg> },
-  { id: "friends",   label: "FRIENDS", icon: (c) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87" /><path d="M16 3.13a4 4 0 010 7.75" /></svg> },
-  { id: "profile",   label: "ME",      icon: (c) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg> },
-];
+type BottomTab = "main" | "community" | "friends" | "profile";
 
-interface Props {
+interface BottomNavProps {
   active: BottomTab;
   onChange: (tab: BottomTab) => void;
 }
 
-export default function BottomNav({ active, onChange }: Props) {
+const MONO = "'IBM Plex Mono', monospace";
+
+// ── Tab definitions ──
+const TABS: { id: BottomTab; label: string; icon: (active: boolean) => JSX.Element }[] = [
+  {
+    id: "main",
+    label: "Main",
+    icon: (a) => (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+        stroke={a ? "var(--accent)" : "var(--t4)"}
+        strokeWidth="1.8" strokeLinecap="round">
+        <circle cx="12" cy="12" r="10" />
+        <polyline points="12 6 12 12 16 14" />
+      </svg>
+    ),
+  },
+  {
+    id: "community",
+    label: "Hub",
+    icon: (a) => (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+        stroke={a ? "var(--accent)" : "var(--t4)"}
+        strokeWidth="1.8" strokeLinecap="round">
+        <rect x="3" y="3" width="7" height="7" rx="1" />
+        <rect x="14" y="3" width="7" height="7" rx="1" />
+        <rect x="3" y="14" width="7" height="7" rx="1" />
+        <rect x="14" y="14" width="7" height="7" rx="1" />
+      </svg>
+    ),
+  },
+  {
+    id: "friends",
+    label: "Friends",
+    icon: (a) => (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+        stroke={a ? "var(--accent)" : "var(--t4)"}
+        strokeWidth="1.8" strokeLinecap="round">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      </svg>
+    ),
+  },
+  {
+    id: "profile",
+    label: "Me",
+    icon: (a) => (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+        stroke={a ? "var(--accent)" : "var(--t4)"}
+        strokeWidth="1.8" strokeLinecap="round">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+        <circle cx="12" cy="7" r="4" />
+      </svg>
+    ),
+  },
+];
+
+export default function BottomNav({ active, onChange }: BottomNavProps) {
+  // Track if labels should show — brief flash then collapse
+  const [showLabel, setShowLabel] = useState(true);
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleTap = (tab: BottomTab) => {
+    onChange(tab);
+    // Show label briefly on tap
+    setShowLabel(true);
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    hideTimer.current = setTimeout(() => setShowLabel(false), 1800);
+  };
+
+  // Initially show label, then collapse after a beat
+  useEffect(() => {
+    hideTimer.current = setTimeout(() => setShowLabel(false), 2500);
+    return () => {
+      if (hideTimer.current) clearTimeout(hideTimer.current);
+    };
+  }, []);
+
   return (
-    <div style={{
-      position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
-      width: "100%", maxWidth: 430, zIndex: 80,
-      background: "var(--nav-bg)", backdropFilter: "blur(16px)",
-      borderTop: "1px solid var(--border)",
-      padding: "8px 14px calc(8px + env(safe-area-inset-bottom, 0px))",
-      display: "flex", justifyContent: "space-around", alignItems: "center",
-    }}>
-      {TABS.map(tab => {
-        const isActive = active === tab.id;
-        const color = isActive ? "var(--accent)" : "var(--t5)";
-        return (
-          <div key={tab.id} className="tap" onClick={() => onChange(tab.id)}
-            style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "4px 12px", cursor: "pointer" }}>
-            {tab.icon(color)}
-            <span style={{ fontSize: 9, fontWeight: 700, color, fontFamily: MONO, letterSpacing: 1 }}>{tab.label}</span>
-          </div>
-        );
-      })}
+    <div
+      style={{
+        position: "fixed",
+        bottom: "calc(16px + env(safe-area-inset-bottom, 0px))",
+        left: "50%",
+        transform: "translateX(-50%)",
+        zIndex: 100,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          background: "var(--card)",
+          borderRadius: 28,
+          padding: "6px 4px",
+          border: "1px solid var(--border)",
+        }}
+      >
+        {TABS.map((tab) => {
+          const isActive = active === tab.id;
+          const labelVisible = isActive && showLabel;
+
+          return (
+            <div
+              key={tab.id}
+              className="tap"
+              onClick={() => handleTap(tab.id)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                padding: "10px 14px",
+                borderRadius: 22,
+                cursor: "pointer",
+                transition: "background 0.3s ease",
+                background: isActive ? "var(--accent-10)" : "transparent",
+              }}
+            >
+              {tab.icon(isActive)}
+              <span
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  fontFamily: MONO,
+                  color: isActive ? "var(--accent)" : "var(--t4)",
+                  maxWidth: labelVisible ? 60 : 0,
+                  overflow: "hidden",
+                  opacity: labelVisible ? 1 : 0,
+                  marginLeft: labelVisible ? 6 : 0,
+                  whiteSpace: "nowrap",
+                  transition:
+                    "max-width 0.35s ease, opacity 0.3s ease, margin 0.3s ease",
+                }}
+              >
+                {tab.label}
+              </span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

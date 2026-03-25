@@ -21,6 +21,7 @@ import CommunityTab from "../components/CommunityTab";
 import FriendsTab from "../components/FriendsTab";
 import FriendsFeed from "../components/FriendsFeed";
 import ProfileTab from "../components/ProfileTab";
+import PopupBar from "../components/PopupBar";
 
 // ── SVG icons ──
 function PlayIcon({ size = 18, color = "var(--accent)" }: { size?: number; color?: string }) {
@@ -798,6 +799,26 @@ export default function Home() {
         </div>
       )}
 
+      <PopupBar
+        popupState={popupState}
+        activeTask={activeTask}
+        pausedTask={pausedTask}
+        overdueTask={overdueTask}
+        upcomingTask={upcoming}
+        activeTimerStr={activeTimerStr}
+        pauseTimerStr={pauseTimerStr}
+        graceRemainingMin={Math.ceil(graceRemainingSec / 60)}
+        upcomingMins={upcomingMins}
+        onDone={stopAndComplete}
+        onPause={pauseTask}
+        onSkip={skipTask}
+        onSwitch={switchTask}
+        onResume={resumePaused}
+        onDismiss={dismissPaused}
+        onStartOverdue={() => overdueTask && startTask(overdueTask)}
+        onSkipOverdue={() => overdueTask && skipPendingTask(overdueTask)}
+        onStartUpcoming={() => upcoming && startTask(upcoming)}
+      />
       <BottomNav active={bottomTab} onChange={handleTabChange} />
     </div>
   );
