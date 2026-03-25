@@ -341,7 +341,7 @@ export default function Home() {
   // ═══ LOADING ═══
   if (!loaded) return (
     <div style={{ background: "#050505", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ fontSize: 13, letterSpacing: 6, color: "#2ECDA8", fontFamily: MONO, fontWeight: 500 }} className="anim-pulse">PITGOAL</div>
+      <div style={{ fontSize: 13, letterSpacing: 6, color: "#FFCB05", fontFamily: MONO, fontWeight: 500 }} className="anim-pulse">PITGOAL</div>
     </div>
   );
 
@@ -354,7 +354,7 @@ export default function Home() {
         <div style={{ padding: "16px 14px 0" }}>
 
           {/* ═══ SECTION A: Power 75% + Record 25% ═══ */}
-          <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+          <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
             {/* Power bar — 75% */}
             <div className="tap" onClick={() => setPowerExpanded(!powerExpanded)} style={{ flex: 3, background: "var(--card)", borderRadius: 50, padding: "10px 16px", border: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: ePct > 30 ? "var(--accent)" : ePct > 10 ? "var(--warn)" : "var(--danger)", fontFamily: MONO }}>{ePct}%</div>
@@ -372,7 +372,7 @@ export default function Home() {
           </div>
 
           {/* ═══ SECTION B: Calendar — month pill + 3 dates ═══ */}
-          <div style={{ marginBottom: 14 }}>
+          <div style={{ marginBottom: 18 }}>
             <div style={{ display: "flex", gap: 5, alignItems: "stretch" }}>
               {/* Month picker pill */}
               <div style={{ position: "relative", flexShrink: 0, zIndex: monthPickerOpen ? 20 : 1 }}>
@@ -435,7 +435,7 @@ export default function Home() {
                   isCollab: true, friendName: ct.friend,
                 }));
                 const allPending: any[] = [...pendingTasks.map(t => ({ ...t, isCollab: false, friendName: "" })), ...collabAsTasks]
-                  .sort((a, b) => ((a as any).timeMin ?? getDisplayTimeMin(a as any)) - ((b as any).timeMin ?? getDisplayTimeMin(b as any)));
+                  .sort((a, b) => getDisplayTimeMin(a) - (b.timeMin ?? getDisplayTimeMin(b)));
                 return allPending.map((task, i) => {
                   if ((task as any).isCollab) {
                     const ct = task as any;
@@ -456,8 +456,8 @@ export default function Home() {
                     );
                   }
                   const accent = accentForType(task.type);
-                  const displayTime = getDisplayTime(task as any);
-                  const endTime = fmtTime(Math.floor((getDisplayTimeMin(task as any) + task.duration) / 60) % 24, (getDisplayTimeMin(task as any) + task.duration) % 60);
+                  const displayTime = getDisplayTime(task);
+                  const endTime = fmtTime(Math.floor((getDisplayTimeMin(task) + task.duration) / 60) % 24, (getDisplayTimeMin(task) + task.duration) % 60);
                   const isActive = task.status === "active";
                   const isExpanded = expandedTask === task.id;
                   return (
@@ -470,7 +470,7 @@ export default function Home() {
                             <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
                               <span style={{ fontSize: 9, color: "var(--t4)", background: "var(--glow)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{task.type.toUpperCase()}</span>
                               <span style={{ fontSize: 9, color: "var(--t4)", background: "var(--glow)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{fmtDur(task.duration)}</span>
-                              {(task as any).urgent && <span style={{ fontSize: 9, color: "var(--pink)", background: "var(--pink-dim)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>⚡ URGENT</span>}
+                              {task.urgent && <span style={{ fontSize: 9, color: "var(--pink)", background: "var(--pink-dim)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>⚡ URGENT</span>}
                             </div>
                           </div>
                           {isActive ? (
@@ -540,7 +540,7 @@ export default function Home() {
               )}
 
               {/* Create task bar — BELOW tasks */}
-              <div style={{ marginBottom: 16 }}>
+              <div style={{ marginTop: 12, marginBottom: 24 }}>
                 <div style={{ background: "var(--card)", borderRadius: 16, padding: "12px 14px", border: "1px dashed var(--border)", display: "flex", alignItems: "center", gap: 8 }}>
                   <div className="tap" onClick={() => setCmdCategory(c => c === "task" ? "rest" : c === "rest" ? "life" : "task")}
                     style={{ background: cmdCategory === "task" ? "var(--accent-20)" : cmdCategory === "rest" ? "var(--rest-20)" : "var(--warn-20)", border: `1px solid ${cmdCategory === "task" ? "var(--accent)" : cmdCategory === "rest" ? "var(--rest)" : "var(--warn)"}`, borderRadius: 8, padding: "5px 10px", fontSize: 9, fontWeight: 700, fontFamily: MONO, color: cmdCategory === "task" ? "var(--accent)" : cmdCategory === "rest" ? "var(--rest)" : "var(--warn)", cursor: "pointer", flexShrink: 0, letterSpacing: 1 }}>{cmdCategory.toUpperCase()}</div>
@@ -554,7 +554,7 @@ export default function Home() {
               <div style={{ position: "relative" }}>
                 {/* Fade gradient overlay at top of friends section */}
                 <div style={{ position: "absolute", top: 0, left: -14, right: -14, height: 40, background: "linear-gradient(to bottom, var(--bg), transparent)", zIndex: 2, pointerEvents: "none" }} />
-                <div style={{ paddingTop: 8, opacity: 0.6 }}>
+                <div style={{ paddingTop: 16, opacity: 0.6 }}>
                   <FriendsFeed onNavigate={handleFriendsNav} />
                 </div>
               </div>
