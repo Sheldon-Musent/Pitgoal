@@ -579,28 +579,7 @@ export default function PopupBar({
               <div className="tap" onClick={onStartUpcoming} style={{ flex: 1, padding: "9px 0", borderRadius: 10, textAlign: "center", fontSize: 11, fontWeight: 600, background: "var(--accent)", color: "#fff", cursor: "pointer" }}>Start now</div>
             </div>
           )}
-            {mediumActions.map((a) => (
-              <div
-                key={a.label}
-                className="tap"
-                onClick={a.action}
-                  style={{
-                    flexShrink: 0,
-                    minWidth: 0,
-                    padding: "9px 12px",
-                    borderRadius: 10,
-                    textAlign: "center",
-                    fontSize: 11,
-                    fontWeight: 600,
-                    fontFamily: BODY,
-                    cursor: "pointer",
-                    background: a.primary ? "var(--accent)" : "var(--card2)",
-                    color: a.primary ? "#fff" : "var(--t2)",
-                  }}
-              >
-                {a.label}
-              </div>
-            ))}
+
           </div>
         </div>
       </div>
