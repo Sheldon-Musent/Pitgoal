@@ -19,7 +19,7 @@ import type { Task, ActiveTask, Template, DayHistory, DrainRates, Theme, BottomT
 import BottomNav from "../components/BottomNav";
 import CommunityTab from "../components/CommunityTab";
 import FriendsTab from "../components/FriendsTab";
-import FriendsFeed from "../components/FriendsFeed";
+import FriendStack from "../components/FriendStack";
 import ProfileTab from "../components/ProfileTab";
 import PopupBar from "../components/PopupBar";
 
@@ -424,7 +424,7 @@ export default function Home() {
 
           {/* ═══ MAIN SECTION: Tags + Content ═══ */}
           <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 14 }}>
-            {["today", "categories", "income", ...customGroups].map(t => (
+            {["today", ...customGroups].map(t => (
               <div key={t} className="tap" onClick={() => setActiveTab(t)}
                 style={{ padding: "7px 16px", borderRadius: 100, fontFamily: MONO, fontSize: 11, fontWeight: 700, letterSpacing: 1, background: activeTab === t ? "var(--accent)" : "var(--card)", color: activeTab === t ? "#fff" : "var(--t4)" }}>{t.toUpperCase()}</div>
             ))}
@@ -606,42 +606,13 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Friends feed — below the fold with fade shadow */}
-              <div style={{ position: "relative" }}>
-                {/* Fade gradient overlay at top of friends section */}
-                <div style={{ position: "absolute", top: 0, left: -14, right: -14, height: 40, background: "linear-gradient(to bottom, var(--bg), transparent)", zIndex: 2, pointerEvents: "none" }} />
-                <div style={{ paddingTop: 16, opacity: 0.6 }}>
-                  <FriendsFeed onNavigate={handleFriendsNav} />
-                </div>
-              </div>
+              {/* Friend status cards — stacked */}
+              <FriendStack friends={[
+                { id: "f1", name: "Amir", initial: "A", activity: "studying C", state: "working" },
+                { id: "f2", name: "Siti", initial: "S", activity: "doing exercises", state: "working" },
+                { id: "f3", name: "Mei Ling", initial: "M", activity: "resting", state: "resting" },
+              ]} />
             </>
-          )}
-
-          {/* Categories tab */}
-          {activeTab === "categories" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {PHASE_CARDS.map((p, i) => (
-                <div key={p.id} style={{ background: "var(--card)", borderRadius: 20, padding: "22px 24px", animation: `fadeUp 0.35s ease ${i * 0.06}s both`, border: "1px solid var(--border)" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <div><div style={{ fontSize: 10, fontFamily: MONO, fontWeight: 600, letterSpacing: 2, color: "var(--accent)" }}>{p.label}</div><div style={{ fontSize: 18, fontWeight: 700, color: "var(--t1)", fontFamily: DISPLAY, marginTop: 4 }}>{p.title}</div></div>
-                    <div style={{ textAlign: "right" }}><div style={{ fontSize: 30, fontWeight: 800, color: "var(--t1)", fontFamily: DISPLAY, lineHeight: 1 }}>{p.pct}<span style={{ fontSize: 14, color: "var(--t3)" }}>%</span></div><div style={{ fontSize: 11, color: "var(--t3)", fontFamily: MONO }}>{p.done}/{p.total}</div></div>
-                  </div>
-                  <div style={{ height: 3, background: "var(--border)", borderRadius: 2, marginTop: 14, overflow: "hidden" }}><div style={{ height: "100%", width: `${p.pct}%`, background: "var(--accent)", borderRadius: 2 }} /></div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Income tab */}
-          {activeTab === "income" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {INCOME.map((m, i) => (
-                <div key={m.label} style={{ background: "var(--card)", borderRadius: 20, padding: "22px 24px", border: "1px solid var(--border)", animation: `fadeUp 0.35s ease ${i * 0.07}s both` }}>
-                  <div style={{ fontSize: 26, fontWeight: 800, color: "var(--t1)", fontFamily: DISPLAY }}>{m.label}</div>
-                  <div style={{ fontSize: 12, color: "var(--accent)", marginTop: 2, fontFamily: MONO }}>{m.desc}</div>
-                </div>
-              ))}
-            </div>
           )}
         </div>
       )}
