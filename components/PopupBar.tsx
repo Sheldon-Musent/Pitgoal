@@ -13,6 +13,7 @@ interface TaskInfo {
 }
 
 interface PopupBarProps {
+  currentTab: string;
   popupState: PopupState;
   activeTask: TaskInfo | null;
   pausedTask: (TaskInfo & { name: string }) | null;
@@ -74,16 +75,29 @@ export default function PopupBar({
   const touchDelta = useRef(0);
   const prevState = useRef(popupState);
 
-  // Auto-restore to full when popup state changes (new task, overdue, etc.)
+  const isMainTab = currentTab === "main";
+  const isActiveState = popupState === "working" || popupState === "resting" || popupState === "paused";
+
+  // Auto-restore when popup state changes
   useEffect(() => {
     if (popupState !== prevState.current) {
-      setCollapse("full");
+      setCollapse(isMainTab ? "full" : "medium");
       prevState.current = popupState;
     }
-  }, [popupState]);
+  }, [popupState, isMainTab]);
+
+  // Clamp to medium when leaving main tab
+  useEffect(() => {
+    if (!isMainTab && collapse === "full") {
+      setCollapse("medium");
+    }
+  }, [isMainTab]);
 
   // Don't render if idle
   if (popupState === "idle") return null;
+
+  // Non-main tabs: only show if actively running/paused
+  if (!isMainTab && !isActiveState) return null;
 
   // ── Collapse handlers ──
   const collapseOne = () => {
@@ -540,7 +554,8 @@ export default function PopupBar({
 
           {/* Compact action buttons */}
           <div
-            style={{ display: "flex", gap: 6, marginTop: 12 }}
+            className="no-scroll"
+            style={{ display: "flex", gap: 6, marginTop: 12, overflowX: "auto", scrollbarWidth: "none", msOverflowStyle: "none" }}
             onClick={(e) => e.stopPropagation()}
           >
             {mediumActions.map((a) => (
@@ -548,8 +563,10 @@ export default function PopupBar({
                 key={a.label}
                 className="tap"
                 onClick={a.action}
-                style={{
+                  style={{
+                  flexShrink: 0,
                   flex: 1,
+                  minWidth: 70,
                   padding: "9px 0",
                   borderRadius: 10,
                   textAlign: "center",

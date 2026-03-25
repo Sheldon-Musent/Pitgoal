@@ -242,6 +242,7 @@ export default function Home() {
 
   const skipTask = () => {
     if (!activeTask) return;
+    if (!confirm(`Skip "${activeTask.name}"?`)) return;
     const elapsed = Math.round((Date.now() - activeTask.startedAt) / 60000);
     if (elapsed > 0) {
       const entry = { id: genId(), name: activeTask.name, type: activeTask.type, urgent: activeTask.urgent, duration: elapsed, startTime: new Date(activeTask.startedAt).toTimeString().slice(0, 5), endTime: new Date().toTimeString().slice(0, 5), partial: true };
@@ -688,7 +689,7 @@ export default function Home() {
       {/* ── SWITCH INPUT ── */}
       {showSwitchInput && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-          <div onClick={() => setShowSwitchInput(false)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.6)" }} />
+          <div onClick={() => { setShowSwitchInput(false); if (switchingFrom && !activeTask) resumePaused(); }} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.6)" }} />
           <div style={{ position: "relative", width: "100%", maxWidth: 430, background: "var(--card)", borderRadius: "24px 24px 0 0", padding: "24px 20px 36px", zIndex: 201, border: "1px solid var(--border)" }}>
             <div style={{ fontSize: 18, fontWeight: 700, color: "var(--pink)", fontFamily: DISPLAY, marginBottom: 16 }}>⚡ Switch to urgent task</div>
             <div style={{ display: "flex", gap: 8 }}>
@@ -701,6 +702,7 @@ export default function Home() {
       )}
 
       <PopupBar
+        currentTab={bottomTab}
         popupState={popupState}
         activeTask={activeTask ?? null}
         pausedTask={pausedTask ?? null}
