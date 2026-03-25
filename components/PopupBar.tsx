@@ -582,7 +582,6 @@ export default function PopupBar({
 
           </div>
         </div>
-      </div>
 
       {/* ═══ PILL STATE ═══ */}
       <div
