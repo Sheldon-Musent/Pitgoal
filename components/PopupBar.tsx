@@ -566,8 +566,7 @@ export default function PopupBar({
                 onClick={a.action}
                   style={{
                   flexShrink: 0,
-                  flex: 1,
-                  minWidth: 70,
+                  minWidth: 75,
                   padding: "9px 0",
                   borderRadius: 10,
                   textAlign: "center",
