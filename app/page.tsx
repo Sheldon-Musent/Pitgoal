@@ -434,7 +434,7 @@ export default function Home() {
                   ...ct, timeMin: parseInt(ct.time.split(":")[0]) * 60 + parseInt(ct.time.split(":")[1] || "0"),
                   isCollab: true, friendName: ct.friend,
                 }));
-                const allPending = [...pendingTasks.map(t => ({ ...t, isCollab: false, friendName: "" })), ...collabAsTasks]
+                const allPending: any[] = [...pendingTasks.map(t => ({ ...t, isCollab: false, friendName: "" })), ...collabAsTasks]
                   .sort((a, b) => ((a as any).timeMin ?? getDisplayTimeMin(a as any)) - ((b as any).timeMin ?? getDisplayTimeMin(b as any)));
                 return allPending.map((task, i) => {
                   if ((task as any).isCollab) {
