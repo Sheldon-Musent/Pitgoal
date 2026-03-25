@@ -456,8 +456,8 @@ export default function Home() {
                     );
                   }
                   const accent = accentForType(task.type);
-                  const displayTime = getDisplayTime(task);
-                  const endTime = fmtTime(Math.floor((getDisplayTimeMin(task) + task.duration) / 60) % 24, (getDisplayTimeMin(task) + task.duration) % 60);
+                  const displayTime = getDisplayTime(task as any);
+                  const endTime = fmtTime(Math.floor((getDisplayTimeMin(task as any) + task.duration) / 60) % 24, (getDisplayTimeMin(task as any) + task.duration) % 60);
                   const isActive = task.status === "active";
                   const isExpanded = expandedTask === task.id;
                   return (
