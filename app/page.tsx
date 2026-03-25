@@ -801,10 +801,10 @@ export default function Home() {
 
       <PopupBar
         popupState={popupState}
-        activeTask={activeTask}
-        pausedTask={pausedTask}
-        overdueTask={overdueTask}
-        upcomingTask={upcoming}
+        activeTask={activeTask ?? null}
+        pausedTask={pausedTask ?? null}
+        overdueTask={overdueTask ?? null}
+        upcomingTask={upcoming ?? null}
         activeTimerStr={activeTimerStr}
         pauseTimerStr={pauseTimerStr}
         graceRemainingMin={Math.ceil(graceRemainingSec / 60)}
