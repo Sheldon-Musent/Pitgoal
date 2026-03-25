@@ -554,10 +554,31 @@ export default function PopupBar({
           </div>
 
           {/* Compact action buttons */}
-          <div
-            style={{ display: "flex", gap: 6, marginTop: 12 }}
-            onClick={(e) => e.stopPropagation()}
-          >
+          {isWorking && (
+            <div style={{ display: "flex", gap: 6, marginTop: 12 }} onClick={(e) => e.stopPropagation()}>
+              <div className="tap" onClick={onDone} style={{ flex: 1, padding: "9px 0", borderRadius: 10, textAlign: "center", fontSize: 11, fontWeight: 600, background: "var(--accent)", color: "#fff", cursor: "pointer" }}>Done</div>
+              <div className="tap" onClick={onPause} style={{ flex: 1, padding: "9px 0", borderRadius: 10, textAlign: "center", fontSize: 11, fontWeight: 600, background: "var(--card2)", color: "var(--t2)", cursor: "pointer" }}>Pause</div>
+              <div className="tap" onClick={onSkip} style={{ flex: 1, padding: "9px 0", borderRadius: 10, textAlign: "center", fontSize: 11, fontWeight: 600, background: "var(--card2)", color: "var(--t2)", cursor: "pointer" }}>Skip</div>
+              <div className="tap" onClick={onSwitch} style={{ flex: 1, padding: "9px 0", borderRadius: 10, textAlign: "center", fontSize: 11, fontWeight: 600, background: "var(--card2)", color: "var(--t2)", cursor: "pointer" }}>Switch</div>
+            </div>
+          )}
+          {isPaused && (
+            <div style={{ display: "flex", gap: 6, marginTop: 12 }} onClick={(e) => e.stopPropagation()}>
+              <div className="tap" onClick={onResume} style={{ flex: 1, padding: "9px 0", borderRadius: 10, textAlign: "center", fontSize: 11, fontWeight: 600, background: "var(--accent)", color: "#fff", cursor: "pointer" }}>Resume</div>
+              <div className="tap" onClick={onDismiss} style={{ flex: 1, padding: "9px 0", borderRadius: 10, textAlign: "center", fontSize: 11, fontWeight: 600, background: "var(--card2)", color: "var(--t2)", cursor: "pointer" }}>Dismiss</div>
+            </div>
+          )}
+          {isGrace && (
+            <div style={{ display: "flex", gap: 6, marginTop: 12 }} onClick={(e) => e.stopPropagation()}>
+              <div className="tap" onClick={onStartOverdue} style={{ flex: 1, padding: "9px 0", borderRadius: 10, textAlign: "center", fontSize: 11, fontWeight: 600, background: "var(--accent)", color: "#fff", cursor: "pointer" }}>Start</div>
+              <div className="tap" onClick={onSkipOverdue} style={{ flex: 1, padding: "9px 0", borderRadius: 10, textAlign: "center", fontSize: 11, fontWeight: 600, background: "var(--card2)", color: "var(--t2)", cursor: "pointer" }}>Skip</div>
+            </div>
+          )}
+          {isUpcoming && (
+            <div style={{ display: "flex", gap: 6, marginTop: 12 }} onClick={(e) => e.stopPropagation()}>
+              <div className="tap" onClick={onStartUpcoming} style={{ flex: 1, padding: "9px 0", borderRadius: 10, textAlign: "center", fontSize: 11, fontWeight: 600, background: "var(--accent)", color: "#fff", cursor: "pointer" }}>Start now</div>
+            </div>
+          )}
             {mediumActions.map((a) => (
               <div
                 key={a.label}
