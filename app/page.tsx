@@ -470,7 +470,7 @@ export default function Home() {
                             <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
                               <span style={{ fontSize: 9, color: "var(--t4)", background: "var(--glow)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{task.type.toUpperCase()}</span>
                               <span style={{ fontSize: 9, color: "var(--t4)", background: "var(--glow)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{fmtDur(task.duration)}</span>
-                              {task.urgent && <span style={{ fontSize: 9, color: "var(--pink)", background: "var(--pink-dim)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>⚡ URGENT</span>}
+                              {(task as any).urgent && <span style={{ fontSize: 9, color: "var(--pink)", background: "var(--pink-dim)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>⚡ URGENT</span>}
                             </div>
                           </div>
                           {isActive ? (
