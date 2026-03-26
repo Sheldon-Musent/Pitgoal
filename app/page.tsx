@@ -530,7 +530,6 @@ const getTypeLabel = (typeId: string): string => {
   }, [selectedDate, viewMonth, viewYear, bottomTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleTabChange = (tab: BottomTab) => setBottomTab(tab);
-  const handleFriendsNav = (tab: BottomTab) => setBottomTab(tab);
 
   // ═══ LOADING ═══
   if (!loaded) return (
@@ -1025,7 +1024,7 @@ const getTypeLabel = (typeId: string): string => {
 
       {/* ── OTHER TABS (imported components) ── */}
       {bottomTab === "community" && <CommunityTab />}
-      {bottomTab === "friends" && <FriendsTab onNavigate={handleFriendsNav} />}
+      {bottomTab === "friends" && <FriendsTab />}
       {bottomTab === "profile" && (
         <ProfileTab
           userId={userId} theme={"dark" as Theme} setTheme={() => {}}
