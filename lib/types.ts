@@ -62,6 +62,8 @@ export interface Task {
   rate?: string;
   group?: string;
   fromTemplate?: string;
+  customType?: string;  // ADD — stores actual type id (task/rest/life/focus/etc)
+  tags?: string[];      // ADD — array of tag ids
 }
 
 export interface ActiveTask extends Task {
@@ -110,6 +112,6 @@ export interface FriendActivity {
 
 export type BottomTab = "main" | "community" | "friends" | "profile";
 export type Theme = "dark" | "light";
-export type CmdCategory = "task" | "rest" | "life";
+export type CmdCategory = string;
 export type ProfileView = "main" | "settings";
 export type SettingsSection = "account" | "appearance" | "energy" | "notifications" | "data" | null;

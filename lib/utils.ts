@@ -87,7 +87,7 @@ export function parseCmd(input: string, category: CmdCategory = "task"): Task | 
   }
 
   return {
-    name, category, type, urgent,
+    name, category: category as any, type, urgent,
     time: fmtTime(hour, minute),
     timeMin: hour * 60 + minute,
     duration, planned_duration: duration,
