@@ -214,20 +214,23 @@ export default function Home() {
     if (shifted) { setTasks(u); save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom); }
   }, [tick, tasks, activeTask, dayLog, energyUsed, energyCharged, customGroups, pausedTask, switchingFrom, save]);
 
-  // ═══ NAV — expand on interaction, collapse after 2s ═══
-  const expandNav = useCallback(() => {
+  // ═══ NAV — expand on interaction, collapse after 1.5s on release ═══
+  const expandNav = useCallback((startCollapse?: boolean) => {
     setNavExpanded(true);
     clearTimeout(navScrollTimer.current);
-    navScrollTimer.current = setTimeout(() => setNavExpanded(false), 2000);
+    if (startCollapse) {
+      navScrollTimer.current = setTimeout(() => setNavExpanded(false), 1500);
+    }
   }, []);
   useEffect(() => {
-    const handleScroll = () => expandNav();
+    const handleScroll = () => expandNav(true);
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => { window.removeEventListener("scroll", handleScroll); clearTimeout(navScrollTimer.current); };
   }, [expandNav]);
 
-  useEffect(() => { if (!dateScrollRef.current) return; const i = selectedDate.getDate() - 1; const cellW = 56; dateScrollRef.current.scrollTo({ left: Math.max(0, i * cellW - dateScrollRef.current.clientWidth / 2 + cellW / 2), behavior: "smooth" }); }, [selectedDate, viewMonth]);
-  useEffect(() => { const fn = () => { if (document.visibilityState === "visible") { const n = new Date(); setSelectedDate(n); setViewMonth(n.getMonth()); setViewYear(n.getFullYear()); } }; document.addEventListener("visibilitychange", fn); return () => document.removeEventListener("visibilitychange", fn); }, []);
+  const dateScrollInitRef = useRef(false);
+  useEffect(() => { if (!dateScrollRef.current) return; const i = selectedDate.getDate() - 1; const cellW = 56; const behavior = dateScrollInitRef.current ? "smooth" : "auto"; dateScrollInitRef.current = true; dateScrollRef.current.scrollTo({ left: Math.max(0, i * cellW - dateScrollRef.current.clientWidth / 2 + cellW / 2), behavior }); }, [selectedDate, viewMonth]);
+  useEffect(() => { const fn = () => { if (document.visibilityState === "visible") { const n = new Date(); setViewMonth(n.getMonth()); setViewYear(n.getFullYear()); } }; document.addEventListener("visibilitychange", fn); return () => document.removeEventListener("visibilitychange", fn); }, []);
   useEffect(() => { if (monthPickerOpen && monthScrollRef.current) { const el = monthScrollRef.current.querySelector('[data-active="true"]'); if (el) (el as HTMLElement).scrollIntoView({ block: "center", behavior: "auto" }); } }, [monthPickerOpen]);
 
   // ═══ TASK ACTIONS ═══

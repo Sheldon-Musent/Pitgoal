@@ -8,7 +8,7 @@ interface BottomNavProps {
   onChange: (tab: BottomTab) => void;
   onAdd?: () => void;
   expanded: boolean;
-  onExpand?: () => void;
+  onExpand?: (startCollapse?: boolean) => void;
 }
 
 const TAB_LABELS: Record<BottomTab, string> = {
@@ -109,7 +109,7 @@ export default function BottomNav({ active, onChange, onAdd, expanded, onExpand 
     if (!pill) return;
     pill.setPointerCapture(e.pointerId);
     draggingRef.current = true;
-    onExpand?.();
+    onExpand?.(false); // expand but don't start collapse timer while touching
     const tab = getTabFromPointer(e.clientX);
     if (tab) onChange(tab);
   };
@@ -120,13 +120,24 @@ export default function BottomNav({ active, onChange, onAdd, expanded, onExpand 
     if (tab) onChange(tab);
   };
 
-  const handlePointerUp = (e: React.PointerEvent) => {
+  const handleRelease = (e: React.PointerEvent) => {
     const pill = pillRef.current;
     if (pill) pill.releasePointerCapture(e.pointerId);
     draggingRef.current = false;
-    // onExpand was already called — page.tsx starts the 2s collapse timer on expand
-    onExpand?.();
+    onExpand?.(true); // finger lifted — start 1.5s collapse timer
   };
+
+  // Attach touchend as fallback for mobile Safari
+  useEffect(() => {
+    const pill = pillRef.current;
+    if (!pill) return;
+    const onTouchEnd = () => {
+      draggingRef.current = false;
+      onExpand?.(true);
+    };
+    pill.addEventListener("touchend", onTouchEnd, { passive: true });
+    return () => pill.removeEventListener("touchend", onTouchEnd);
+  }, [onExpand]);
 
   return (
     <div
@@ -146,7 +157,8 @@ export default function BottomNav({ active, onChange, onAdd, expanded, onExpand 
         ref={pillRef}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
+        onPointerUp={handleRelease}
+        onPointerCancel={handleRelease}
         style={{
           display: "flex",
           alignItems: "center",
@@ -157,6 +169,8 @@ export default function BottomNav({ active, onChange, onAdd, expanded, onExpand 
           position: "relative",
           touchAction: "none",
           userSelect: "none",
+          maxWidth: "calc(100vw - 80px)",
+          overflow: "hidden",
         }}
       >
         {/* Yellow highlight (absolute positioned) */}
