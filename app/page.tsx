@@ -24,7 +24,7 @@ import ProfileTab from "../components/ProfileTab";
 import PopupBar from "../components/PopupBar";
 import CreateTaskSheet from "../components/CreateTaskSheet";
 import type { TaskType, TaskTag, CreateTaskResult } from "../components/CreateTaskSheet";
-import { DEFAULT_TYPES, DEFAULT_TAGS } from "../components/CreateTaskSheet";
+import { DEFAULT_TYPES, DEFAULT_TAGS, DEFAULT_TYPE_IDS, DEFAULT_TAG_IDS } from "../components/CreateTaskSheet";
 
 // ── SVG icons ──
 function PlayIcon({ size = 18, color = "var(--accent)" }: { size?: number; color?: string }) {
@@ -78,6 +78,9 @@ export default function Home() {
   const [customTagDefs, setCustomTagDefs] = useState<TaskTag[]>([]);
   const [showDone, setShowDone] = useState(false);
   const [showSkipped, setShowSkipped] = useState(false);
+  const [filterMode, setFilterMode] = useState<string>("all");
+  const [deleteMode, setDeleteMode] = useState(false);
+  const longPressTimer = useRef<any>(null);
   const [confirmSkipId, setConfirmSkipId] = useState<string | null>(null);
 
   // Storage key for types/tags
@@ -275,6 +278,18 @@ const addCustomType = (t: TaskType) => {
   try { localStorage.setItem(TYPES_KEY, JSON.stringify(next)); } catch {}
 };
 
+const deleteCustomType = (id: string) => {
+  const next = customTypes.filter(t => t.id !== id);
+  setCustomTypes(next);
+  try { localStorage.setItem("pitgoal-custom-types", JSON.stringify(next)); } catch {}
+};
+
+const deleteCustomTag = (id: string) => {
+  const next = customTagDefs.filter(t => t.id !== id);
+  setCustomTagDefs(next);
+  try { localStorage.setItem("pitgoal-custom-tags", JSON.stringify(next)); } catch {}
+};
+
 const addCustomTag = (t: TaskTag) => {
   const next = [...customTagDefs, t];
   setCustomTagDefs(next);
@@ -392,6 +407,20 @@ const getTypeLabel = (typeId: string): string => {
 
   const sorted = useMemo(() => [...tasks].sort((a, b) => getDisplayTimeMin(a) - getDisplayTimeMin(b)), [tasks]);
   const pendingTasks = sorted.filter(t => t.status === "pending" || t.status === "active");
+  const filteredPending = (() => {
+    if (filterMode === "all") return pendingTasks;
+    if (filterMode.startsWith("type:")) {
+      const typeId = filterMode.split(":")[1];
+      return pendingTasks.filter(t =>
+        (t as any).customType === typeId || (typeId === "task" && t.type === "work" && !(t as any).customType) || (typeId === "rest" && t.type === "rest") || (typeId === "life" && (t as any).customType === "life")
+      );
+    }
+    if (filterMode.startsWith("tag:")) {
+      const tagId = filterMode.split(":")[1];
+      return pendingTasks.filter(t => (t as any).tags && (t as any).tags.includes(tagId));
+    }
+    return pendingTasks;
+  })();
   const skippedTasks = sorted.filter(t => t.status === "skipped");
   const doneTasks = sorted.filter(t => t.status === "done");
   const tasksDoneCount = dayLog.filter((e: any) => e.type === "work").length;
@@ -489,20 +518,150 @@ const getTypeLabel = (typeId: string): string => {
             {monthPickerOpen && <div onClick={() => setMonthPickerOpen(false)} style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 10 }} />}
           </div>
 
-          {/* ═══ MAIN SECTION: Tags ═══ */}
-          <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 20 }}>
-            {["today", ...customGroups].map(t => (
-              <div key={t} className="tap" onClick={() => setActiveTab(t)}
-                style={{ padding: "7px 16px", borderRadius: 100, fontFamily: MONO, fontSize: 11, fontWeight: 700, letterSpacing: 1, background: activeTab === t ? "var(--accent)" : "var(--card)", color: activeTab === t ? "#fff" : "var(--t4)" }}>{t.toUpperCase()}</div>
-            ))}
-            <div className="tap" onClick={addGroup} style={{ width: 30, height: 30, borderRadius: "50%", background: "var(--card)", display: "flex", alignItems: "center", justifyContent: "center", border: "1px dashed var(--t5)" }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t4)" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-            </div>
+          {/* ═══ FILTER BAR — auto-populated from types + tags ═══ */}
+          <div
+            onClick={() => { if (deleteMode) setDeleteMode(false); }}
+            style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 20, overflowX: "auto" }}
+          >
+            {/* ALL button */}
+            <div className="tap" onClick={() => { setFilterMode("all"); setActiveTab("today"); }} style={{
+              padding: "7px 16px", borderRadius: 100, fontFamily: MONO, fontSize: 11, fontWeight: 700,
+              letterSpacing: 1, cursor: "pointer",
+              background: filterMode === "all" ? "var(--accent)" : "var(--card)",
+              color: filterMode === "all" ? "#fff" : "var(--t4)",
+            }}>ALL</div>
+
+            {/* Divider */}
+            <div style={{ width: 1, height: 20, background: "var(--border2)", flexShrink: 0 }} />
+
+            {/* Types (round pills) */}
+            {[...DEFAULT_TYPES, ...customTypes].map((t) => {
+              const isActive = filterMode === `type:${t.id}`;
+              const isCustom = !DEFAULT_TYPE_IDS.has(t.id);
+              return (
+                <div key={`type-${t.id}`} style={{ position: "relative" }}>
+                  <div className="tap"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (deleteMode) return;
+                      setFilterMode(isActive ? "all" : `type:${t.id}`);
+                      setActiveTab("today");
+                    }}
+                    onTouchStart={() => {
+                      if (isCustom) longPressTimer.current = setTimeout(() => setDeleteMode(true), 600);
+                    }}
+                    onTouchEnd={() => { if (longPressTimer.current) clearTimeout(longPressTimer.current); }}
+                    onMouseDown={() => {
+                      if (isCustom) longPressTimer.current = setTimeout(() => setDeleteMode(true), 600);
+                    }}
+                    onMouseUp={() => { if (longPressTimer.current) clearTimeout(longPressTimer.current); }}
+                    style={{
+                      padding: "6px 12px", borderRadius: 100, fontFamily: MONO, fontSize: 10, fontWeight: 700,
+                      letterSpacing: 1, cursor: "pointer", transition: "all 0.15s",
+                      background: isActive ? `${t.color}22` : "var(--card)",
+                      color: isActive ? t.color : "var(--t4)",
+                      border: `1px solid ${isActive ? `${t.color}55` : "var(--border)"}`,
+                    }}
+                  >{t.label}</div>
+                  {deleteMode && isCustom && (
+                    <div className="tap" onClick={(e) => {
+                      e.stopPropagation();
+                      if (confirm(`Delete type "${t.label}"?`)) {
+                        deleteCustomType(t.id);
+                        if (filterMode === `type:${t.id}`) setFilterMode("all");
+                      }
+                    }} style={{
+                      position: "absolute", top: -6, right: -6, width: 18, height: 18,
+                      borderRadius: "50%", background: "var(--danger)", display: "flex",
+                      alignItems: "center", justifyContent: "center", cursor: "pointer", zIndex: 5,
+                    }}>
+                      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round">
+                        <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Divider */}
+            <div style={{ width: 1, height: 20, background: "var(--border2)", flexShrink: 0 }} />
+
+            {/* Tags (square chips) */}
+            {[...DEFAULT_TAGS, ...customTagDefs].map((t) => {
+              const isActive = filterMode === `tag:${t.id}`;
+              const isCustom = !DEFAULT_TAG_IDS.has(t.id);
+              return (
+                <div key={`tag-${t.id}`} style={{ position: "relative" }}>
+                  <div className="tap"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (deleteMode) return;
+                      setFilterMode(isActive ? "all" : `tag:${t.id}`);
+                      setActiveTab("today");
+                    }}
+                    onTouchStart={() => {
+                      if (isCustom) longPressTimer.current = setTimeout(() => setDeleteMode(true), 600);
+                    }}
+                    onTouchEnd={() => { if (longPressTimer.current) clearTimeout(longPressTimer.current); }}
+                    onMouseDown={() => {
+                      if (isCustom) longPressTimer.current = setTimeout(() => setDeleteMode(true), 600);
+                    }}
+                    onMouseUp={() => { if (longPressTimer.current) clearTimeout(longPressTimer.current); }}
+                    style={{
+                      padding: "6px 12px", borderRadius: 8, fontFamily: MONO, fontSize: 10, fontWeight: 600,
+                      cursor: "pointer", transition: "all 0.15s",
+                      background: isActive ? `${t.color}22` : "var(--card)",
+                      color: isActive ? t.color : "var(--t4)",
+                      border: `1px solid ${isActive ? `${t.color}55` : "var(--border)"}`,
+                    }}
+                  >{t.label}</div>
+                  {deleteMode && isCustom && (
+                    <div className="tap" onClick={(e) => {
+                      e.stopPropagation();
+                      if (confirm(`Delete tag "${t.label}"?`)) {
+                        deleteCustomTag(t.id);
+                        if (filterMode === `tag:${t.id}`) setFilterMode("all");
+                      }
+                    }} style={{
+                      position: "absolute", top: -6, right: -6, width: 18, height: 18,
+                      borderRadius: "50%", background: "var(--danger)", display: "flex",
+                      alignItems: "center", justifyContent: "center", cursor: "pointer", zIndex: 5,
+                    }}>
+                      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round">
+                        <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           {/* ── TODAY TAB CONTENT ── */}
           {activeTab === "today" && (
             <>
+
+              {/* Apply filter */}
+              {(() => {
+                let filteredPending = pendingTasks;
+                if (filterMode !== "all") {
+                  if (filterMode.startsWith("type:")) {
+                    const typeId = filterMode.split(":")[1];
+                    filteredPending = pendingTasks.filter(t =>
+                      (t as any).customType === typeId || (typeId === "task" && t.type === "work") || (typeId === "rest" && t.type === "rest")
+                    );
+                  } else if (filterMode.startsWith("tag:")) {
+                    const tagId = filterMode.split(":")[1];
+                    filteredPending = pendingTasks.filter(t =>
+                      (t as any).tags && (t as any).tags.includes(tagId)
+                    );
+                  }
+                }
+                // Now use filteredPending instead of pendingTasks in the timeline below
+                return null;
+              })()}
+
               {/* ── Timeline ── */}
               <div style={{ marginBottom: 16 }}>
                 {(() => {
@@ -1763,8 +1922,10 @@ const getTypeLabel = (typeId: string): string => {
         onCreateTask={handleSheetCreate}
         customTypes={customTypes}
         onAddType={addCustomType}
+        onDeleteType={deleteCustomType}
         customTags={customTagDefs}
         onAddTag={addCustomTag}
+        onDeleteTag={deleteCustomTag}
         suggestions={suggestions}
         onInputChange={(q) => fetchSuggestions(q)}
       />
