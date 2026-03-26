@@ -315,7 +315,7 @@ export default function CreateTaskSheet({
           <div style={{ width: 36, height: 4, borderRadius: 2, background: "var(--border2)" }} />
         </div>
 
-        <div style={{ padding: "0 20px 20px" }}>
+        <div style={{ padding: "0 20px" }} onClick={() => { setShowAddType(false); setShowAddTag(false); setNewTypeLabel(""); setNewTagLabel(""); }}>
           {/* Title */}
           <div
             style={{
@@ -357,9 +357,9 @@ export default function CreateTaskSheet({
             />
           </div>
 
-          {/* Suggestions */}
+          {/* Description / suggestions */}
           {suggestions.length > 0 && name.length >= 2 && (
-            <div style={{ marginBottom: 14 }}>
+            <div style={{ marginBottom: 14, marginTop: -6 }}>
               <div
                 style={{
                   fontSize: 10,
@@ -369,7 +369,7 @@ export default function CreateTaskSheet({
                   marginBottom: 8,
                 }}
               >
-                SUGGESTIONS
+                DESCRIPTION
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 {suggestions.slice(0, 3).map((s, i) => (
@@ -467,7 +467,7 @@ export default function CreateTaskSheet({
               })}
               {/* Add type button or input */}
               {showAddType ? (
-                <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                <div style={{ display: "flex", gap: 4, alignItems: "center" }} onClick={(e) => e.stopPropagation()}>
                   <input
                     autoFocus
                     value={newTypeLabel}
@@ -588,7 +588,7 @@ export default function CreateTaskSheet({
               })}
               {/* Add tag button or input */}
               {showAddTag ? (
-                <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                <div style={{ display: "flex", gap: 4, alignItems: "center" }} onClick={(e) => e.stopPropagation()}>
                   <input
                     autoFocus
                     value={newTagLabel}
