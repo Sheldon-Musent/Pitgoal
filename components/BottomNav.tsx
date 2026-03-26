@@ -23,7 +23,7 @@ const TABS: { id: BottomTab; icon: (active: boolean) => React.ReactNode }[] = [
     id: "main",
     icon: (a) => (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
-        stroke={a ? "#0a0a0a" : "#3a3a3a"}
+        stroke={a ? "#0a0a0a" : "var(--nav-inactive)"}
         strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
         <polyline points="9 22 9 12 15 12 15 22"/>
@@ -34,7 +34,7 @@ const TABS: { id: BottomTab; icon: (active: boolean) => React.ReactNode }[] = [
     id: "community",
     icon: (a) => (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
-        stroke={a ? "#0a0a0a" : "#3a3a3a"}
+        stroke={a ? "#0a0a0a" : "var(--nav-inactive)"}
         strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M6 2L3 7v13a2 2 0 002 2h14a2 2 0 002-2V7l-3-5z"/>
         <path d="M3 7h18"/>
@@ -46,7 +46,7 @@ const TABS: { id: BottomTab; icon: (active: boolean) => React.ReactNode }[] = [
     id: "friends",
     icon: (a) => (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
-        stroke={a ? "#0a0a0a" : "#3a3a3a"}
+        stroke={a ? "#0a0a0a" : "var(--nav-inactive)"}
         strokeWidth="1.8" strokeLinecap="round">
         <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
         <circle cx="9" cy="7" r="4" />
@@ -59,7 +59,7 @@ const TABS: { id: BottomTab; icon: (active: boolean) => React.ReactNode }[] = [
     id: "profile",
     icon: (a) => (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
-        stroke={a ? "#0a0a0a" : "#3a3a3a"}
+        stroke={a ? "#0a0a0a" : "var(--nav-inactive)"}
         strokeWidth="1.8" strokeLinecap="round">
         <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
         <circle cx="12" cy="7" r="4" />
@@ -184,10 +184,10 @@ export default function BottomNav({ active, onChange, onAdd, expanded, onExpand 
         style={{
           display: "flex",
           alignItems: "center",
-          background: "#161616",
+          background: "var(--nav-bg)",
           borderRadius: 50,
           padding: 5,
-          border: "1px solid #222",
+          border: "1px solid var(--nav-border)",
           position: "relative",
           touchAction: "none",
           userSelect: "none",

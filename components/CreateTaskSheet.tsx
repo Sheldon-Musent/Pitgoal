@@ -392,7 +392,7 @@ export default function CreateTaskSheet({
           <div style={{ display: "flex", gap: 8 }}>
             <div className="tap" onClick={handleCreate} style={{
               flex: 1, background: "var(--accent)", borderRadius: 14, padding: 14, textAlign: "center",
-              fontSize: 14, fontWeight: 700, color: "#fff", fontFamily: DISPLAY, cursor: "pointer",
+              fontSize: 14, fontWeight: 700, color: "var(--fill-title)", fontFamily: DISPLAY, cursor: "pointer",
             }}>Create task</div>
             <div className="tap" onClick={onClose} style={{
               width: 50, background: "var(--card2)", borderRadius: 14, border: "1px solid var(--border)",
@@ -499,7 +499,7 @@ export default function CreateTaskSheet({
               <div className="tap" onClick={confirmAddPopup} style={{
                 flex: 1, background: newLabel.trim() ? "var(--accent)" : "var(--border2)",
                 borderRadius: 12, padding: 12, textAlign: "center", fontSize: 13, fontWeight: 700,
-                color: newLabel.trim() ? "#fff" : "var(--t5)", fontFamily: DISPLAY, cursor: "pointer",
+                color: newLabel.trim() ? "var(--fill-title)" : "var(--t5)", fontFamily: DISPLAY, cursor: "pointer",
                 transition: "all 0.15s",
               }}>Add {addPopup}</div>
               <div className="tap" onClick={() => { setAddPopup(null); setNewLabel(""); setConfirmDeleteId(null); }} style={{
