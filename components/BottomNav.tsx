@@ -7,7 +7,15 @@ interface BottomNavProps {
   active: BottomTab;
   onChange: (tab: BottomTab) => void;
   onAdd?: () => void;
+  expanded?: boolean;
 }
+
+const TAB_LABELS: Record<BottomTab, string> = {
+  main: "Home",
+  community: "Market",
+  friends: "Chats",
+  profile: "You",
+};
 
 // ── Tab definitions (icon-only, per v13 spec) ──
 const TABS: { id: BottomTab; icon: (active: boolean) => React.ReactNode }[] = [
@@ -61,7 +69,7 @@ const TABS: { id: BottomTab; icon: (active: boolean) => React.ReactNode }[] = [
   },
 ];
 
-export default function BottomNav({ active, onChange, onAdd }: BottomNavProps) {
+export default function BottomNav({ active, onChange, onAdd, expanded = false }: BottomNavProps) {
   return (
     <div
       style={{
@@ -84,6 +92,7 @@ export default function BottomNav({ active, onChange, onAdd }: BottomNavProps) {
           borderRadius: 50,
           padding: 5,
           border: "1px solid #222",
+          transition: "all 0.3s ease",
         }}
       >
         {TABS.map((tab) => {
@@ -94,18 +103,31 @@ export default function BottomNav({ active, onChange, onAdd }: BottomNavProps) {
               className="tap"
               onClick={() => onChange(tab.id)}
               style={{
-                width: 50,
-                height: 50,
-                borderRadius: "50%",
+                width: expanded ? 60 : 50,
+                height: expanded ? 58 : 50,
+                borderRadius: expanded ? 20 : "50%",
                 display: "flex",
+                flexDirection: "column",
                 alignItems: "center",
                 justifyContent: "center",
+                gap: expanded ? 3 : 0,
                 cursor: "pointer",
-                transition: "background 0.2s ease",
+                transition: "all 0.3s ease",
                 background: isActive ? "#FFD000" : "transparent",
               }}
             >
               {tab.icon(isActive)}
+              {expanded && (
+                <span style={{
+                  fontSize: 9,
+                  fontWeight: 600,
+                  color: isActive ? "#0a0a0a" : "#3a3a3a",
+                  lineHeight: 1,
+                  transition: "opacity 0.3s ease",
+                }}>
+                  {TAB_LABELS[tab.id]}
+                </span>
+              )}
             </div>
           );
         })}
