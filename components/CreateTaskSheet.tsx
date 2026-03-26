@@ -19,6 +19,9 @@ const DEFAULT_TAGS: TaskTag[] = [
   { id: "self", label: "SELF", color: "#00d4ff" },
 ];
 
+const DEFAULT_TYPE_IDS = new Set(DEFAULT_TYPES.map((t) => t.id));
+const DEFAULT_TAG_IDS = new Set(DEFAULT_TAGS.map((t) => t.id));
+
 const COLOR_POOL = [
   "#e8627a", "#fb923c", "#a78bfa", "#00d4ff", "#fbbf24",
   "#34d399", "#f472b6", "#60a5fa", "#c084fc", "#fb7185",
@@ -52,17 +55,19 @@ interface CreateTaskSheetProps {
   onCreateTask: (result: CreateTaskResult) => void;
   customTypes: TaskType[];
   onAddType: (t: TaskType) => void;
+  onDeleteType: (id: string) => void;
   customTags: TaskTag[];
   onAddTag: (t: TaskTag) => void;
+  onDeleteTag: (id: string) => void;
   suggestions: Array<{ name: string; duration?: number; type?: string; source?: string }>;
   onInputChange: (q: string) => void;
 }
 
-export { DEFAULT_TYPES, DEFAULT_TAGS, COLOR_POOL };
+export { DEFAULT_TYPES, DEFAULT_TAGS, DEFAULT_TYPE_IDS, DEFAULT_TAG_IDS, COLOR_POOL };
 
 export default function CreateTaskSheet({
-  open, onClose, onCreateTask, customTypes, onAddType, customTags, onAddTag,
-  suggestions, onInputChange,
+  open, onClose, onCreateTask, customTypes, onAddType, onDeleteType,
+  customTags, onAddTag, onDeleteTag, suggestions, onInputChange,
 }: CreateTaskSheetProps) {
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
@@ -72,6 +77,7 @@ export default function CreateTaskSheet({
   const [duration, setDuration] = useState("");
   const [addPopup, setAddPopup] = useState<"type" | "tag" | null>(null);
   const [newLabel, setNewLabel] = useState("");
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const popupInputRef = useRef<HTMLInputElement>(null);
@@ -85,12 +91,15 @@ export default function CreateTaskSheet({
     if (open) {
       setTimeout(() => inputRef.current?.focus(), 100);
       setName(""); setDesc(""); setSelectedType("task"); setSelectedTags([]);
-      setTime(""); setDuration(""); setAddPopup(null); setNewLabel("");
+      setTime(""); setDuration(""); setAddPopup(null); setNewLabel(""); setConfirmDeleteId(null);
     }
   }, [open]);
 
   useEffect(() => {
-    if (addPopup) setTimeout(() => popupInputRef.current?.focus(), 100);
+    if (addPopup) {
+      setNewLabel(""); setConfirmDeleteId(null);
+      setTimeout(() => popupInputRef.current?.focus(), 100);
+    }
   }, [addPopup]);
 
   const hasSuggestions = suggestions.length > 0 && name.length >= 2;
@@ -154,10 +163,12 @@ export default function CreateTaskSheet({
     const { cleanName } = parseInline(name);
     const taskName = cleanName || name.trim();
     if (!taskName) return;
-    const [h, m] = (time || "00:00").split(":").map(Number);
+    const now = new Date();
+    const fallbackTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+    const [h, m] = (time || fallbackTime).split(":").map(Number);
     onCreateTask({
       name: taskName, type: selectedType, tags: selectedTags, desc: desc.trim(),
-      time: time || `${String(h || 0).padStart(2, "0")}:${String(m || 0).padStart(2, "0")}`,
+      time: time || fallbackTime,
       timeMin: (h || 0) * 60 + (m || 0),
       duration: parseInt(duration) || 60,
     });
@@ -188,8 +199,22 @@ export default function CreateTaskSheet({
       onAddTag({ id, label, color: COLOR_POOL[colorIdx] });
       setSelectedTags((prev) => [...prev, id]);
     }
-    setAddPopup(null);
-    setNewLabel("");
+    setAddPopup(null); setNewLabel("");
+  };
+
+  const handleDeleteInPopup = (id: string) => {
+    if (confirmDeleteId === id) {
+      if (addPopup === "type") {
+        onDeleteType(id);
+        if (selectedType === id) setSelectedType("task");
+      } else {
+        onDeleteTag(id);
+        setSelectedTags((prev) => prev.filter((t) => t !== id));
+      }
+      setConfirmDeleteId(null);
+    } else {
+      setConfirmDeleteId(id);
+    }
   };
 
   const onTouchStart = (e: React.TouchEvent) => { touchStartY.current = e.touches[0].clientY; };
@@ -204,6 +229,9 @@ export default function CreateTaskSheet({
   const previewColor = addPopup === "type"
     ? COLOR_POOL[customTypes.length % COLOR_POOL.length]
     : COLOR_POOL[customTags.length % COLOR_POOL.length];
+  const popupItems = addPopup === "type" ? allTypes : allTags;
+  const defaultIds = addPopup === "type" ? DEFAULT_TYPE_IDS : DEFAULT_TAG_IDS;
+  const isRound = addPopup === "type";
 
   return (
     <>
@@ -217,7 +245,6 @@ export default function CreateTaskSheet({
         padding: "0 0 env(safe-area-inset-bottom, 16px)", animation: "sheetUp 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
         maxHeight: "85vh", overflowY: "auto",
       }}>
-        {/* Drag handle */}
         <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 6px" }}>
           <div style={{ width: 36, height: 4, borderRadius: 2, background: "var(--border2)" }} />
         </div>
@@ -231,7 +258,7 @@ export default function CreateTaskSheet({
               background: "var(--bg)", padding: "14px 16px",
               borderRadius: hasSuggestions ? "14px 14px 0 0" : 14,
               border: `1.5px solid ${selectedTypeObj.color}40`,
-              borderBottom: hasSuggestions ? `0.5px solid var(--border)` : undefined,
+              borderBottom: hasSuggestions ? "0.5px solid var(--border)" : undefined,
             }}>
               <input ref={inputRef} value={name}
                 onChange={(e) => handleNameChange(e.target.value)}
@@ -297,7 +324,7 @@ export default function CreateTaskSheet({
                   }}>{t.label}</div>
                 );
               })}
-              <div className="tap" onClick={() => { setAddPopup("type"); setNewLabel(""); }} style={{
+              <div className="tap" onClick={() => setAddPopup("type")} style={{
                 width: 32, height: 32, borderRadius: 100, display: "flex", alignItems: "center", justifyContent: "center",
                 border: "1px dashed var(--border2)", cursor: "pointer",
               }}>
@@ -324,7 +351,7 @@ export default function CreateTaskSheet({
                   }}>{t.label}</div>
                 );
               })}
-              <div className="tap" onClick={() => { setAddPopup("tag"); setNewLabel(""); }} style={{
+              <div className="tap" onClick={() => setAddPopup("tag")} style={{
                 width: 30, height: 30, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center",
                 border: "1px dashed var(--border2)", cursor: "pointer",
               }}>
@@ -376,11 +403,11 @@ export default function CreateTaskSheet({
       {/* ═══ ADD TYPE / TAG POPUP ═══ */}
       {addPopup && (
         <>
-          <div onClick={() => { setAddPopup(null); setNewLabel(""); }} style={{
+          <div onClick={() => { setAddPopup(null); setNewLabel(""); setConfirmDeleteId(null); }} style={{
             position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 300, animation: "fadeIn 0.15s ease",
           }} />
           <div style={{
-            position: "fixed", bottom: "30%", left: "50%", transform: "translateX(-50%)",
+            position: "fixed", bottom: "25%", left: "50%", transform: "translateX(-50%)",
             width: "calc(100% - 48px)", maxWidth: 380, zIndex: 301,
             background: "var(--card)", borderRadius: 20, border: "1px solid var(--border)",
             padding: "24px 20px", animation: "popIn 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
@@ -389,6 +416,7 @@ export default function CreateTaskSheet({
               Add custom {addPopup}
             </div>
 
+            {/* Input */}
             <div style={{
               background: "var(--bg)", borderRadius: 12,
               border: `1px solid ${addPopup === "type" ? "var(--accent-30)" : "var(--pink-30)"}`,
@@ -402,30 +430,65 @@ export default function CreateTaskSheet({
               />
             </div>
 
-            {newLabel.trim() && (
-              <>
-                <div style={{ fontSize: 10, color: "var(--t5)", fontFamily: MONO, letterSpacing: 1, marginBottom: 10 }}>PREVIEW</div>
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: 20 }}>
-                  {(addPopup === "type" ? allTypes : allTags).map((t) => (
-                    <div key={t.id} style={{
-                      padding: addPopup === "type" ? "7px 16px" : "6px 12px",
-                      borderRadius: addPopup === "type" ? 100 : 8,
-                      fontFamily: MONO, fontSize: 11, fontWeight: 600, letterSpacing: addPopup === "type" ? 1 : 0,
-                      background: "transparent", color: "var(--t5)", border: "1px solid var(--border2)",
-                    }}>{t.label}</div>
-                  ))}
+            {/* Existing items with delete on custom */}
+            <div style={{ fontSize: 10, color: "var(--t5)", fontFamily: MONO, letterSpacing: 1, marginBottom: 10 }}>
+              {newLabel.trim() ? "PREVIEW" : "EXISTING"}
+            </div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: 20 }}>
+              {popupItems.map((t) => {
+                const isCustom = !defaultIds.has(t.id);
+                const isConfirming = confirmDeleteId === t.id;
+                return (
+                  <div key={t.id} style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                    <div style={{
+                      padding: isRound ? "7px 16px" : "6px 12px",
+                      paddingRight: isCustom ? (isRound ? 28 : 24) : undefined,
+                      borderRadius: isRound ? 100 : 8,
+                      fontFamily: MONO, fontSize: 11, fontWeight: isCustom ? 700 : 600,
+                      letterSpacing: isRound ? 1 : 0,
+                      background: isCustom ? `${t.color}22` : "transparent",
+                      color: isCustom ? t.color : "var(--t5)",
+                      border: isCustom ? `1.5px solid ${t.color}55` : "1px solid var(--border2)",
+                      display: "flex", alignItems: "center", gap: 6,
+                    }}>
+                      {t.label}
+                      {isCustom && (
+                        <div className="tap" onClick={(e) => { e.stopPropagation(); handleDeleteInPopup(t.id); }}
+                          style={{
+                            width: 16, height: 16, borderRadius: "50%",
+                            background: isConfirming ? "var(--danger)" : "var(--danger-10)",
+                            display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
+                            transition: "all 0.15s",
+                          }}>
+                          <svg width="8" height="8" viewBox="0 0 24 24" fill="none"
+                            stroke={isConfirming ? "#fff" : "var(--danger)"} strokeWidth="3" strokeLinecap="round">
+                            <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                          </svg>
+                        </div>
+                      )}
+                    </div>
+                    {isConfirming && (
+                      <span style={{ position: "absolute", top: -8, right: -4, fontSize: 8, color: "var(--danger)", fontFamily: MONO, fontWeight: 700, whiteSpace: "nowrap" }}>tap to confirm</span>
+                    )}
+                  </div>
+                );
+              })}
+              {/* Preview new item */}
+              {newLabel.trim() && (
+                <>
                   <div style={{
-                    padding: addPopup === "type" ? "7px 16px" : "6px 12px",
-                    borderRadius: addPopup === "type" ? 100 : 8,
-                    fontFamily: MONO, fontSize: 11, fontWeight: 700, letterSpacing: addPopup === "type" ? 1 : 0,
+                    padding: isRound ? "7px 16px" : "6px 12px",
+                    borderRadius: isRound ? 100 : 8,
+                    fontFamily: MONO, fontSize: 11, fontWeight: 700, letterSpacing: isRound ? 1 : 0,
                     background: `${previewColor}22`, color: previewColor,
                     border: `1.5px solid ${previewColor}55`,
                   }}>{newLabel.trim().toUpperCase()}</div>
                   <span style={{ fontSize: 9, color: "var(--accent)", fontFamily: MONO }}>new</span>
-                </div>
-              </>
-            )}
+                </>
+              )}
+            </div>
 
+            {/* Buttons */}
             <div style={{ display: "flex", gap: 8 }}>
               <div className="tap" onClick={confirmAddPopup} style={{
                 flex: 1, background: newLabel.trim() ? "var(--accent)" : "var(--border2)",
@@ -433,7 +496,7 @@ export default function CreateTaskSheet({
                 color: newLabel.trim() ? "#fff" : "var(--t5)", fontFamily: DISPLAY, cursor: "pointer",
                 transition: "all 0.15s",
               }}>Add {addPopup}</div>
-              <div className="tap" onClick={() => { setAddPopup(null); setNewLabel(""); }} style={{
+              <div className="tap" onClick={() => { setAddPopup(null); setNewLabel(""); setConfirmDeleteId(null); }} style={{
                 width: 44, background: "var(--card2)", borderRadius: 12, border: "1px solid var(--border)",
                 display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
               }}>
