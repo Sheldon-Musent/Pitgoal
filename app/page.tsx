@@ -436,175 +436,113 @@ export default function Home() {
           {/* ── TODAY TAB CONTENT ── */}
           {activeTab === "today" && (
             <>
-              {/* Merged timeline: personal tasks + collab tasks, sorted by time */}
-              {(() => {
-                const collabAsTasks = MOCK_COLLAB_TASKS.map(ct => ({
-                  ...ct, timeMin: parseInt(ct.time.split(":")[0]) * 60 + parseInt(ct.time.split(":")[1] || "0"),
-                  isCollab: true, friendName: ct.friend,
-                }));
-                const allPending: any[] = [...pendingTasks.map(t => ({ ...t, isCollab: false, friendName: "" })), ...collabAsTasks]
-                  .sort((a: any, b: any) => (a.adjustedTimeMin ?? a.timeMin) - (b.adjustedTimeMin ?? b.timeMin));
-                return allPending.map((task, i) => {
-                  if ((task as any).isCollab) {
-                    const ct = task as any;
-                    return (
-                      <div key={ct.id} style={{ marginBottom: 8, animation: `fadeUp 0.3s ease ${i * 0.04}s both` }}>
-                        <div style={{ background: "var(--card)", borderRadius: 20, border: "1px solid var(--border)", borderLeft: "3px solid var(--pink)", padding: "14px 16px" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                            <div style={{ fontSize: 10, color: "var(--accent)", fontFamily: MONO, letterSpacing: 1 }}>{ct.time} — {fmtTime(Math.floor((ct.timeMin + ct.duration) / 60) % 24, (ct.timeMin + ct.duration) % 60)}</div>
-                            <span style={{ fontSize: 8, color: "var(--pink)", background: "var(--pink-dim)", padding: "2px 6px", borderRadius: 4, fontFamily: MONO, fontWeight: 700 }}>COLLAB</span>
-                          </div>
-                          <div style={{ fontSize: 16, color: "var(--t2)", fontWeight: 700, fontFamily: DISPLAY }}>{ct.name}</div>
-                          <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-                            <span style={{ fontSize: 9, color: "var(--t4)", background: "var(--glow)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>w/ {ct.friendName}</span>
-                            <span style={{ fontSize: 9, color: "var(--t4)", background: "var(--glow)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{fmtDur(ct.duration)}</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  }
-                  const accent = accentForType(task.type);
-                  const displayTime = getDisplayTime(task);
-                  const endTime = fmtTime(Math.floor((getDisplayTimeMin(task) + task.duration) / 60) % 24, (getDisplayTimeMin(task) + task.duration) % 60);
-                  const isActive = task.status === "active";
-                  const isExpanded = expandedTask === task.id;
-                  const isFilled = isActive || task.urgent;
-                  const fillBg = isActive ? "var(--warn-fill)" : task.urgent ? "var(--danger-fill)" : "var(--card)";
-                  const fillBorder = isFilled ? "transparent" : "var(--border)";
-                  // Active yellow = dark text, Urgent red = white text
-                  const fillText = isActive ? "var(--warn-fill-text)" : "var(--fill-title)";
-                  const fillSub = isActive ? "rgba(40,40,0,0.6)" : "var(--fill-sub)";
-                  const fillChip = isActive ? "rgba(40,40,0,0.1)" : "rgba(255,255,255,0.12)";
-                  const fillDot = isActive ? "var(--warn-fill-text)" : "#fff";
-                  return (
-                    <div key={task.id} style={{ marginBottom: 8, animation: `fadeUp 0.3s ease ${i * 0.04}s both` }}>
-                      <div style={{ background: fillBg, borderRadius: isExpanded ? "20px 20px 0 0" : 20, border: `1px solid ${fillBorder}`, borderBottom: isExpanded ? "none" : undefined }}>
-                        <div style={{ display: "flex", alignItems: "center" }}>
-                          <div className="tap" onClick={() => setExpandedTask(isExpanded ? null : task.id)} style={{ flex: 1, padding: "14px 0 14px 16px" }}>
-                            {/* Status label for filled cards */}
-                            {isFilled && (
-                              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                                {isActive && <div className="anim-pulse" style={{ width: 8, height: 8, borderRadius: "50%", background: fillDot }} />}
-                                {isActive && <span style={{ fontSize: 8, color: fillSub, fontFamily: MONO, fontWeight: 700, letterSpacing: 1 }}>LIVE</span>}
-                                {task.urgent && !isActive && <span style={{ fontSize: 8, color: fillSub, fontFamily: MONO, fontWeight: 700, letterSpacing: 1 }}>! URGENT</span>}
-                              </div>
-                            )}
-                            <div style={{ fontSize: 10, color: isFilled ? fillSub : accent, fontFamily: MONO, letterSpacing: 1, marginBottom: 4 }}>{displayTime} — {endTime}</div>
-                            <div style={{ fontSize: 16, color: isFilled ? fillText : isActive ? "var(--t1)" : "var(--t2)", fontWeight: 700, fontFamily: DISPLAY }}>{task.name}</div>
-                            <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-                              <span style={{ fontSize: 9, color: isFilled ? fillSub : "var(--t4)", background: isFilled ? fillChip : "var(--glow)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{task.type.toUpperCase()}</span>
-                              <span style={{ fontSize: 9, color: isFilled ? fillSub : "var(--t4)", background: isFilled ? fillChip : "var(--glow)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{fmtDur(task.duration)}</span>
-                              {task.urgent && !isFilled && <span style={{ fontSize: 9, color: "var(--danger)", background: "var(--danger-dim)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>⚡ URGENT</span>}
-                            </div>
-                          </div>
-                          {isActive ? (
-                            <div className="anim-pulse" style={{ width: 10, height: 10, borderRadius: "50%", background: fillDot, margin: "0 18px", boxShadow: `0 0 0 3px ${isActive ? "rgba(40,40,0,0.15)" : "rgba(255,255,255,0.25)"}` }} />
-                          ) : (
-                            <div className="tap" onClick={(e) => { e.stopPropagation(); startTask(task); }} style={{ padding: "14px 16px 14px 10px" }}>
-                              <div style={{ width: 36, height: 36, borderRadius: 12, background: isFilled ? fillChip : "var(--accent-10)", border: `1px solid ${isFilled ? (isActive ? "rgba(40,40,0,0.15)" : "rgba(255,255,255,0.25)") : "var(--accent-20)"}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                <PlayIcon size={16} color={isFilled ? fillText : accent} />
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      {isExpanded && (
-                        <div style={{ background: "var(--card)", borderRadius: "0 0 20px 20px", padding: "12px 14px 14px", border: "1px solid var(--border)", borderTop: "1px dashed var(--border2)" }}>
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                            <div className="tap" onClick={() => markDone(task)} style={{ background: "var(--accent-bg)", borderRadius: 14, padding: "14px 12px", textAlign: "center" }}>
-                              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--accent)", fontFamily: DISPLAY }}>Mark done</div>
-                            </div>
-                            <div className="tap" onClick={() => openEditModal(task)} style={{ background: "var(--rest-bg)", borderRadius: 14, padding: "14px 12px", textAlign: "center" }}>
-                              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--rest)", fontFamily: DISPLAY }}>Edit</div>
-                            </div>
-                            <div className="tap" onClick={() => toggleRest(task)} style={{ background: "var(--card)", borderRadius: 14, padding: "14px 12px", textAlign: "center", border: "1px solid var(--border)" }}>
-                              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--t2)", fontFamily: DISPLAY }}>{task.type === "rest" ? "Set as work" : "Set as rest"}</div>
-                            </div>
-                            <div className="tap" onClick={() => deleteTask(task)} style={{ background: "var(--danger-bg)", borderRadius: 14, padding: "14px 12px", textAlign: "center" }}>
-                              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--danger)", fontFamily: DISPLAY }}>Delete</div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                });
-              })()}
+          {(() => {
+            const collabAsTasks = MOCK_COLLAB_TASKS.map(ct => ({
+              ...ct, timeMin: parseInt(ct.time.split(":")[0]) * 60 + parseInt(ct.time.split(":")[1] || "0"),
+              isCollab: true, friendName: ct.friend,
+            }));
+            const now2 = nowMinutes();
+            const allPending: any[] = [...pendingTasks.map(t => ({ ...t, isCollab: false, friendName: "" })), ...collabAsTasks]
+              .sort((a: any, b: any) => {
+                const aTime = a.adjustedTimeMin ?? a.timeMin;
+                const bTime = b.adjustedTimeMin ?? b.timeMin;
+                const aActive = a.status === "active" ? 0 : 1;
+                const bActive = b.status === "active" ? 0 : 1;
+                if (aActive !== bActive) return aActive - bActive;
+                const aUpcoming = (a.status === "pending" && !a.isCollab && aTime - now2 <= 5 && aTime - now2 > 0) ? 0 : 1;
+                const bUpcoming = (b.status === "pending" && !b.isCollab && bTime - now2 <= 5 && bTime - now2 > 0) ? 0 : 1;
+                if (aUpcoming !== bUpcoming) return aUpcoming - bUpcoming;
+                return aTime - bTime;
+              });
 
-              {/* Done tasks (stacked) */}
-              {doneTasks.length > 0 && (
-                <div style={{ marginTop: 4, marginBottom: 8 }}>
-                  <div className="tap" onClick={() => { setShowCompleted(!showCompleted); setExpandedDone(null); }}>
-                    {!showCompleted && (
-                      <div style={{ position: "relative", height: Math.min(doneTasks.length, 3) * 6 + 48 }}>
-                        {doneTasks.slice(-3).map((t, i, arr) => {
-                          const bg = bgForType(t.type); const accent = accentForType(t.type);
-                          return (
-                            <div key={t.id} style={{ position: i === arr.length - 1 ? "relative" : "absolute", top: (arr.length - 1 - i) * 6, left: 0, right: 0, background: bg, borderRadius: 14, padding: "12px 14px", border: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 10, zIndex: i }}>
-                              <div style={{ fontSize: 10, color: accent, fontFamily: MONO, minWidth: 38, fontWeight: 600 }}>{getDisplayTime(t)}</div>
-                              <div style={{ fontSize: 13, color: "var(--t1)", fontWeight: 700, flex: 1, textDecoration: "line-through", textDecorationColor: "var(--t5)", fontFamily: DISPLAY }}>{t.name}</div>
-                              <div style={{ fontSize: 9, color: accent, fontFamily: MONO, fontWeight: 600 }}>{fmtDur(t.actual_duration || t.duration)}</div>
-                            </div>
-                          );
-                        })}
+            // Split into priority (active + upcoming) and rest
+            const priorityTasks = allPending.filter((t: any) => {
+              const tTime = t.adjustedTimeMin ?? t.timeMin;
+              return t.status === "active" || (t.status === "pending" && !t.isCollab && tTime - now2 <= 5 && tTime - now2 > 0);
+            });
+            const restTasks = allPending.filter(t => !priorityTasks.includes(t));
+
+            const renderTask = (task: any, i: number) => {
+              if ((task as any).isCollab) {
+                const ct = task as any;
+                return (
+                  <div key={ct.id} style={{ marginBottom: 8, animation: `fadeUp 0.3s ease ${i * 0.04}s both` }}>
+                    <div style={{ background: "var(--card)", borderRadius: 20, border: "1px solid var(--border)", borderLeft: "3px solid var(--pink)", padding: "14px 16px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                        <div style={{ fontSize: 10, color: "var(--accent)", fontFamily: MONO, letterSpacing: 1 }}>{ct.time} — {fmtTime(Math.floor((ct.timeMin + ct.duration) / 60) % 24, (ct.timeMin + ct.duration) % 60)}</div>
+                        <span style={{ fontSize: 8, color: "var(--pink)", background: "var(--pink-dim)", padding: "2px 6px", borderRadius: 4, fontFamily: MONO, fontWeight: 700 }}>COLLAB</span>
                       </div>
-                    )}
+                      <div style={{ fontSize: 16, color: "var(--t2)", fontWeight: 700, fontFamily: DISPLAY }}>{ct.name}</div>
+                      <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                        <span style={{ fontSize: 9, color: "var(--t4)", background: "var(--glow)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>w/ {ct.friendName}</span>
+                        <span style={{ fontSize: 9, color: "var(--t4)", background: "var(--glow)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{fmtDur(ct.duration)}</span>
+                      </div>
+                    </div>
                   </div>
-                  {showCompleted && doneTasks.map((t, i) => {
-                    const bg = bgForType(t.type); const accent = accentForType(t.type);
-                    const isDoneExpanded = expandedDone === t.id;
-                    const doneTime = getDisplayTime(t);
-                    const doneEndTime = fmtTime(Math.floor((getDisplayTimeMin(t) + (t.actual_duration || t.duration)) / 60) % 24, (getDisplayTimeMin(t) + (t.actual_duration || t.duration)) % 60);
-                    return (
-                      <div key={t.id} style={{ marginBottom: 4, animation: `fadeUp 0.2s ease ${i * 0.03}s both` }}>
-                        <div className="tap" onClick={() => setExpandedDone(isDoneExpanded ? null : t.id)}
-                          style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", background: bg, borderRadius: isDoneExpanded ? "14px 14px 0 0" : 14, border: "1px solid var(--border)", borderBottom: isDoneExpanded ? "none" : undefined, cursor: "pointer" }}>
-                          <div style={{ width: 20, height: 20, borderRadius: 6, background: "var(--done)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                            <span style={{ fontSize: 11, color: "#050505", fontWeight: 700 }}>✓</span>
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 13, color: "var(--t3)", fontWeight: 700, textDecoration: "line-through", textDecorationColor: "var(--t5)", fontFamily: DISPLAY, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.name}</div>
-                            <div style={{ fontSize: 9, color: "var(--t5)", fontFamily: MONO, marginTop: 2 }}>{doneTime} — {doneEndTime}</div>
-                          </div>
-                          <div style={{ fontSize: 9, color: accent, fontFamily: MONO, fontWeight: 600, flexShrink: 0 }}>{fmtDur(t.actual_duration || t.duration)}</div>
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--t5)" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0, transform: isDoneExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}><polyline points="6 9 12 15 18 9" /></svg>
-                        </div>
-                        {isDoneExpanded && (
-                          <div style={{ background: bg, borderRadius: "0 0 14px 14px", padding: "10px 14px 12px", border: "1px solid var(--border)", borderTop: "1px dashed var(--border2)" }}>
-                            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
-                              <span style={{ fontSize: 9, color: "var(--t4)", background: "var(--glow)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{t.type.toUpperCase()}</span>
-                              <span style={{ fontSize: 9, color: "var(--t4)", background: "var(--glow)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>PLANNED {fmtDur(t.planned_duration || t.duration)}</span>
-                              {t.actual_duration && t.actual_duration !== t.duration && (
-                                <span style={{ fontSize: 9, color: accent, background: "var(--glow)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>ACTUAL {fmtDur(t.actual_duration)}</span>
-                              )}
-                              {t.urgent && <span style={{ fontSize: 9, color: "var(--danger)", background: "var(--danger-dim)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>⚡ URGENT</span>}
-                            </div>
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                              <div className="tap" onClick={(e) => { e.stopPropagation(); markUndone(t); setExpandedDone(null); }} style={{ background: "var(--card)", borderRadius: 12, padding: "12px 10px", textAlign: "center", border: "1px solid var(--border)" }}>
-                                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--warn)", fontFamily: DISPLAY }}>Undo</div>
-                              </div>
-                              <div className="tap" onClick={(e) => { e.stopPropagation(); deleteTask(t); setExpandedDone(null); }} style={{ background: "var(--danger-bg)", borderRadius: 12, padding: "12px 10px", textAlign: "center" }}>
-                                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--danger)", fontFamily: DISPLAY }}>Delete</div>
-                              </div>
-                            </div>
+                );
+              }
+              const accent = accentForType(task.type);
+              const displayTime = getDisplayTime(task);
+              const endTime = fmtTime(Math.floor((getDisplayTimeMin(task) + task.duration) / 60) % 24, (getDisplayTimeMin(task) + task.duration) % 60);
+              const isActive = task.status === "active";
+              const isExpanded = expandedTask === task.id;
+              const isFilled = isActive || task.urgent;
+              const fillBg = isActive ? "var(--warn-fill)" : task.urgent ? "var(--danger-fill)" : "var(--card)";
+              const fillBorder = isFilled ? "transparent" : "var(--border)";
+              const fillText = isActive ? "var(--warn-fill-text)" : "var(--fill-title)";
+              const fillSub = isActive ? "rgba(40,40,0,0.6)" : "var(--fill-sub)";
+              const fillChip = isActive ? "rgba(40,40,0,0.1)" : "rgba(255,255,255,0.12)";
+              const fillDot = isActive ? "var(--warn-fill-text)" : "#fff";
+              const tTime = task.adjustedTimeMin ?? task.timeMin;
+              const isUpcomingSoon = task.status === "pending" && tTime - now2 <= 5 && tTime - now2 > 0;
+              return (
+                <div key={task.id} style={{ marginBottom: 8, animation: `fadeUp 0.3s ease ${i * 0.04}s both` }}>
+                  <div style={{ background: fillBg, borderRadius: isExpanded ? "20px 20px 0 0" : 20, border: `1px solid ${fillBorder}`, borderBottom: isExpanded ? "none" : undefined }}>
+                    <div style={{ display: "flex", alignItems: "center" }}>
+                      <div className="tap" onClick={() => setExpandedTask(isExpanded ? null : task.id)} style={{ flex: 1, padding: "14px 0 14px 16px" }}>
+                        {isFilled && (
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                            {isActive && <div className="anim-pulse" style={{ width: 8, height: 8, borderRadius: "50%", background: fillDot }} />}
+                            {isActive && <span style={{ fontSize: 8, color: fillSub, fontFamily: MONO, fontWeight: 700, letterSpacing: 1 }}>LIVE</span>}
+                            {task.urgent && !isActive && <span style={{ fontSize: 8, color: fillSub, fontFamily: MONO, fontWeight: 700, letterSpacing: 1 }}>! URGENT</span>}
                           </div>
                         )}
+                        {isUpcomingSoon && !isFilled && (
+                          <div style={{ marginBottom: 6 }}>
+                            <span style={{ fontSize: 8, color: "var(--accent)", background: "var(--accent-10)", padding: "2px 6px", borderRadius: 4, fontFamily: MONO, fontWeight: 700, letterSpacing: 1 }}>IN {Math.max(1, Math.round(tTime - now2))} MIN</span>
+                          </div>
+                        )}
+                        <div style={{ fontSize: 10, color: isFilled ? fillSub : accent, fontFamily: MONO, letterSpacing: 1, marginBottom: 4 }}>{displayTime} — {endTime}</div>
+                        <div style={{ fontSize: 16, color: isFilled ? fillText : isActive ? "var(--t1)" : "var(--t2)", fontWeight: 700, fontFamily: DISPLAY }}>{task.name}</div>
+                        <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                          <span style={{ fontSize: 9, color: isFilled ? fillSub : "var(--t4)", background: isFilled ? fillChip : "var(--glow)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{task.type.toUpperCase()}</span>
+                          <span style={{ fontSize: 9, color: isFilled ? fillSub : "var(--t4)", background: isFilled ? fillChip : "var(--glow)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>{fmtDur(task.duration)}</span>
+                          {task.urgent && !isFilled && <span style={{ fontSize: 9, color: "var(--danger)", background: "var(--danger-dim)", padding: "3px 8px", borderRadius: 6, fontFamily: MONO, fontWeight: 600 }}>URGENT</span>}
+                        </div>
                       </div>
-                    );
-                  })}
+                      {isActive ? (
+                        <div className="anim-pulse" style={{ width: 10, height: 10, borderRadius: "50%", background: fillDot, margin: "0 18px", boxShadow: `0 0 0 3px ${isActive ? "rgba(40,40,0,0.15)" : "rgba(255,255,255,0.25)"}` }} />
+                      ) : (
+                        <div className="tap" onClick={() => startTask(task)} style={{ margin: "0 12px", padding: 8 }}><PlayIcon size={16} /></div>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              )}
+              );
+            };
 
-              {/* Create task bar — BELOW tasks */}
-              <div style={{ marginTop: 12, marginBottom: 24 }}>
-                <div style={{ background: "var(--card)", borderRadius: 16, padding: "12px 14px", border: "1px dashed var(--border)", display: "flex", alignItems: "center", gap: 8 }}>
-                  <div className="tap" onClick={() => setCmdCategory(c => c === "task" ? "rest" : c === "rest" ? "life" : "task")}
-                    style={{ background: cmdCategory === "task" ? "var(--accent-20)" : cmdCategory === "rest" ? "var(--rest-20)" : "var(--warn-20)", border: `1px solid ${cmdCategory === "task" ? "var(--accent)" : cmdCategory === "rest" ? "var(--rest)" : "var(--warn)"}`, borderRadius: 8, padding: "5px 10px", fontSize: 9, fontWeight: 700, fontFamily: MONO, color: cmdCategory === "task" ? "var(--accent)" : cmdCategory === "rest" ? "var(--rest)" : "var(--warn)", cursor: "pointer", flexShrink: 0, letterSpacing: 1 }}>{cmdCategory.toUpperCase()}</div>
-                  <input value={cmdInput} onChange={e => { setCmdInput(e.target.value); fetchSuggestions(e.target.value); }} onKeyDown={e => e.key === "Enter" && addTask()} placeholder="add task... 7pm 1.5h"
-                    style={{ flex: 1, background: "none", border: "none", color: "var(--t2)", fontSize: 13, fontFamily: BODY, outline: "none" }} />
-                  {cmdInput && <div className="tap" onClick={addTask} style={{ background: "var(--accent)", borderRadius: 8, padding: "6px 14px", fontSize: 11, color: "#fff", fontWeight: 700, fontFamily: MONO }}>GO</div>}
-                </div>
-              </div>
+            return (
+              <>
+                {priorityTasks.map((t, i) => renderTask(t, i))}
+                <FriendStack friends={[
+                  { id: "f1", name: "Amir", initial: "A", activity: "studying C", state: "working" },
+                  { id: "f2", name: "Siti", initial: "S", activity: "doing exercises", state: "working" },
+                  { id: "f3", name: "Mei Ling", initial: "M", activity: "resting", state: "resting" },
+                ]} />
+                {restTasks.map((t, i) => renderTask(t, priorityTasks.length + i))}
+              </>
+            );
+          })()}
 
               {/* Friend status cards — stacked */}
               <FriendStack friends={[
