@@ -321,7 +321,7 @@ export default function CreateTaskSheet({
               {allTypes.map((t) => {
                 const sel = selectedType === t.id;
                 return (
-                  <div key={t.id} className="tap" onClick={() => setSelectedType(t.id)} style={{
+                  <div key={t.id} className="tap pill-no-select" onClick={() => setSelectedType(t.id)} style={{
                     padding: "7px 16px", borderRadius: 100, fontFamily: MONO, fontSize: 11, fontWeight: 700,
                     letterSpacing: 1, cursor: "pointer", transition: "all 0.15s",
                     background: sel ? `${t.color}22` : "transparent",
@@ -348,7 +348,7 @@ export default function CreateTaskSheet({
               {allTags.map((t) => {
                 const sel = selectedTags.includes(t.id);
                 return (
-                  <div key={t.id} className="tap" onClick={() => toggleTag(t.id)} style={{
+                  <div key={t.id} className="tap pill-no-select" onClick={() => toggleTag(t.id)} style={{
                     padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600, fontFamily: MONO,
                     cursor: "pointer", transition: "all 0.15s",
                     background: sel ? `${t.color}22` : "transparent",

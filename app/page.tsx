@@ -48,7 +48,7 @@ export default function Home() {
   // ── UI state ──
   const [bottomTab, setBottomTab] = useState<BottomTab>("main");
   const [activeTab, setActiveTab] = useState("today");
-  const [theme, setTheme] = useState<Theme>("dark");
+
   const [loaded, setLoaded] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
@@ -77,6 +77,7 @@ export default function Home() {
   const [customTagDefs, setCustomTagDefs] = useState<TaskTag[]>([]);
   const [showDone, setShowDone] = useState(false);
   const [showSkipped, setShowSkipped] = useState(false);
+  const [statPopup, setStatPopup] = useState<"done" | "tracked" | "energy" | null>(null);
   const [filterMode, setFilterMode] = useState<string>("all");
   const [deleteMode, setDeleteMode] = useState(false);
   const longPressTimer = useRef<any>(null);
@@ -106,21 +107,6 @@ export default function Home() {
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  // ── Theme persistence ──
-  useEffect(() => {
-    const saved = localStorage.getItem("pitgoal-theme");
-    if (saved === "light" || saved === "dark") {
-      setTheme(saved);
-      document.documentElement.setAttribute("data-theme", saved);
-    }
-  }, []);
-
-  const toggleTheme = () => {
-    const next = theme === "dark" ? "light" : "dark";
-    setTheme(next);
-    localStorage.setItem("pitgoal-theme", next);
-    document.documentElement.setAttribute("data-theme", next);
-  };
 
   // ── Nav expanded state (fix #6) ──
   const [navExpanded, setNavExpanded] = useState(false);
@@ -163,7 +149,6 @@ export default function Home() {
         if (settingsRaw) {
           const parsed = JSON.parse(settingsRaw);
           setDrainRates({ ...DEFAULT_RATES, ...parsed });
-          if (parsed.theme) setTheme(parsed.theme);
         }
       } catch {}
 
@@ -220,10 +205,10 @@ export default function Home() {
   }, [persist, userId]);
   const savePlan = useCallback((tpls: Template[], hist: Record<string, DayHistory>, str: number) => { try { localStorage.setItem(PLAN_KEY, JSON.stringify({ templates: tpls, history: hist, streak: str })); } catch {} }, []);
   const saveDrainRates = useCallback((rates: DrainRates) => {
-    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...rates, theme })); } catch {}
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...rates, theme: "dark" })); } catch {}
     setDrainRates(rates);
     if (userId) saveProfile(userId, { drain_idle: rates.idle, drain_work: rates.work, drain_urgent: rates.urgent, drain_rest: rates.rest, wake_hour: rates.wakeHour, wake_minute: rates.wakeMinute, sleep_hour: rates.sleepHour, sleep_minute: rates.sleepMinute, max_energy_h: rates.maxEnergyHours });
-  }, [userId, theme]);
+  }, [userId]);
 
   // ═══ TICK + ENERGY ═══
   useEffect(() => { const id = setInterval(() => setTick(t => t + 1), 1000); return () => clearInterval(id); }, []);
@@ -552,34 +537,24 @@ const getTypeLabel = (typeId: string): string => {
 
   // ═══ RENDER ═══
   return (
-    <div data-theme={theme} style={{ background: "var(--bg-gradient, var(--bg))", minHeight: "100vh", fontFamily: BODY, color: "var(--t2)", maxWidth: 430, margin: "0 auto", position: "relative", paddingBottom: hasActivePopup ? 200 : 110, paddingTop: "env(safe-area-inset-top, 0px)" }}>
+    <div data-theme="dark" style={{ background: "var(--bg-gradient, var(--bg))", minHeight: "100vh", fontFamily: BODY, color: "var(--t2)", maxWidth: 430, margin: "0 auto", position: "relative", paddingBottom: hasActivePopup ? 200 : 110, paddingTop: "env(safe-area-inset-top, 0px)" }}>
 
       {/* ── MAIN TAB ── */}
       {bottomTab === "main" && (
         <div style={{ padding: "24px 24px 0" }}>
 
-          {/* ═══ Theme toggle ═══ */}
-          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
-            <div className="tap" onClick={toggleTheme} style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--card)", border: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-              {theme === "dark" ? (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" strokeWidth="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-              ) : (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" strokeWidth="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
-              )}
-            </div>
-          </div>
 
           {/* ═══ SECTION A: 3 Stat Cards ═══ */}
           <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
-            <div style={{ flex: 1, background: "var(--card)", borderRadius: 16, padding: "16px 12px", border: "1px solid var(--border)", textAlign: "center" }}>
+            <div className="tap" onClick={() => setStatPopup("done")} style={{ flex: 1, background: "var(--card)", borderRadius: 16, padding: "16px 12px", border: "1px solid var(--border)", textAlign: "center", cursor: "pointer" }}>
               <div style={{ fontSize: 30, fontWeight: 700, color: "var(--t1)", letterSpacing: -1, lineHeight: 1 }}>{tasksDoneCount + restsDoneCount}</div>
               <div style={{ fontSize: 9, color: "var(--t5)", fontFamily: MONO, letterSpacing: 2, fontWeight: 600, marginTop: 6 }}>DONE</div>
             </div>
-            <div style={{ flex: 1, background: "var(--card)", borderRadius: 16, padding: "16px 12px", border: "1px solid var(--border)", textAlign: "center" }}>
+            <div className="tap" onClick={() => setStatPopup("tracked")} style={{ flex: 1, background: "var(--card)", borderRadius: 16, padding: "16px 12px", border: "1px solid var(--border)", textAlign: "center", cursor: "pointer" }}>
               <div style={{ fontSize: 30, fontWeight: 700, color: "var(--accent)", letterSpacing: -1, lineHeight: 1 }}>{(totalTracked / 60).toFixed(1)}</div>
               <div style={{ fontSize: 9, color: "var(--t5)", fontFamily: MONO, letterSpacing: 2, fontWeight: 600, marginTop: 6 }}>TRACKED</div>
             </div>
-            <div className="tap" onClick={() => setPowerExpanded(!powerExpanded)} style={{ flex: 1, background: "var(--card)", borderRadius: 16, padding: "16px 12px", border: "1px solid var(--border)", textAlign: "center", cursor: "pointer" }}>
+            <div className="tap" onClick={() => setStatPopup("energy")} style={{ flex: 1, background: "var(--card)", borderRadius: 16, padding: "16px 12px", border: "1px solid var(--border)", textAlign: "center", cursor: "pointer" }}>
               <div style={{ fontSize: 30, fontWeight: 700, color: ePct > 30 ? "var(--t1)" : ePct > 10 ? "var(--warn)" : "var(--danger)", letterSpacing: -1, lineHeight: 1 }}>{ePct}%</div>
               <div style={{ fontSize: 9, color: "var(--t5)", fontFamily: MONO, letterSpacing: 2, fontWeight: 600, marginTop: 6 }}>ENERGY</div>
             </div>
@@ -652,10 +627,10 @@ const getTypeLabel = (typeId: string): string => {
           <div
             className="no-scrollbar"
             onClick={() => { if (deleteMode) setDeleteMode(false); }}
-            style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "nowrap", marginBottom: 20, overflowX: "auto" }}
+            style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "nowrap", marginBottom: 20, overflowX: "auto", WebkitUserSelect: "none", userSelect: "none" }}
           >
             {/* ALL button */}
-            <div className="tap" onClick={() => { setFilterMode("all"); setActiveTab("today"); }} style={{
+            <div className="tap pill-no-select" onClick={() => { setFilterMode("all"); setActiveTab("today"); }} style={{
               padding: filterMode === "all" ? "8px 20px" : "8px 18px", borderRadius: 50, fontFamily: MONO, fontSize: 11,
               fontWeight: filterMode === "all" ? 700 : 500, letterSpacing: 1, cursor: "pointer", flexShrink: 0,
               background: filterMode === "all" ? "#FFD000" : "var(--card)",
@@ -669,20 +644,28 @@ const getTypeLabel = (typeId: string): string => {
               const isCustom = !DEFAULT_TYPE_IDS.has(t.id);
               return (
                 <div key={`type-${t.id}`} style={{ position: "relative", flexShrink: 0 }}>
-                  <div className="tap"
+                  <div className="tap pill-no-select"
                     onClick={(e) => {
                       e.stopPropagation();
                       setFilterMode(isActive ? "all" : `type:${t.id}`);
                       setActiveTab("today");
                     }}
-                    onTouchStart={() => {
-                      if (isCustom) longPressTimer.current = setTimeout(() => openPillEditor("type", t.id, t.label, t.color), 600);
+                    onTouchStart={(e) => {
+                      if (isCustom) {
+                        e.preventDefault();
+                        const timer = setTimeout(() => {
+                          openPillEditor("type", t.id, t.label, t.color);
+                        }, 500);
+                        (e.currentTarget as any)._lpTimer = timer;
+                      }
                     }}
-                    onTouchEnd={() => { if (longPressTimer.current) clearTimeout(longPressTimer.current); }}
+                    onTouchEnd={(e) => { if (isCustom) clearTimeout((e.currentTarget as any)._lpTimer); }}
+                    onTouchMove={(e) => { if (isCustom) clearTimeout((e.currentTarget as any)._lpTimer); }}
                     onMouseDown={() => {
-                      if (isCustom) longPressTimer.current = setTimeout(() => openPillEditor("type", t.id, t.label, t.color), 600);
+                      if (isCustom) longPressTimer.current = setTimeout(() => openPillEditor("type", t.id, t.label, t.color), 500);
                     }}
                     onMouseUp={() => { if (longPressTimer.current) clearTimeout(longPressTimer.current); }}
+                    onContextMenu={(e) => { if (isCustom) e.preventDefault(); }}
                     style={{
                       padding: isActive ? "8px 20px" : "8px 18px", borderRadius: 50, fontFamily: MONO, fontSize: 11,
                       fontWeight: isActive ? 700 : 500, cursor: "pointer", transition: "all 0.15s", flexShrink: 0,
@@ -701,20 +684,28 @@ const getTypeLabel = (typeId: string): string => {
               const isCustom = !DEFAULT_TAG_IDS.has(t.id);
               return (
                 <div key={`tag-${t.id}`} style={{ position: "relative", flexShrink: 0 }}>
-                  <div className="tap"
+                  <div className="tap pill-no-select"
                     onClick={(e) => {
                       e.stopPropagation();
                       setFilterMode(isActive ? "all" : `tag:${t.id}`);
                       setActiveTab("today");
                     }}
-                    onTouchStart={() => {
-                      if (isCustom) longPressTimer.current = setTimeout(() => openPillEditor("tag", t.id, t.label, t.color), 600);
+                    onTouchStart={(e) => {
+                      if (isCustom) {
+                        e.preventDefault();
+                        const timer = setTimeout(() => {
+                          openPillEditor("tag", t.id, t.label, t.color);
+                        }, 500);
+                        (e.currentTarget as any)._lpTimer = timer;
+                      }
                     }}
-                    onTouchEnd={() => { if (longPressTimer.current) clearTimeout(longPressTimer.current); }}
+                    onTouchEnd={(e) => { if (isCustom) clearTimeout((e.currentTarget as any)._lpTimer); }}
+                    onTouchMove={(e) => { if (isCustom) clearTimeout((e.currentTarget as any)._lpTimer); }}
                     onMouseDown={() => {
-                      if (isCustom) longPressTimer.current = setTimeout(() => openPillEditor("tag", t.id, t.label, t.color), 600);
+                      if (isCustom) longPressTimer.current = setTimeout(() => openPillEditor("tag", t.id, t.label, t.color), 500);
                     }}
                     onMouseUp={() => { if (longPressTimer.current) clearTimeout(longPressTimer.current); }}
+                    onContextMenu={(e) => { if (isCustom) e.preventDefault(); }}
                     style={{
                       padding: isActive ? "8px 20px" : "8px 18px", borderRadius: 50, fontFamily: MONO, fontSize: 11,
                       fontWeight: isActive ? 700 : 500, cursor: "pointer", transition: "all 0.15s", flexShrink: 0,
@@ -1033,7 +1024,7 @@ const getTypeLabel = (typeId: string): string => {
       {bottomTab === "friends" && <FriendsTab onNavigate={handleFriendsNav} />}
       {bottomTab === "profile" && (
         <ProfileTab
-          userId={userId} theme={theme} setTheme={setTheme}
+          userId={userId} theme={"dark" as Theme} setTheme={() => {}}
           tasksDoneCount={tasksDoneCount} streak={streak} ePct={ePct}
           drainRates={drainRates} saveDrainRates={saveDrainRates}
           notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled}
@@ -1155,6 +1146,268 @@ const getTypeLabel = (typeId: string): string => {
         onSkipOverdue={() => overdueTask && skipPendingTask(overdueTask)}
         onStartUpcoming={() => upcoming && startTask(upcoming)}
       />
+      {/* ── STAT POPUPS ── */}
+      {statPopup && (() => {
+        const pS = {
+          sectionTitle: { fontSize: 10, letterSpacing: 1, color: "var(--t4)", fontFamily: MONO, marginBottom: 8, marginTop: 4 } as React.CSSProperties,
+          divider: { height: 1, background: "var(--border)", margin: "14px 0" } as React.CSSProperties,
+          row: { display: "flex" as const, justifyContent: "space-between" as const, alignItems: "center" as const, padding: "6px 0" } as React.CSSProperties,
+          rowLabel: { fontSize: 12, color: "var(--t3)" } as React.CSSProperties,
+          rowVal: { fontSize: 13, color: "var(--t2)", fontWeight: 600, fontFamily: MONO } as React.CSSProperties,
+        };
+
+        const doneCount = tasksDoneCount + restsDoneCount;
+        const totalTaskCount = tasks.length;
+        const completionPct = totalTaskCount > 0 ? Math.round((doneCount / totalTaskCount) * 100) : 0;
+        const pendingCount = pendingTasks.length;
+
+        // Week streak data
+        const weekDayInits = ["M", "T", "W", "T", "F", "S", "S"];
+        const todayDow = new Date().getDay();
+        const mondayOffset = todayDow === 0 ? 6 : todayDow - 1;
+        const weekStart = new Date(); weekStart.setDate(weekStart.getDate() - mondayOffset); weekStart.setHours(0,0,0,0);
+        const weekDays = Array.from({ length: 7 }, (_, i) => {
+          const d = new Date(weekStart); d.setDate(d.getDate() + i);
+          const dk = dateKey(d);
+          const isToday = isSameDay(d, new Date());
+          const isFuture = d > new Date();
+          const hadActivity = isToday ? doneCount > 0 : !!(history[dk]?.done && history[dk].done > 0);
+          return { init: weekDayInits[i], isToday, isFuture, hadActivity };
+        });
+
+        // Streak calculation from history
+        const calcStreak = () => {
+          let s = doneCount > 0 ? 1 : 0;
+          if (s === 0) return 0;
+          const check = new Date(); check.setHours(0,0,0,0);
+          for (let i = 1; i < 365; i++) {
+            check.setDate(check.getDate() - 1);
+            const dk = dateKey(check);
+            if (history[dk]?.done && history[dk].done > 0) s++;
+            else break;
+          }
+          return s;
+        };
+        const currentStreak = calcStreak();
+
+        // Monthly done count
+        const now = new Date();
+        const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+        let monthDone = doneCount; // today
+        Object.entries(history).forEach(([k, v]) => { if (k.startsWith(monthKey)) monthDone += v.done; });
+
+        // Best streak from history
+        // TODO: implement proper best streak tracking with historical data
+        const bestStreak = Math.max(currentStreak, streak);
+
+        // Tracked by type
+        const allTypesList2 = [...DEFAULT_TYPES, ...customTypes];
+        const allTagsList2 = [...DEFAULT_TAGS, ...customTagDefs];
+        const typeTimeMap: Record<string, number> = {};
+        const tagTimeMap: Record<string, number> = {};
+
+        doneTasks.forEach(t => {
+          const dur = t.actual_duration ?? t.duration;
+          const typeId = t.customType || (t.type === "work" ? "task" : t.type === "rest" ? "rest" : "task");
+          typeTimeMap[typeId] = (typeTimeMap[typeId] || 0) + dur;
+          if (t.tags) t.tags.forEach(tag => { tagTimeMap[tag] = (tagTimeMap[tag] || 0) + dur; });
+        });
+        // Also include active task elapsed
+        if (activeTask) {
+          const aDur = Math.floor((Date.now() - activeTask.startedAt) / 60000);
+          const aTypeId = (activeTask as any).customType || (activeTask.type === "work" ? "task" : activeTask.type === "rest" ? "rest" : "task");
+          typeTimeMap[aTypeId] = (typeTimeMap[aTypeId] || 0) + aDur;
+          if (activeTask.tags) activeTask.tags.forEach(tag => { tagTimeMap[tag] = (tagTimeMap[tag] || 0) + aDur; });
+        }
+
+        const maxTypeTime = Math.max(1, ...Object.values(typeTimeMap));
+        const maxTagTime = Math.max(1, ...Object.values(tagTimeMap));
+
+        const typeColor = (id: string) => {
+          if (id === "task") return "var(--accent)";
+          if (id === "rest") return "var(--rest)";
+          if (id === "life") return "#a78bfa";
+          const ct = allTypesList2.find(x => x.id === id);
+          return ct?.color || "var(--t4)";
+        };
+
+        // Weekly/monthly tracked hours
+        let weekTrackedMin = totalTracked;
+        let monthTrackedMin = totalTracked;
+        Object.entries(history).forEach(([k, v]) => {
+          const d = new Date(k);
+          if (k.startsWith(monthKey)) monthTrackedMin += v.totalMin;
+          const diffDays = Math.floor((now.getTime() - d.getTime()) / 86400000);
+          if (diffDays >= 0 && diffDays < 7) weekTrackedMin += v.totalMin;
+        });
+        const daysThisMonth = now.getDate();
+        const dailyAvgMin = daysThisMonth > 0 ? monthTrackedMin / daysThisMonth : 0;
+
+        // Energy ring value
+        const energyVal = ePct;
+
+        // Energy drain/restore explanation (from actual drain rate system)
+        // Energy system: drain = idleMins * idle_rate + workMins * work_rate + urgentMins * urgent_rate
+        // Recharge = restMins * rest_rate
+        // Rates: idle=0.5, work=1.0, urgent=1.5, rest=0.3 (per minute, in energy-minutes)
+        // Energy is NOT event-based (no "+X per task"), it's continuous drain/recharge over time
+        const restoredToday = Math.round((totalRecharge / eTotal) * 100);
+
+        return (
+          <div
+            onClick={() => setStatPopup(null)}
+            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 200, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 60, overflowY: "auto" }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 16, padding: 20, width: 320, maxWidth: "90vw", position: "relative", marginBottom: 40, animation: "popupIn 0.2s ease" }}
+            >
+              {/* Close button */}
+              <div onClick={() => setStatPopup(null)} style={{ position: "absolute", top: 12, right: 12, width: 28, height: 28, borderRadius: "50%", background: "var(--badge-bg, #222)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                <span style={{ fontSize: 14, color: "var(--t4)", lineHeight: 1 }}>✕</span>
+              </div>
+
+              {/* ═══ DONE POPUP ═══ */}
+              {statPopup === "done" && (
+                <div>
+                  <div style={{ fontSize: 11, letterSpacing: 2, color: "var(--t4)", fontFamily: MONO, marginBottom: 12 }}>COMPLETED TODAY</div>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                    <span style={{ fontSize: 36, fontWeight: 700, color: "var(--t1)", fontFamily: MONO }}>{doneCount}</span>
+                    <span style={{ fontSize: 13, color: "var(--t4)" }}>/ {totalTaskCount} tasks</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--t5)", fontFamily: MONO, marginTop: 2 }}>{completionPct}% completion rate</div>
+
+                  <div style={pS.divider} />
+
+                  <div style={pS.sectionTitle}>TODAY&apos;S DONE</div>
+                  {doneTasks.length === 0 ? (
+                    <div style={{ fontSize: 12, color: "var(--t5)", padding: "8px 0" }}>No tasks completed yet</div>
+                  ) : (
+                    doneTasks.map(t => (
+                      <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 0", borderBottom: "1px solid var(--border)" }}>
+                        <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--accent)", flexShrink: 0 }} />
+                        <div style={{ fontSize: 12, color: "var(--t2)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.name}</div>
+                        <div style={{ fontSize: 10, color: "var(--t5)", fontFamily: MONO, flexShrink: 0 }}>{fmtDur(t.actual_duration ?? t.duration)}</div>
+                      </div>
+                    ))
+                  )}
+                  {pendingCount > 0 && (
+                    <div style={{ opacity: 0.3, fontSize: 11, color: "var(--t5)", padding: "7px 0" }}>{pendingCount} remaining...</div>
+                  )}
+
+                  <div style={pS.divider} />
+
+                  <div style={pS.sectionTitle}>THIS WEEK</div>
+                  <div style={{ display: "flex", gap: 3 }}>
+                    {weekDays.map((d, i) => (
+                      <div key={i} style={{
+                        width: 24, height: 24, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: 8, fontFamily: MONO, fontWeight: 600,
+                        background: d.hadActivity ? (d.isToday ? "rgba(255,208,0,0.3)" : "rgba(255,208,0,0.15)") : "var(--badge-bg, #1e1e1e)",
+                        color: d.hadActivity ? "var(--accent)" : "var(--t5)",
+                        border: d.isToday && d.hadActivity ? "1px solid rgba(255,208,0,0.4)" : "none",
+                      }}>{d.init}</div>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: 10, color: "var(--t5)", fontFamily: MONO, marginTop: 6 }}>{currentStreak} day streak</div>
+
+                  <div style={pS.divider} />
+
+                  <div style={pS.row}><span style={pS.rowLabel}>Best streak</span><span style={pS.rowVal}>{bestStreak > 0 ? `${bestStreak} days` : "\u2014"}</span></div>
+                  <div style={pS.row}><span style={pS.rowLabel}>This month</span><span style={pS.rowVal}>{monthDone} done</span></div>
+                </div>
+              )}
+
+              {/* ═══ TRACKED POPUP ═══ */}
+              {statPopup === "tracked" && (
+                <div>
+                  <div style={{ fontSize: 11, letterSpacing: 2, color: "var(--t4)", fontFamily: MONO, marginBottom: 12 }}>TIME TRACKED</div>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                    <span style={{ fontSize: 36, fontWeight: 700, color: "var(--accent)", fontFamily: MONO }}>{(totalTracked / 60).toFixed(1)}</span>
+                    <span style={{ fontSize: 13, color: "var(--t4)" }}>hrs today</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--t5)", fontFamily: MONO, marginTop: 2 }}>{totalTracked} min of focused work</div>
+
+                  <div style={pS.divider} />
+
+                  <div style={pS.sectionTitle}>BY TYPE</div>
+                  {allTypesList2.filter(t => (typeTimeMap[t.id] || 0) > 0).map(t => (
+                    <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                      <span style={{ fontSize: 11, color: "var(--t4)", width: 48, flexShrink: 0, fontFamily: MONO }}>{t.label}</span>
+                      <div style={{ flex: 1, height: 4, background: "var(--border)", borderRadius: 2, overflow: "hidden" }}>
+                        <div style={{ height: "100%", borderRadius: 2, width: `${((typeTimeMap[t.id] || 0) / maxTypeTime) * 100}%`, background: typeColor(t.id) }} />
+                      </div>
+                      <span style={{ fontSize: 11, color: "var(--t3)", fontFamily: MONO, width: 36, textAlign: "right", flexShrink: 0 }}>{fmtDur(typeTimeMap[t.id] || 0)}</span>
+                    </div>
+                  ))}
+                  {Object.keys(typeTimeMap).length === 0 && (
+                    <div style={{ fontSize: 12, color: "var(--t5)", padding: "4px 0" }}>No tracked time yet</div>
+                  )}
+
+                  <div style={pS.divider} />
+
+                  <div style={pS.sectionTitle}>BY TAG</div>
+                  {allTagsList2.filter(t => (tagTimeMap[t.id] || 0) > 0).map(t => (
+                    <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                      <span style={{ fontSize: 11, color: t.color, width: 48, flexShrink: 0, fontFamily: MONO }}>{t.label}</span>
+                      <div style={{ flex: 1, height: 4, background: "var(--border)", borderRadius: 2, overflow: "hidden" }}>
+                        <div style={{ height: "100%", borderRadius: 2, width: `${((tagTimeMap[t.id] || 0) / maxTagTime) * 100}%`, background: t.color }} />
+                      </div>
+                      <span style={{ fontSize: 11, color: "var(--t3)", fontFamily: MONO, width: 36, textAlign: "right", flexShrink: 0 }}>{fmtDur(tagTimeMap[t.id] || 0)}</span>
+                    </div>
+                  ))}
+                  {Object.keys(tagTimeMap).length === 0 && (
+                    <div style={{ fontSize: 12, color: "var(--t5)", padding: "4px 0" }}>No tagged time yet</div>
+                  )}
+
+                  <div style={pS.divider} />
+
+                  <div style={pS.row}><span style={pS.rowLabel}>This week</span><span style={{ ...pS.rowVal, color: "var(--accent)" }}>{(weekTrackedMin / 60).toFixed(1)} hrs</span></div>
+                  <div style={pS.row}><span style={pS.rowLabel}>This month</span><span style={{ ...pS.rowVal, color: "var(--accent)" }}>{(monthTrackedMin / 60).toFixed(1)} hrs</span></div>
+                  <div style={pS.row}><span style={pS.rowLabel}>Daily avg</span><span style={pS.rowVal}>{(dailyAvgMin / 60).toFixed(1)} hrs</span></div>
+                </div>
+              )}
+
+              {/* ═══ ENERGY POPUP ═══ */}
+              {statPopup === "energy" && (
+                <div>
+                  <div style={{ fontSize: 11, letterSpacing: 2, color: "var(--t4)", fontFamily: MONO, marginBottom: 12 }}>ENERGY LEVEL</div>
+
+                  <div style={{ display: "flex", justifyContent: "center", margin: "8px 0 4px" }}>
+                    <svg width={90} height={90} viewBox="0 0 90 90">
+                      <circle cx={45} cy={45} r={38} fill="none" stroke="var(--border)" strokeWidth={5} />
+                      <circle cx={45} cy={45} r={38} fill="none" stroke="var(--accent)" strokeWidth={5}
+                        strokeDasharray={2 * Math.PI * 38} strokeDashoffset={2 * Math.PI * 38 * (1 - energyVal / 100)}
+                        strokeLinecap="round" transform="rotate(-90 45 45)" />
+                      <text x={45} y={42} textAnchor="middle" fill="var(--t1)" fontSize={22} fontWeight={700} fontFamily="monospace">{energyVal}</text>
+                      <text x={45} y={56} textAnchor="middle" fill="var(--t5)" fontSize={9} fontFamily="monospace" letterSpacing={1}>PERCENT</text>
+                    </svg>
+                  </div>
+
+                  <div style={pS.divider} />
+
+                  <div style={pS.sectionTitle}>WHAT DRAINS ENERGY</div>
+                  <div style={pS.row}><span style={pS.rowLabel}>Idle time</span><span style={{ ...pS.rowVal, color: "var(--t4)" }}>{drainRates.idle}/min</span></div>
+                  <div style={pS.row}><span style={pS.rowLabel}>Working</span><span style={{ ...pS.rowVal, color: "var(--warn)" }}>{drainRates.work}/min</span></div>
+                  <div style={pS.row}><span style={pS.rowLabel}>Urgent tasks</span><span style={{ ...pS.rowVal, color: "var(--danger)" }}>{drainRates.urgent}/min</span></div>
+
+                  <div style={pS.divider} />
+
+                  <div style={pS.sectionTitle}>WHAT RESTORES</div>
+                  <div style={pS.row}><span style={pS.rowLabel}>Rest tasks</span><span style={{ ...pS.rowVal, color: "var(--rest)" }}>+{drainRates.rest}/min</span></div>
+                  <div style={pS.row}><span style={pS.rowLabel}>New day</span><span style={{ ...pS.rowVal, color: "var(--t4)" }}>Full reset</span></div>
+
+                  <div style={pS.divider} />
+
+                  <div style={pS.row}><span style={pS.rowLabel}>Today&apos;s skips</span><span style={{ ...pS.rowVal, color: skippedCount > 0 ? "var(--danger)" : "var(--t5)" }}>{skippedCount}</span></div>
+                  <div style={pS.row}><span style={pS.rowLabel}>Restored today</span><span style={{ ...pS.rowVal, color: "#2ECDA7" }}>+{restoredToday}%</span></div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
       <BottomNav active={bottomTab} onChange={handleTabChange} onAdd={() => setShowCreateSheet(true)} expanded={navExpanded} onExpand={expandNav} />
     </div>
   );
