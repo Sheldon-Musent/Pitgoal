@@ -299,6 +299,7 @@ const handleSheetCreate = (result: CreateTaskResult) => {
     actual_duration: undefined as any,
     customType: result.type,
     tags: result.tags,
+    desc: result.desc,
   };
   const n = [...tasks, task];
   setTasks(n);
