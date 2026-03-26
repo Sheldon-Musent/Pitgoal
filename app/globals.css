@@ -1,123 +1,116 @@
-/* ═══ PITGOAL v10.0 — Functional Color System ═══ */
+/* ═══ PITGOAL v13.0 — Functional Color System ═══ */
 /* Color = status. Everything else is grayscale.     */
-/* Inspired by Any Distance: black canvas, color     */
-/* only appears when it means something.             */
+/* Premium, minimal, Apple-quality spacing.          */
 
 @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
 
 /* ── Dark theme (default) ── */
 :root,
 [data-theme="dark"] {
-  /* Canvas — true black + gray cards */
-  --bg:       #050505;
-  --card:     #111111;
+  /* Canvas */
+  --bg:       #0a0a0a;
+  --card:     #161616;
   --card2:    #1A1A1A;
-  --border:   #1C1C1E;
-  --border2:  #2C2C2E;
+  --border:   #1e1e1e;
+  --border2:  #2a2a2a;
 
-  /* Accent — teal green (primary action: buttons, tabs, progress) */
-  --accent:      #2ECDA7;
-  --accent-bg:   #0A2620;
-  --accent-dim:  rgba(46,205,167,0.06);
-  --accent-10:   rgba(46,205,167,0.10);
-  --accent-20:   rgba(46,205,167,0.15);
-  --accent-30:   rgba(46,205,167,0.22);
-  --accent-50:   rgba(46,205,167,0.35);
+  /* Accent — golden yellow */
+  --accent:      #FFD000;
+  --accent-bg:   #1a1800;
+  --accent-dim:  rgba(255,208,0,0.06);
+  --accent-10:   rgba(255,208,0,0.08);
+  --accent-20:   rgba(255,208,0,0.15);
+  --accent-30:   rgba(255,208,0,0.2);
+  --accent-50:   rgba(255,208,0,0.35);
 
-  /* Done — same teal as accent (checkmarks, completion) */
-  --done:        #2ECDA7;
-  --done-bg:     #0A2620;
+  /* Done — same as accent */
+  --done:        #FFD000;
+  --done-bg:     #1a1800;
 
-  /* Active / Live — bright yellow (currently running task) */
-  --warn:        #FFB340;
+  /* Active / Live — same accent (yellow) for active tasks */
+  --warn:        #fb923c;
   --warn-bg:     #2A1A08;
-  --warn-dim:    rgba(255,179,64,0.06);
-  --warn-10:     rgba(255,179,64,0.10);
-  --warn-20:     rgba(255,179,64,0.15);
-  --warn-fill:   #FFE106;
-  --warn-fill-text: #1A1A00;
+  --warn-dim:    rgba(251,146,60,0.06);
+  --warn-10:     rgba(251,146,60,0.10);
+  --warn-20:     rgba(251,146,60,0.15);
+  --warn-fill:   #FFD000;
+  --warn-fill-text: #0a0a0a;
 
-  /* Urgent / Overdue — red (stop, attention needed) */
-  --danger:      #FF453A;
+  /* Urgent / Overdue — red */
+  --danger:      #E24B4A;
   --danger-bg:   #2E1010;
-  --danger-dim:  rgba(255,69,58,0.06);
-  --danger-10:   rgba(255,69,58,0.10);
-  --danger-20:   rgba(255,69,58,0.15);
-  --danger-fill: #CC2D24;
+  --danger-dim:  rgba(226,75,74,0.1);
+  --danger-10:   rgba(226,75,74,0.10);
+  --danger-20:   rgba(226,75,74,0.15);
+  --danger-fill: #E24B4A;
 
-  /* Social / Collab — pink (friends, shared tasks) */
-  --pink:        #E8627A;
+  /* Social / Collab — pink */
+  --pink:        #f472b6;
   --pink-bg:     #2D1020;
-  --pink-dim:    rgba(232,98,122,0.06);
-  --pink-10:     rgba(232,98,122,0.10);
-  --pink-20:     rgba(232,98,122,0.15);
-  --pink-30:     rgba(232,98,122,0.22);
+  --pink-dim:    rgba(244,114,182,0.1);
+  --pink-10:     rgba(244,114,182,0.10);
+  --pink-20:     rgba(244,114,182,0.15);
+  --pink-30:     rgba(244,114,182,0.22);
 
-  /* Rest / Recovery — blue-purple (wind down, passive) */
-  --rest:        #7B8CDE;
+  /* Rest / Recovery — muted green */
+  --rest:        #6b8a7a;
   --rest-bg:     #161932;
-  --rest-dim:    rgba(123,140,222,0.06);
-  --rest-10:     rgba(123,140,222,0.10);
-  --rest-20:     rgba(123,140,222,0.15);
+  --rest-dim:    rgba(107,138,122,0.06);
+  --rest-10:     rgba(107,138,122,0.10);
+  --rest-20:     rgba(107,138,122,0.15);
 
-  /* Full-fill card text (white on colored background) */
-  --fill-title:  #FFFFFF;
-  --fill-sub:    rgba(255,255,255,0.85);
-  --fill-muted:  rgba(255,255,255,0.55);
+  /* Full-fill card text (on yellow background) */
+  --fill-title:  #0a0a0a;
+  --fill-sub:    rgba(0,0,0,0.4);
+  --fill-muted:  rgba(0,0,0,0.25);
 
-  /* Text hierarchy — iOS-style grays */
-  --t1: #FFFFFF;
-  --t2: #D1D1D6;
-  --t3: #8E8E93;
-  --t4: #636366;
-  --t5: #48484A;
-  --t6: #3A3A3C;
+  /* Text hierarchy — grayscale */
+  --t1: #ffffff;
+  --t2: #bbbbbb;
+  --t3: #888888;
+  --t4: #555555;
+  --t5: #3a3a3a;
+  --t6: #2a2a2a;
 
   /* Utility */
-  --glow:   rgba(46,205,167,0.04);
-  --nav-bg: rgba(5,5,5,0.97);
+  --glow:   #222222;
+  --nav-bg: rgba(10,10,10,0.97);
 }
 
 /* ── Light theme ── */
 [data-theme="light"] {
-  /* Canvas — white + light gray cards */
   --bg:       #FFFFFF;
   --card:     #F2F2F7;
   --card2:    #E5E5EA;
   --border:   #D1D1D6;
   --border2:  #E5E5EA;
 
-  /* Accent — deeper teal for contrast on white */
-  --accent:      #0FA87E;
-  --accent-bg:   #E6F7F1;
-  --accent-dim:  rgba(15,168,126,0.05);
-  --accent-10:   rgba(15,168,126,0.10);
-  --accent-20:   rgba(15,168,126,0.16);
-  --accent-30:   rgba(15,168,126,0.22);
-  --accent-50:   rgba(15,168,126,0.35);
+  --accent:      #D4AA00;
+  --accent-bg:   #FFF9E0;
+  --accent-dim:  rgba(212,170,0,0.05);
+  --accent-10:   rgba(212,170,0,0.10);
+  --accent-20:   rgba(212,170,0,0.16);
+  --accent-30:   rgba(212,170,0,0.22);
+  --accent-50:   rgba(212,170,0,0.35);
 
-  /* Done */
-  --done:        #0FA87E;
-  --done-bg:     #E6F7F1;
+  --done:        #D4AA00;
+  --done-bg:     #FFF9E0;
 
-  /* Active / Live — bright yellow for light bg too */
   --warn:        #E08A00;
   --warn-bg:     #FFF8EE;
   --warn-dim:    rgba(224,138,0,0.05);
   --warn-10:     rgba(224,138,0,0.10);
   --warn-20:     rgba(224,138,0,0.16);
-  --warn-fill:   #FFE106;
+  --warn-fill:   #D4AA00;
   --warn-fill-text: #1A1A00;
 
-  /* Urgent / Overdue */
-  --danger:      #FF3B30;
+  --danger:      #E24B4A;
   --danger-bg:   #FFF0EF;
-  --danger-dim:  rgba(255,59,48,0.05);
-  --danger-10:   rgba(255,59,48,0.10);
-  --danger-20:   rgba(255,59,48,0.16);
+  --danger-dim:  rgba(226,75,74,0.05);
+  --danger-10:   rgba(226,75,74,0.10);
+  --danger-20:   rgba(226,75,74,0.16);
   --danger-fill: #D92D24;
 
-  /* Social / Collab */
   --pink:        #FF2D55;
   --pink-bg:     #FFE5EC;
   --pink-dim:    rgba(255,45,85,0.05);
@@ -125,19 +118,16 @@
   --pink-20:     rgba(255,45,85,0.16);
   --pink-30:     rgba(255,45,85,0.22);
 
-  /* Rest / Recovery */
   --rest:        #5856D6;
   --rest-bg:     #EEEDFE;
   --rest-dim:    rgba(88,86,214,0.05);
   --rest-10:     rgba(88,86,214,0.10);
   --rest-20:     rgba(88,86,214,0.16);
 
-  /* Full-fill card text (same white on color) */
-  --fill-title:  #FFFFFF;
-  --fill-sub:    rgba(255,255,255,0.85);
-  --fill-muted:  rgba(255,255,255,0.55);
+  --fill-title:  #0a0a0a;
+  --fill-sub:    rgba(0,0,0,0.4);
+  --fill-muted:  rgba(0,0,0,0.25);
 
-  /* Text hierarchy */
   --t1: #000000;
   --t2: #3A3A3C;
   --t3: #636366;
@@ -145,7 +135,6 @@
   --t5: #AEAEB2;
   --t6: #C7C7CC;
 
-  /* Utility */
   --glow:   rgba(15,168,126,0.03);
   --nav-bg: rgba(255,255,255,0.97);
 }
@@ -161,17 +150,24 @@ input:focus { outline: none; }
 body {
   margin: 0;
   padding: 0;
-  background: var(--bg);
+  background: linear-gradient(180deg, #0a0a0a 0%, #111111 50%, #0d0d0d 100%);
   color: var(--t1);
   transition: background 0.3s ease, color 0.3s ease;
+}
+
+[data-theme="light"] body {
+  background: #FFFFFF;
 }
 
 /* ── Scrollbar hiding ── */
 .no-scroll::-webkit-scrollbar { display: none; }
 .no-scroll { -ms-overflow-style: none; scrollbar-width: none; }
 
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
 /* ── Tap feedback ── */
-.tap:active { opacity: 0.7; transform: scale(0.98); }
+.tap:active { opacity: 0.65; transform: scale(0.97); }
 
 /* ── Animations ── */
 @keyframes fadeUp {
@@ -180,7 +176,7 @@ body {
 }
 @keyframes pulse {
   0%, 100% { opacity: 1; }
-  50%      { opacity: 0.4; }
+  50%      { opacity: 0.3; }
 }
 @keyframes shimmer {
   0%   { background-position: -200% 0; }
@@ -188,10 +184,9 @@ body {
 }
 
 .anim-fade { animation: fadeUp 0.25s ease both; }
-.anim-pulse { animation: pulse 2s infinite; }
+.anim-pulse { animation: pulse 1.5s infinite; }
 
 /* ── Full-fill card utility class ── */
-/* Apply to active/urgent task cards for the bold look */
 .card-fill-active {
   background: var(--warn-fill) !important;
   border-color: transparent !important;
