@@ -60,35 +60,8 @@ export const EVENTS: Record<string, string> = {
 export const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 export const MONTHS_SHORT = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
 
-// ── Mock friends ──
-export const MOCK_FRIENDS: Friend[] = [
-  { id: "f1", name: "Amir",     status: "Studying C pointers",     statusType: "work", lastActive: "2m ago", streak: 12, pet: "healthy" },
-  { id: "f2", name: "Mei Ling", status: "Rest — coffee break",     statusType: "rest", lastActive: "now",    streak: 7,  pet: "healthy" },
-  { id: "f3", name: "Raj",      status: "Offline",                  statusType: "idle", lastActive: "3h ago", streak: 0,  pet: "hungry" },
-  { id: "f4", name: "Siti",     status: "TryHackMe SOC path",      statusType: "work", lastActive: "15m ago",streak: 23, pet: "healthy" },
-];
-
-export const MOCK_CHATS: Record<string, ChatMessage[]> = {
-  f1: [
-    { from: "them", text: "bro how far are u with the C stuff", time: "14:20" },
-    { from: "me",   text: "still on pointers lol",              time: "14:22" },
-    { from: "them", text: "same 😂 lets grind tmrw",            time: "14:23" },
-  ],
-  f2: [
-    { from: "them", text: "just finished my Security+ chapter 3",  time: "10:15" },
-    { from: "me",   text: "nice how long did it take",             time: "10:18" },
-    { from: "them", text: "about 2h, the networking part is tough", time: "10:20" },
-  ],
-};
-
-export const MOCK_COLLAB_TASKS: CollabTask[] = [
-  { id: "collab1", name: "Complete TryHackMe room together", friend: "Siti", friendId: "f4", status: "pending", time: "15:00", duration: 90, type: "work" },
-  { id: "collab2", name: "Review each other's C code",       friend: "Amir", friendId: "f1", status: "pending", time: "19:00", duration: 60, type: "work" },
-];
-
-export const FRIEND_ACTIVITY: FriendActivity[] = [
-  { friendId: "f4", name: "Siti",     action: "completed", task: "TryHackMe SOC Level 1 — Room 12", time: "12 min ago", type: "work" },
-  { friendId: "f2", name: "Mei Ling", action: "started",   task: "Security+ Ch.4 study",             time: "28 min ago", type: "work" },
-  { friendId: "f1", name: "Amir",     action: "completed", task: "C pointers exercise set 3",        time: "1h ago",     type: "work" },
-  { friendId: "f2", name: "Mei Ling", action: "resting",   task: "Coffee break",                     time: "now",        type: "rest" },
-];
+// ── Friends data (empty — populated at runtime) ──
+export const MOCK_FRIENDS: Friend[] = [];
+export const MOCK_CHATS: Record<string, ChatMessage[]> = {};
+export const MOCK_COLLAB_TASKS: CollabTask[] = [];
+export const FRIEND_ACTIVITY: FriendActivity[] = [];

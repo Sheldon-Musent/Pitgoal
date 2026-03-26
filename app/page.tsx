@@ -77,7 +77,8 @@ export default function Home() {
   const [customTagDefs, setCustomTagDefs] = useState<TaskTag[]>([]);
   const [showDone, setShowDone] = useState(false);
   const [showSkipped, setShowSkipped] = useState(false);
-  const [statPopup, setStatPopup] = useState<"done" | "tracked" | "energy" | null>(null);
+  const [statPopup, setStatPopup] = useState<number | null>(null);
+  // 0 = done, 1 = tracked, 2 = energy, null = closed
   const [filterMode, setFilterMode] = useState<string>("all");
   const [deleteMode, setDeleteMode] = useState(false);
   const longPressTimer = useRef<any>(null);
@@ -116,6 +117,9 @@ export default function Home() {
   const dateStripInitialScroll = useRef(false);
 
   const powerTapTimer = useRef<any>(null);
+  const swipeStartX = useRef<number | null>(null);
+  const swipeCurrentX = useRef<number>(0);
+  const swipeDelta = useRef<number>(0);
   const monthScrollRef = useRef<HTMLDivElement>(null);
   const suggestTimer = useRef<any>(null);
   const today = useMemo(() => new Date(), []);
@@ -546,15 +550,15 @@ const getTypeLabel = (typeId: string): string => {
 
           {/* ═══ SECTION A: 3 Stat Cards ═══ */}
           <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
-            <div className="tap" onClick={() => setStatPopup("done")} style={{ flex: 1, background: "var(--card)", borderRadius: 16, padding: "16px 12px", border: "1px solid var(--border)", textAlign: "center", cursor: "pointer" }}>
+            <div className="tap" onClick={() => setStatPopup(0)} style={{ flex: 1, background: "var(--card)", borderRadius: 16, padding: "16px 12px", border: "1px solid var(--border)", textAlign: "center", cursor: "pointer" }}>
               <div style={{ fontSize: 30, fontWeight: 700, color: "var(--t1)", letterSpacing: -1, lineHeight: 1 }}>{tasksDoneCount + restsDoneCount}</div>
               <div style={{ fontSize: 9, color: "var(--t5)", fontFamily: MONO, letterSpacing: 2, fontWeight: 600, marginTop: 6 }}>DONE</div>
             </div>
-            <div className="tap" onClick={() => setStatPopup("tracked")} style={{ flex: 1, background: "var(--card)", borderRadius: 16, padding: "16px 12px", border: "1px solid var(--border)", textAlign: "center", cursor: "pointer" }}>
+            <div className="tap" onClick={() => setStatPopup(1)} style={{ flex: 1, background: "var(--card)", borderRadius: 16, padding: "16px 12px", border: "1px solid var(--border)", textAlign: "center", cursor: "pointer" }}>
               <div style={{ fontSize: 30, fontWeight: 700, color: "var(--accent)", letterSpacing: -1, lineHeight: 1 }}>{(totalTracked / 60).toFixed(1)}</div>
               <div style={{ fontSize: 9, color: "var(--t5)", fontFamily: MONO, letterSpacing: 2, fontWeight: 600, marginTop: 6 }}>TRACKED</div>
             </div>
-            <div className="tap" onClick={() => setStatPopup("energy")} style={{ flex: 1, background: "var(--card)", borderRadius: 16, padding: "16px 12px", border: "1px solid var(--border)", textAlign: "center", cursor: "pointer" }}>
+            <div className="tap" onClick={() => setStatPopup(2)} style={{ flex: 1, background: "var(--card)", borderRadius: 16, padding: "16px 12px", border: "1px solid var(--border)", textAlign: "center", cursor: "pointer" }}>
               <div style={{ fontSize: 30, fontWeight: 700, color: ePct > 30 ? "var(--t1)" : ePct > 10 ? "var(--warn)" : "var(--danger)", letterSpacing: -1, lineHeight: 1 }}>{ePct}%</div>
               <div style={{ fontSize: 9, color: "var(--t5)", fontFamily: MONO, letterSpacing: 2, fontWeight: 600, marginTop: 6 }}>ENERGY</div>
             </div>
@@ -1147,13 +1151,16 @@ const getTypeLabel = (typeId: string): string => {
         onStartUpcoming={() => upcoming && startTask(upcoming)}
       />
       {/* ── STAT POPUPS ── */}
-      {statPopup && (() => {
+      {statPopup !== null && (() => {
         const pS = {
-          sectionTitle: { fontSize: 10, letterSpacing: 1, color: "var(--t4)", fontFamily: MONO, marginBottom: 8, marginTop: 4 } as React.CSSProperties,
-          divider: { height: 1, background: "var(--border)", margin: "14px 0" } as React.CSSProperties,
-          row: { display: "flex" as const, justifyContent: "space-between" as const, alignItems: "center" as const, padding: "6px 0" } as React.CSSProperties,
-          rowLabel: { fontSize: 12, color: "var(--t3)" } as React.CSSProperties,
-          rowVal: { fontSize: 13, color: "var(--t2)", fontWeight: 600, fontFamily: MONO } as React.CSSProperties,
+          heroLabel: { fontSize: 11, color: "var(--t5, #3a3a3a)", letterSpacing: 3, fontFamily: MONO, marginBottom: 16 } as React.CSSProperties,
+          heroNum: { fontSize: 72, fontWeight: 700, lineHeight: 1, letterSpacing: -3, fontFamily: MONO } as React.CSSProperties,
+          heroSub: { fontSize: 13, color: "var(--t4, #555)", marginTop: 4, fontFamily: MONO } as React.CSSProperties,
+          sep: { height: 1, background: "var(--border, #1e1e1e)", margin: "20px 0" } as React.CSSProperties,
+          secTitle: { fontSize: 10, color: "var(--t4, #444)", letterSpacing: 2, fontFamily: MONO, marginBottom: 14 } as React.CSSProperties,
+          row: { display: "flex" as const, justifyContent: "space-between" as const, alignItems: "center" as const, padding: "8px 0" } as React.CSSProperties,
+          rowLabel: { fontSize: 13, color: "var(--t3, #666)" } as React.CSSProperties,
+          rowVal: { fontSize: 14, fontWeight: 700, fontFamily: MONO } as React.CSSProperties,
         };
 
         const doneCount = tasksDoneCount + restsDoneCount;
@@ -1164,10 +1171,11 @@ const getTypeLabel = (typeId: string): string => {
         // Week streak data
         const weekDayInits = ["M", "T", "W", "T", "F", "S", "S"];
         const todayDow = new Date().getDay();
-        const mondayOffset = todayDow === 0 ? 6 : todayDow - 1;
-        const weekStart = new Date(); weekStart.setDate(weekStart.getDate() - mondayOffset); weekStart.setHours(0,0,0,0);
+        const mondayOff = todayDow === 0 ? 6 : todayDow - 1;
+        const weekStartDate = new Date(); weekStartDate.setDate(weekStartDate.getDate() - mondayOff); weekStartDate.setHours(0,0,0,0);
+        const todayIndex = mondayOff; // 0=Mon
         const weekDays = Array.from({ length: 7 }, (_, i) => {
-          const d = new Date(weekStart); d.setDate(d.getDate() + i);
+          const d = new Date(weekStartDate); d.setDate(d.getDate() + i);
           const dk = dateKey(d);
           const isToday = isSameDay(d, new Date());
           const isFuture = d > new Date();
@@ -1193,11 +1201,10 @@ const getTypeLabel = (typeId: string): string => {
         // Monthly done count
         const now = new Date();
         const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-        let monthDone = doneCount; // today
+        let monthDone = doneCount;
         Object.entries(history).forEach(([k, v]) => { if (k.startsWith(monthKey)) monthDone += v.done; });
 
         // Best streak from history
-        // TODO: implement proper best streak tracking with historical data
         const bestStreak = Math.max(currentStreak, streak);
 
         // Tracked by type
@@ -1212,7 +1219,6 @@ const getTypeLabel = (typeId: string): string => {
           typeTimeMap[typeId] = (typeTimeMap[typeId] || 0) + dur;
           if (t.tags) t.tags.forEach(tag => { tagTimeMap[tag] = (tagTimeMap[tag] || 0) + dur; });
         });
-        // Also include active task elapsed
         if (activeTask) {
           const aDur = Math.floor((Date.now() - activeTask.startedAt) / 60000);
           const aTypeId = (activeTask as any).customType || (activeTask.type === "work" ? "task" : activeTask.type === "rest" ? "rest" : "task");
@@ -1243,166 +1249,332 @@ const getTypeLabel = (typeId: string): string => {
         const daysThisMonth = now.getDate();
         const dailyAvgMin = daysThisMonth > 0 ? monthTrackedMin / daysThisMonth : 0;
 
-        // Energy ring value
+        // Energy
         const energyVal = ePct;
-
-        // Energy drain/restore explanation (from actual drain rate system)
-        // Energy system: drain = idleMins * idle_rate + workMins * work_rate + urgentMins * urgent_rate
-        // Recharge = restMins * rest_rate
-        // Rates: idle=0.5, work=1.0, urgent=1.5, rest=0.3 (per minute, in energy-minutes)
-        // Energy is NOT event-based (no "+X per task"), it's continuous drain/recharge over time
         const restoredToday = Math.round((totalRecharge / eTotal) * 100);
+
+        // Energy ring segments
+        const C = 2 * Math.PI * 90;
+        const totalLost = 100 - energyVal;
+        const urgentDrain = Math.min(totalLost, Math.round((totalUrgentMins * drainRates.urgent / eTotal) * 100));
+        const workDrainPct = Math.min(totalLost - urgentDrain, Math.round((totalWorkMins * drainRates.work / eTotal) * 100));
+        const idleDrainPct = Math.max(0, totalLost - urgentDrain - workDrainPct);
+
+        const idleArc = (idleDrainPct / 100) * C;
+        const workArc = (workDrainPct / 100) * C;
+        const urgentArc = (urgentDrain / 100) * C;
+        const healthArc = (energyVal / 100) * C;
+        const idleOffset = 0;
+        const workOffset = -(idleArc);
+        const urgentOffset = -(idleArc + workArc);
+        const healthOffset = -(idleArc + workArc + urgentArc);
+
+        // ── Render functions ──
+
+        const renderDonePopup = () => (
+          <>
+            <div style={pS.heroLabel}>COMPLETED</div>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
+              <span style={{ ...pS.heroNum, color: "var(--t1, #fff)" }}>{doneCount}</span>
+              <span style={{ fontSize: 18, color: "var(--t5, #333)", fontWeight: 500 }}>/ {totalTaskCount}</span>
+            </div>
+            <div style={pS.heroSub}>{completionPct}% completion rate</div>
+
+            <div style={pS.sep} />
+
+            <div style={pS.secTitle}>TODAY</div>
+            {doneTasks.length === 0 ? (
+              <div style={{ fontSize: 12, color: "var(--t5, #3a3a3a)", padding: "8px 0" }}>No tasks completed yet</div>
+            ) : (
+              doneTasks.slice(0, 5).map((task, i) => (
+                <div key={task.id} style={{
+                  display: "flex", alignItems: "center", gap: 10, padding: "8px 0",
+                  borderBottom: i < Math.min(doneTasks.length, 5) - 1 ? "1px solid var(--border, #111)" : "none",
+                }}>
+                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--accent)", flexShrink: 0 }} />
+                  <span style={{ fontSize: 12, color: "var(--t2, #aaa)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{task.name}</span>
+                  <span style={{ fontSize: 10, color: "var(--t5, #3a3a3a)", fontFamily: MONO, flexShrink: 0 }}>{fmtDur(task.actual_duration ?? task.duration)}</span>
+                </div>
+              ))
+            )}
+            {doneTasks.length > 5 && (
+              <div style={{ fontSize: 11, color: "var(--t5)", padding: "4px 0" }}>+{doneTasks.length - 5} more</div>
+            )}
+            {pendingCount > 0 && (
+              <div style={{ opacity: 0.3, fontSize: 11, color: "var(--t5)", padding: "7px 0" }}>{pendingCount} remaining...</div>
+            )}
+
+            <div style={pS.sep} />
+
+            <div style={pS.secTitle}>STREAK</div>
+            <div style={{ display: "flex", gap: 4 }}>
+              {weekDays.map((d, i) => (
+                <div key={i} style={{
+                  width: 28, height: 28, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 9, fontFamily: MONO, fontWeight: 600,
+                  background: d.hadActivity ? (d.isToday ? "rgba(255,208,0,0.25)" : "rgba(255,208,0,0.12)") : "var(--badge-bg, #111)",
+                  color: d.hadActivity ? "var(--accent)" : "var(--t5, #2a2a2a)",
+                  border: d.isToday && d.hadActivity ? "1px solid rgba(255,208,0,0.35)" : "1px solid transparent",
+                }}>{d.init}</div>
+              ))}
+            </div>
+            <div style={{ fontSize: 11, color: "var(--t5, #333)", marginTop: 8, fontFamily: MONO }}>{currentStreak} day streak</div>
+
+            <div style={{ flex: 1 }} />
+
+            <div style={pS.sep} />
+            <div style={pS.row}>
+              <span style={pS.rowLabel}>Best streak</span>
+              <span style={{ ...pS.rowVal, color: "var(--accent)" }}>{bestStreak > 0 ? `${bestStreak} days` : "\u2014"}</span>
+            </div>
+            <div style={pS.row}>
+              <span style={pS.rowLabel}>This month</span>
+              <span style={{ ...pS.rowVal, color: "var(--t3, #888)" }}>{monthDone} done</span>
+            </div>
+          </>
+        );
+
+        const renderTrackedPopup = () => (
+          <>
+            <div style={pS.heroLabel}>TRACKED</div>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+              <span style={{ ...pS.heroNum, color: "var(--accent)" }}>{(totalTracked / 60).toFixed(1)}</span>
+              <span style={{ fontSize: 16, color: "var(--t5, #333)", fontWeight: 500 }}>hrs</span>
+            </div>
+            <div style={pS.heroSub}>{totalTracked} min focused today</div>
+
+            <div style={pS.sep} />
+
+            <div style={pS.secTitle}>BY TYPE</div>
+            {allTypesList2.filter(t => (typeTimeMap[t.id] || 0) > 0).length === 0 ? (
+              <div style={{ fontSize: 12, color: "var(--t5)", padding: "8px 0" }}>No tracked time yet</div>
+            ) : (
+              allTypesList2.filter(t => (typeTimeMap[t.id] || 0) > 0).map(t => (
+                <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                  <span style={{ fontSize: 12, width: 50, flexShrink: 0, fontWeight: 600, color: typeColor(t.id) }}>{t.label}</span>
+                  <div style={{ flex: 1, height: 6, background: "var(--border, #1e1e1e)", borderRadius: 3 }}>
+                    <div style={{ height: "100%", borderRadius: 3, background: typeColor(t.id), width: `${((typeTimeMap[t.id] || 0) / maxTypeTime) * 100}%` }} />
+                  </div>
+                  <span style={{ fontSize: 12, color: "var(--t3, #666)", fontFamily: MONO, width: 40, textAlign: "right", flexShrink: 0 }}>{fmtDur(typeTimeMap[t.id] || 0)}</span>
+                </div>
+              ))
+            )}
+
+            <div style={pS.sep} />
+
+            <div style={pS.secTitle}>BY TAG</div>
+            {allTagsList2.filter(t => (tagTimeMap[t.id] || 0) > 0).length === 0 ? (
+              <div style={{ fontSize: 12, color: "var(--t5)", padding: "8px 0" }}>No tagged time yet</div>
+            ) : (
+              allTagsList2.filter(t => (tagTimeMap[t.id] || 0) > 0).map(t => (
+                <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                  <span style={{ fontSize: 12, width: 50, flexShrink: 0, fontWeight: 600, color: t.color }}>{t.label}</span>
+                  <div style={{ flex: 1, height: 6, background: "var(--border, #1e1e1e)", borderRadius: 3 }}>
+                    <div style={{ height: "100%", borderRadius: 3, background: t.color, width: `${((tagTimeMap[t.id] || 0) / maxTagTime) * 100}%` }} />
+                  </div>
+                  <span style={{ fontSize: 12, color: "var(--t3, #666)", fontFamily: MONO, width: 40, textAlign: "right", flexShrink: 0 }}>{fmtDur(tagTimeMap[t.id] || 0)}</span>
+                </div>
+              ))
+            )}
+
+            <div style={{ flex: 1 }} />
+
+            <div style={pS.sep} />
+            <div style={pS.row}>
+              <span style={pS.rowLabel}>This week</span>
+              <span style={{ ...pS.rowVal, color: "var(--accent)" }}>{(weekTrackedMin / 60).toFixed(1)} hrs</span>
+            </div>
+            <div style={pS.row}>
+              <span style={pS.rowLabel}>This month</span>
+              <span style={{ ...pS.rowVal, color: "var(--accent)" }}>{(monthTrackedMin / 60).toFixed(1)} hrs</span>
+            </div>
+            <div style={pS.row}>
+              <span style={pS.rowLabel}>Daily avg</span>
+              <span style={{ ...pS.rowVal, color: "var(--t3, #888)" }}>{(dailyAvgMin / 60).toFixed(1)} hrs</span>
+            </div>
+          </>
+        );
+
+        const renderEnergyPopup = () => (
+          <>
+            <div style={pS.heroLabel}>ENERGY</div>
+
+            <div style={{ textAlign: "center", margin: "0 0 8px" }}>
+              <svg width={220} height={220} viewBox="0 0 220 220">
+                <circle cx={110} cy={110} r={90} fill="none" stroke="var(--border, #1a1a1a)" strokeWidth={14} />
+                {idleDrainPct > 0 && (
+                  <circle cx={110} cy={110} r={90} fill="none" stroke="#555555" strokeWidth={14}
+                    strokeDasharray={`${idleArc} ${C - idleArc}`} strokeDashoffset={idleOffset}
+                    strokeLinecap="round" transform="rotate(-90 110 110)" />
+                )}
+                {workDrainPct > 0 && (
+                  <circle cx={110} cy={110} r={90} fill="none" stroke="#fb923c" strokeWidth={14}
+                    strokeDasharray={`${workArc} ${C - workArc}`} strokeDashoffset={workOffset}
+                    strokeLinecap="round" transform="rotate(-90 110 110)" />
+                )}
+                {urgentDrain > 0 && (
+                  <circle cx={110} cy={110} r={90} fill="none" stroke="#E24B4A" strokeWidth={14}
+                    strokeDasharray={`${urgentArc} ${C - urgentArc}`} strokeDashoffset={urgentOffset}
+                    strokeLinecap="round" transform="rotate(-90 110 110)" />
+                )}
+                <circle cx={110} cy={110} r={90} fill="none" stroke="var(--accent, #FFD000)" strokeWidth={14}
+                  strokeDasharray={`${healthArc} ${C - healthArc}`} strokeDashoffset={healthOffset}
+                  strokeLinecap="round" transform="rotate(-90 110 110)" />
+                <text x={110} y={104} textAnchor="middle" dominantBaseline="central"
+                  fill="var(--t1, #fff)" fontSize={64} fontWeight={700} fontFamily="monospace" letterSpacing={-3}>
+                  {energyVal}
+                </text>
+                <text x={110} y={140} textAnchor="middle" fill="var(--t5, #3a3a3a)" fontSize={12}
+                  fontFamily="monospace" letterSpacing={3}>
+                  PERCENT
+                </text>
+              </svg>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "center", gap: 16, marginBottom: 4 }}>
+              {[
+                { color: "var(--accent, #FFD000)", label: "Health" },
+                { color: "#555", label: "Idle" },
+                { color: "#fb923c", label: "Work" },
+                { color: "#E24B4A", label: "Urgent" },
+              ].map(l => (
+                <div key={l.label} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: l.color }} />
+                  <span style={{ fontSize: 10, color: "var(--t3, #666)", fontFamily: MONO }}>{l.label}</span>
+                </div>
+              ))}
+            </div>
+
+            <div style={pS.sep} />
+
+            <div style={pS.secTitle}>WHAT DRAINS</div>
+            {[
+              {
+                icon: <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth={2} strokeLinecap="round"><circle cx={12} cy={12} r={10} /><polyline points="12 6 12 12 16 14" /></svg>,
+                bgColor: "rgba(85,85,85,0.15)", title: "Idle time", titleColor: "var(--t3, #888)",
+                sub: `-${drainRates.idle}/min`, subColor: "var(--t4, #555)",
+              },
+              {
+                icon: <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#fb923c" strokeWidth={2} strokeLinecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /></svg>,
+                bgColor: "rgba(251,146,60,0.12)", title: "Working", titleColor: "#fb923c",
+                sub: `-${drainRates.work}/min`, subColor: "rgba(251,146,60,0.5)",
+              },
+              {
+                icon: <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#E24B4A" strokeWidth={2} strokeLinecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /><line x1={12} y1={9} x2={12} y2={13} /><line x1={12} y1={17} x2={12.01} y2={17} /></svg>,
+                bgColor: "rgba(226,75,74,0.12)", title: "Urgent tasks", titleColor: "#E24B4A",
+                sub: `-${drainRates.urgent}/min`, subColor: "rgba(226,75,74,0.5)",
+              },
+            ].map((drain, i) => (
+              <div key={i} style={{
+                display: "flex", alignItems: "center", gap: 14,
+                padding: "14px 16px", background: "var(--badge-bg, #111)", borderRadius: 14, marginBottom: 8,
+              }}>
+                <div style={{ width: 40, height: 40, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, background: drain.bgColor }}>
+                  {drain.icon}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: drain.titleColor }}>{drain.title}</div>
+                  <div style={{ fontSize: 11, fontFamily: MONO, marginTop: 2, color: drain.subColor }}>{drain.sub}</div>
+                </div>
+              </div>
+            ))}
+
+            <div style={pS.sep} />
+
+            <div style={pS.secTitle}>WHAT RESTORES</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid var(--border, #111)" }}>
+              <span style={{ fontSize: 16, fontWeight: 700, width: 24, textAlign: "center", color: "var(--rest, #6b8a7a)" }}>+</span>
+              <span style={{ fontSize: 13, color: "var(--t3, #666)", flex: 1 }}>Rest tasks</span>
+              <span style={{ ...pS.rowVal, color: "var(--rest, #6b8a7a)" }}>+{drainRates.rest}/min</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0" }}>
+              <span style={{ fontSize: 16, fontWeight: 700, width: 24, textAlign: "center", color: "var(--accent)" }}>+</span>
+              <span style={{ fontSize: 13, color: "var(--t3, #666)", flex: 1 }}>New day</span>
+              <span style={{ ...pS.rowVal, color: "var(--accent)" }}>Full reset</span>
+            </div>
+
+            <div style={pS.sep} />
+
+            <div style={pS.row}>
+              <span style={pS.rowLabel}>Today&apos;s skips</span>
+              <span style={{ ...pS.rowVal, color: skippedCount > 0 ? "var(--danger, #E24B4A)" : "var(--t5)" }}>{skippedCount}</span>
+            </div>
+            <div style={pS.row}>
+              <span style={pS.rowLabel}>Restored today</span>
+              <span style={{ ...pS.rowVal, color: "var(--rest, #6b8a7a)" }}>+{restoredToday}%</span>
+            </div>
+            <div style={pS.row}>
+              <span style={pS.rowLabel}>Lost today</span>
+              <span style={{ ...pS.rowVal, color: "var(--danger, #E24B4A)" }}>-{totalLost}%</span>
+            </div>
+          </>
+        );
 
         return (
           <div
+            style={{
+              position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 200,
+              display: "flex", flexDirection: "column", paddingTop: 20,
+            }}
             onClick={() => setStatPopup(null)}
-            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 200, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 60, overflowY: "auto" }}
           >
             <div
               onClick={(e) => e.stopPropagation()}
-              style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 16, padding: 20, width: 320, maxWidth: "90vw", position: "relative", marginBottom: 40, animation: "popupIn 0.2s ease" }}
+              onTouchStart={(e) => { swipeStartX.current = e.touches[0].clientX; }}
+              onTouchMove={(e) => { if (swipeStartX.current === null) return; swipeDelta.current = e.touches[0].clientX - swipeStartX.current; }}
+              onTouchEnd={() => {
+                if (Math.abs(swipeDelta.current) > 60) {
+                  if (swipeDelta.current < 0 && statPopup < 2) setStatPopup(statPopup + 1);
+                  else if (swipeDelta.current > 0 && statPopup > 0) setStatPopup(statPopup - 1);
+                }
+                swipeStartX.current = null; swipeDelta.current = 0;
+              }}
+              style={{
+                background: "var(--card)", borderRadius: 20, margin: "0 12px", flex: 1,
+                display: "flex", flexDirection: "column", position: "relative",
+                overflowY: "auto", overflowX: "hidden", border: "1px solid var(--border)",
+                WebkitOverflowScrolling: "touch", animation: "popupSlideUp 0.25s ease",
+              }}
             >
               {/* Close button */}
-              <div onClick={() => setStatPopup(null)} style={{ position: "absolute", top: 12, right: 12, width: 28, height: 28, borderRadius: "50%", background: "var(--badge-bg, #222)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-                <span style={{ fontSize: 14, color: "var(--t4)", lineHeight: 1 }}>✕</span>
+              <div
+                onClick={() => setStatPopup(null)}
+                style={{
+                  position: "sticky", top: 16, marginLeft: "auto", marginRight: 16,
+                  width: 32, height: 32, borderRadius: "50%", background: "var(--badge-bg, #222)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  cursor: "pointer", zIndex: 2, flexShrink: 0,
+                }}
+              >
+                <span style={{ fontSize: 15, color: "var(--t4)", lineHeight: 1 }}>✕</span>
               </div>
 
-              {/* ═══ DONE POPUP ═══ */}
-              {statPopup === "done" && (
-                <div>
-                  <div style={{ fontSize: 11, letterSpacing: 2, color: "var(--t4)", fontFamily: MONO, marginBottom: 12 }}>COMPLETED TODAY</div>
-                  <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                    <span style={{ fontSize: 36, fontWeight: 700, color: "var(--t1)", fontFamily: MONO }}>{doneCount}</span>
-                    <span style={{ fontSize: 13, color: "var(--t4)" }}>/ {totalTaskCount} tasks</span>
-                  </div>
-                  <div style={{ fontSize: 11, color: "var(--t5)", fontFamily: MONO, marginTop: 2 }}>{completionPct}% completion rate</div>
+              {/* Content area */}
+              <div style={{ padding: "0 24px 20px", flex: 1, display: "flex", flexDirection: "column", marginTop: -20 }}>
+                {statPopup === 0 && renderDonePopup()}
+                {statPopup === 1 && renderTrackedPopup()}
+                {statPopup === 2 && renderEnergyPopup()}
 
-                  <div style={pS.divider} />
-
-                  <div style={pS.sectionTitle}>TODAY&apos;S DONE</div>
-                  {doneTasks.length === 0 ? (
-                    <div style={{ fontSize: 12, color: "var(--t5)", padding: "8px 0" }}>No tasks completed yet</div>
-                  ) : (
-                    doneTasks.map(t => (
-                      <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 0", borderBottom: "1px solid var(--border)" }}>
-                        <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--accent)", flexShrink: 0 }} />
-                        <div style={{ fontSize: 12, color: "var(--t2)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.name}</div>
-                        <div style={{ fontSize: 10, color: "var(--t5)", fontFamily: MONO, flexShrink: 0 }}>{fmtDur(t.actual_duration ?? t.duration)}</div>
-                      </div>
-                    ))
-                  )}
-                  {pendingCount > 0 && (
-                    <div style={{ opacity: 0.3, fontSize: 11, color: "var(--t5)", padding: "7px 0" }}>{pendingCount} remaining...</div>
-                  )}
-
-                  <div style={pS.divider} />
-
-                  <div style={pS.sectionTitle}>THIS WEEK</div>
-                  <div style={{ display: "flex", gap: 3 }}>
-                    {weekDays.map((d, i) => (
-                      <div key={i} style={{
-                        width: 24, height: 24, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 8, fontFamily: MONO, fontWeight: 600,
-                        background: d.hadActivity ? (d.isToday ? "rgba(255,208,0,0.3)" : "rgba(255,208,0,0.15)") : "var(--badge-bg, #1e1e1e)",
-                        color: d.hadActivity ? "var(--accent)" : "var(--t5)",
-                        border: d.isToday && d.hadActivity ? "1px solid rgba(255,208,0,0.4)" : "none",
-                      }}>{d.init}</div>
+                {/* Dot indicators + swipe hint */}
+                <div style={{ marginTop: "auto", paddingTop: 16 }}>
+                  <div style={{ display: "flex", gap: 6, justifyContent: "center", paddingBottom: 8 }}>
+                    {[0, 1, 2].map((i) => (
+                      <div key={i} onClick={() => setStatPopup(i)} style={{
+                        width: statPopup === i ? 20 : 6, height: 6,
+                        borderRadius: statPopup === i ? 3 : "50%",
+                        background: statPopup === i ? "var(--accent)" : "var(--play-border, #2a2a2a)",
+                        cursor: "pointer", transition: "all 0.2s ease",
+                      }} />
                     ))}
                   </div>
-                  <div style={{ fontSize: 10, color: "var(--t5)", fontFamily: MONO, marginTop: 6 }}>{currentStreak} day streak</div>
-
-                  <div style={pS.divider} />
-
-                  <div style={pS.row}><span style={pS.rowLabel}>Best streak</span><span style={pS.rowVal}>{bestStreak > 0 ? `${bestStreak} days` : "\u2014"}</span></div>
-                  <div style={pS.row}><span style={pS.rowLabel}>This month</span><span style={pS.rowVal}>{monthDone} done</span></div>
-                </div>
-              )}
-
-              {/* ═══ TRACKED POPUP ═══ */}
-              {statPopup === "tracked" && (
-                <div>
-                  <div style={{ fontSize: 11, letterSpacing: 2, color: "var(--t4)", fontFamily: MONO, marginBottom: 12 }}>TIME TRACKED</div>
-                  <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                    <span style={{ fontSize: 36, fontWeight: 700, color: "var(--accent)", fontFamily: MONO }}>{(totalTracked / 60).toFixed(1)}</span>
-                    <span style={{ fontSize: 13, color: "var(--t4)" }}>hrs today</span>
+                  <div style={{
+                    fontSize: 11, color: "var(--t5, #2a2a2a)", textAlign: "center",
+                    fontFamily: MONO, letterSpacing: 1, paddingBottom: 12,
+                  }}>
+                    swipe for more
                   </div>
-                  <div style={{ fontSize: 11, color: "var(--t5)", fontFamily: MONO, marginTop: 2 }}>{totalTracked} min of focused work</div>
-
-                  <div style={pS.divider} />
-
-                  <div style={pS.sectionTitle}>BY TYPE</div>
-                  {allTypesList2.filter(t => (typeTimeMap[t.id] || 0) > 0).map(t => (
-                    <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                      <span style={{ fontSize: 11, color: "var(--t4)", width: 48, flexShrink: 0, fontFamily: MONO }}>{t.label}</span>
-                      <div style={{ flex: 1, height: 4, background: "var(--border)", borderRadius: 2, overflow: "hidden" }}>
-                        <div style={{ height: "100%", borderRadius: 2, width: `${((typeTimeMap[t.id] || 0) / maxTypeTime) * 100}%`, background: typeColor(t.id) }} />
-                      </div>
-                      <span style={{ fontSize: 11, color: "var(--t3)", fontFamily: MONO, width: 36, textAlign: "right", flexShrink: 0 }}>{fmtDur(typeTimeMap[t.id] || 0)}</span>
-                    </div>
-                  ))}
-                  {Object.keys(typeTimeMap).length === 0 && (
-                    <div style={{ fontSize: 12, color: "var(--t5)", padding: "4px 0" }}>No tracked time yet</div>
-                  )}
-
-                  <div style={pS.divider} />
-
-                  <div style={pS.sectionTitle}>BY TAG</div>
-                  {allTagsList2.filter(t => (tagTimeMap[t.id] || 0) > 0).map(t => (
-                    <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                      <span style={{ fontSize: 11, color: t.color, width: 48, flexShrink: 0, fontFamily: MONO }}>{t.label}</span>
-                      <div style={{ flex: 1, height: 4, background: "var(--border)", borderRadius: 2, overflow: "hidden" }}>
-                        <div style={{ height: "100%", borderRadius: 2, width: `${((tagTimeMap[t.id] || 0) / maxTagTime) * 100}%`, background: t.color }} />
-                      </div>
-                      <span style={{ fontSize: 11, color: "var(--t3)", fontFamily: MONO, width: 36, textAlign: "right", flexShrink: 0 }}>{fmtDur(tagTimeMap[t.id] || 0)}</span>
-                    </div>
-                  ))}
-                  {Object.keys(tagTimeMap).length === 0 && (
-                    <div style={{ fontSize: 12, color: "var(--t5)", padding: "4px 0" }}>No tagged time yet</div>
-                  )}
-
-                  <div style={pS.divider} />
-
-                  <div style={pS.row}><span style={pS.rowLabel}>This week</span><span style={{ ...pS.rowVal, color: "var(--accent)" }}>{(weekTrackedMin / 60).toFixed(1)} hrs</span></div>
-                  <div style={pS.row}><span style={pS.rowLabel}>This month</span><span style={{ ...pS.rowVal, color: "var(--accent)" }}>{(monthTrackedMin / 60).toFixed(1)} hrs</span></div>
-                  <div style={pS.row}><span style={pS.rowLabel}>Daily avg</span><span style={pS.rowVal}>{(dailyAvgMin / 60).toFixed(1)} hrs</span></div>
                 </div>
-              )}
-
-              {/* ═══ ENERGY POPUP ═══ */}
-              {statPopup === "energy" && (
-                <div>
-                  <div style={{ fontSize: 11, letterSpacing: 2, color: "var(--t4)", fontFamily: MONO, marginBottom: 12 }}>ENERGY LEVEL</div>
-
-                  <div style={{ display: "flex", justifyContent: "center", margin: "8px 0 4px" }}>
-                    <svg width={90} height={90} viewBox="0 0 90 90">
-                      <circle cx={45} cy={45} r={38} fill="none" stroke="var(--border)" strokeWidth={5} />
-                      <circle cx={45} cy={45} r={38} fill="none" stroke="var(--accent)" strokeWidth={5}
-                        strokeDasharray={2 * Math.PI * 38} strokeDashoffset={2 * Math.PI * 38 * (1 - energyVal / 100)}
-                        strokeLinecap="round" transform="rotate(-90 45 45)" />
-                      <text x={45} y={42} textAnchor="middle" fill="var(--t1)" fontSize={22} fontWeight={700} fontFamily="monospace">{energyVal}</text>
-                      <text x={45} y={56} textAnchor="middle" fill="var(--t5)" fontSize={9} fontFamily="monospace" letterSpacing={1}>PERCENT</text>
-                    </svg>
-                  </div>
-
-                  <div style={pS.divider} />
-
-                  <div style={pS.sectionTitle}>WHAT DRAINS ENERGY</div>
-                  <div style={pS.row}><span style={pS.rowLabel}>Idle time</span><span style={{ ...pS.rowVal, color: "var(--t4)" }}>{drainRates.idle}/min</span></div>
-                  <div style={pS.row}><span style={pS.rowLabel}>Working</span><span style={{ ...pS.rowVal, color: "var(--warn)" }}>{drainRates.work}/min</span></div>
-                  <div style={pS.row}><span style={pS.rowLabel}>Urgent tasks</span><span style={{ ...pS.rowVal, color: "var(--danger)" }}>{drainRates.urgent}/min</span></div>
-
-                  <div style={pS.divider} />
-
-                  <div style={pS.sectionTitle}>WHAT RESTORES</div>
-                  <div style={pS.row}><span style={pS.rowLabel}>Rest tasks</span><span style={{ ...pS.rowVal, color: "var(--rest)" }}>+{drainRates.rest}/min</span></div>
-                  <div style={pS.row}><span style={pS.rowLabel}>New day</span><span style={{ ...pS.rowVal, color: "var(--t4)" }}>Full reset</span></div>
-
-                  <div style={pS.divider} />
-
-                  <div style={pS.row}><span style={pS.rowLabel}>Today&apos;s skips</span><span style={{ ...pS.rowVal, color: skippedCount > 0 ? "var(--danger)" : "var(--t5)" }}>{skippedCount}</span></div>
-                  <div style={pS.row}><span style={pS.rowLabel}>Restored today</span><span style={{ ...pS.rowVal, color: "#2ECDA7" }}>+{restoredToday}%</span></div>
-                </div>
-              )}
+              </div>
             </div>
           </div>
         );
