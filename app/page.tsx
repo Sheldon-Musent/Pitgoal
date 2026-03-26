@@ -459,6 +459,21 @@ const getTypeLabel = (typeId: string): string => {
   const allDates = useMemo(() => getAllDatesInMonth(viewYear, viewMonth), [viewYear, viewMonth]);
   const PILL_H = 62;
 
+  const lastDateTapRef = useRef(0);
+
+  // Scroll date strip to selectedDate when returning to main tab
+  useEffect(() => {
+    if (bottomTab !== "main") return;
+    const el = dateScrollRef.current;
+    if (!el) return;
+    const t = setTimeout(() => {
+      const i = selectedDate.getDate() - 1;
+      const cellW = 56;
+      el.scrollTo({ left: Math.max(0, i * cellW - el.clientWidth / 2 + cellW / 2), behavior: "smooth" });
+    }, 50);
+    return () => clearTimeout(t);
+  }, [bottomTab]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleTabChange = (tab: BottomTab) => setBottomTab(tab);
   const handleFriendsNav = (tab: BottomTab) => setBottomTab(tab);
 
@@ -502,6 +517,20 @@ const getTypeLabel = (typeId: string): string => {
               onPointerDown={(e) => {
                 const el = dateScrollRef.current;
                 if (!el) return;
+                // Double-tap detection: reset to today
+                const now = Date.now();
+                if (now - lastDateTapRef.current < 300) {
+                  const todayDate = new Date();
+                  setSelectedDate(todayDate);
+                  setViewMonth(todayDate.getMonth());
+                  setViewYear(todayDate.getFullYear());
+                  const i = todayDate.getDate() - 1;
+                  const cellW = 56;
+                  el.scrollTo({ left: Math.max(0, i * cellW - el.clientWidth / 2 + cellW / 2), behavior: "smooth" });
+                  lastDateTapRef.current = 0;
+                  return;
+                }
+                lastDateTapRef.current = now;
                 el.setPointerCapture(e.pointerId);
                 (el as any)._dragging = true;
                 (el as any)._startX = e.clientX;

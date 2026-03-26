@@ -24,9 +24,9 @@ const TABS: { id: BottomTab; icon: (active: boolean) => React.ReactNode }[] = [
     icon: (a) => (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
         stroke={a ? "#0a0a0a" : "#3a3a3a"}
-        strokeWidth="1.8" strokeLinecap="round">
-        <circle cx="12" cy="12" r="10" />
-        <polyline points="12 6 12 12 16 14" />
+        strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+        <polyline points="9 22 9 12 15 12 15 22"/>
       </svg>
     ),
   },
@@ -35,11 +35,10 @@ const TABS: { id: BottomTab; icon: (active: boolean) => React.ReactNode }[] = [
     icon: (a) => (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
         stroke={a ? "#0a0a0a" : "#3a3a3a"}
-        strokeWidth="1.8" strokeLinecap="round">
-        <rect x="3" y="3" width="7" height="7" rx="1" />
-        <rect x="14" y="3" width="7" height="7" rx="1" />
-        <rect x="3" y="14" width="7" height="7" rx="1" />
-        <rect x="14" y="14" width="7" height="7" rx="1" />
+        strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M6 2L3 7v13a2 2 0 002 2h14a2 2 0 002-2V7l-3-5z"/>
+        <path d="M3 7h18"/>
+        <path d="M16 11a4 4 0 01-8 0"/>
       </svg>
     ),
   },
@@ -74,6 +73,8 @@ export default function BottomNav({ active, onChange, onAdd, expanded, onExpand 
   const cellRefs = useRef<(HTMLDivElement | null)[]>([]);
   const highlightRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef(false);
+  const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
+  const isDragRef = useRef(false);
 
   // Position the highlight on the active cell
   const updateHighlight = useCallback(() => {
@@ -109,22 +110,39 @@ export default function BottomNav({ active, onChange, onAdd, expanded, onExpand 
     if (!pill) return;
     pill.setPointerCapture(e.pointerId);
     draggingRef.current = true;
-    onExpand?.(false); // expand but don't start collapse timer while touching
+    isDragRef.current = false;
+    pointerStartRef.current = { x: e.clientX, y: e.clientY };
+    // Select tab immediately on touch, but don't expand yet
     const tab = getTabFromPointer(e.clientX);
     if (tab) onChange(tab);
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
     if (!draggingRef.current) return;
-    const tab = getTabFromPointer(e.clientX);
-    if (tab) onChange(tab);
+    const start = pointerStartRef.current;
+    if (start) {
+      const dx = e.clientX - start.x;
+      const dy = e.clientY - start.y;
+      if (Math.sqrt(dx * dx + dy * dy) >= 10 && !isDragRef.current) {
+        isDragRef.current = true;
+        onExpand?.(false); // expand labels on drag start
+      }
+    }
+    if (isDragRef.current) {
+      const tab = getTabFromPointer(e.clientX);
+      if (tab) onChange(tab);
+    }
   };
 
   const handleRelease = (e: React.PointerEvent) => {
     const pill = pillRef.current;
     if (pill) pill.releasePointerCapture(e.pointerId);
     draggingRef.current = false;
-    onExpand?.(true); // finger lifted — start 1.5s collapse timer
+    if (isDragRef.current) {
+      onExpand?.(true); // finger lifted after drag — start 1.5s collapse timer
+    }
+    isDragRef.current = false;
+    pointerStartRef.current = null;
   };
 
   // Attach touchend as fallback for mobile Safari
@@ -133,7 +151,11 @@ export default function BottomNav({ active, onChange, onAdd, expanded, onExpand 
     if (!pill) return;
     const onTouchEnd = () => {
       draggingRef.current = false;
-      onExpand?.(true);
+      if (isDragRef.current) {
+        onExpand?.(true);
+      }
+      isDragRef.current = false;
+      pointerStartRef.current = null;
     };
     pill.addEventListener("touchend", onTouchEnd, { passive: true });
     return () => pill.removeEventListener("touchend", onTouchEnd);
@@ -169,7 +191,7 @@ export default function BottomNav({ active, onChange, onAdd, expanded, onExpand 
           position: "relative",
           touchAction: "none",
           userSelect: "none",
-          maxWidth: "calc(100vw - 80px)",
+          maxWidth: expanded ? "calc(100vw - 56px)" : "calc(100vw - 80px)",
           overflow: "hidden",
         }}
       >
@@ -235,8 +257,8 @@ export default function BottomNav({ active, onChange, onAdd, expanded, onExpand 
           className="tap"
           onClick={onAdd}
           style={{
-            width: 50,
-            height: 50,
+            width: expanded ? 36 : 50,
+            height: expanded ? 36 : 50,
             borderRadius: "50%",
             background: "#FFD000",
             display: "flex",
@@ -244,9 +266,10 @@ export default function BottomNav({ active, onChange, onAdd, expanded, onExpand 
             justifyContent: "center",
             cursor: "pointer",
             flexShrink: 0,
+            transition: "width 0.3s ease, height 0.3s ease",
           }}
         >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0a0a0a" strokeWidth="2.5" strokeLinecap="round">
+          <svg width={expanded ? "16" : "22"} height={expanded ? "16" : "22"} viewBox="0 0 24 24" fill="none" stroke="#0a0a0a" strokeWidth="2.5" strokeLinecap="round" style={{ transition: "width 0.3s ease, height 0.3s ease" }}>
             <line x1="12" y1="5" x2="12" y2="19" />
             <line x1="5" y1="12" x2="19" y2="12" />
           </svg>
