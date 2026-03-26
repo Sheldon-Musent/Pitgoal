@@ -214,18 +214,19 @@ export default function Home() {
     if (shifted) { setTasks(u); save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom); }
   }, [tick, tasks, activeTask, dayLog, energyUsed, energyCharged, customGroups, pausedTask, switchingFrom, save]);
 
-  // ═══ SCROLL — nav expand on scroll (fix #6) ═══
+  // ═══ NAV — expand on interaction, collapse after 2s ═══
+  const expandNav = useCallback(() => {
+    setNavExpanded(true);
+    clearTimeout(navScrollTimer.current);
+    navScrollTimer.current = setTimeout(() => setNavExpanded(false), 2000);
+  }, []);
   useEffect(() => {
-    const handleScroll = () => {
-      setNavExpanded(true);
-      clearTimeout(navScrollTimer.current);
-      navScrollTimer.current = setTimeout(() => setNavExpanded(false), 3000);
-    };
+    const handleScroll = () => expandNav();
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => { window.removeEventListener("scroll", handleScroll); clearTimeout(navScrollTimer.current); };
-  }, []);
+  }, [expandNav]);
 
-  useEffect(() => { if (!dateScrollRef.current) return; const i = selectedDate.getDate() - 1; dateScrollRef.current.scrollTo({ left: Math.max(0, i * 52 - dateScrollRef.current.clientWidth / 2 + 26), behavior: "smooth" }); }, [selectedDate, viewMonth]);
+  useEffect(() => { if (!dateScrollRef.current) return; const i = selectedDate.getDate() - 1; const cellW = 56; dateScrollRef.current.scrollTo({ left: Math.max(0, i * cellW - dateScrollRef.current.clientWidth / 2 + cellW / 2), behavior: "smooth" }); }, [selectedDate, viewMonth]);
   useEffect(() => { const fn = () => { if (document.visibilityState === "visible") { const n = new Date(); setSelectedDate(n); setViewMonth(n.getMonth()); setViewYear(n.getFullYear()); } }; document.addEventListener("visibilitychange", fn); return () => document.removeEventListener("visibilitychange", fn); }, []);
   useEffect(() => { if (monthPickerOpen && monthScrollRef.current) { const el = monthScrollRef.current.querySelector('[data-active="true"]'); if (el) (el as HTMLElement).scrollIntoView({ block: "center", behavior: "auto" }); } }, [monthPickerOpen]);
 
@@ -489,40 +490,59 @@ const getTypeLabel = (typeId: string): string => {
             </div>
           </div>
 
-          {/* ═══ SECTION B: 5-Day Date Strip ═══ */}
+          {/* ═══ SECTION B: Drag Date Strip ═══ */}
           <div style={{ marginBottom: 18, position: "relative" }}>
             <div
-              onTouchStart={(e) => { touchStartX.current = e.touches[0].clientX; }}
-              onTouchEnd={(e) => {
-                if (touchStartX.current === null) return;
-                const diff = touchStartX.current - e.changedTouches[0].clientX;
-                touchStartX.current = null;
-                if (Math.abs(diff) < 50) return;
-                const dir = diff > 0 ? 1 : -1; // left swipe = forward
-                const next = new Date(selectedDate);
-                next.setDate(next.getDate() + dir);
-                setSelectedDate(next);
-                if (next.getMonth() !== viewMonth) { setViewMonth(next.getMonth()); setViewYear(next.getFullYear()); }
+              ref={dateScrollRef}
+              className="no-scrollbar"
+              style={{ background: "#161616", borderRadius: 50, padding: 6, border: "1px solid #1e1e1e", overflow: "hidden", position: "relative" }}
+              onPointerDown={(e) => {
+                const el = dateScrollRef.current;
+                if (!el) return;
+                el.setPointerCapture(e.pointerId);
+                (el as any)._dragging = true;
+                (el as any)._startX = e.clientX;
+                (el as any)._scrollStart = el.scrollLeft;
+                // Determine which date is under pointer
+                const rect = el.getBoundingClientRect();
+                const cellW = 56;
+                const x = e.clientX - rect.left + el.scrollLeft - 6;
+                const idx = Math.max(0, Math.min(allDates.length - 1, Math.floor(x / cellW)));
+                setSelectedDate(new Date(allDates[idx]));
               }}
-              style={{ background: "var(--card)", borderRadius: 50, padding: 6, border: "1px solid var(--border)", display: "flex", gap: 0, transition: "transform 0.2s ease" }}
+              onPointerMove={(e) => {
+                const el = dateScrollRef.current;
+                if (!el || !(el as any)._dragging) return;
+                const dx = (el as any)._startX - e.clientX;
+                el.scrollLeft = (el as any)._scrollStart + dx;
+                // Update selected date based on pointer position
+                const rect = el.getBoundingClientRect();
+                const cellW = 56;
+                const x = e.clientX - rect.left + el.scrollLeft - 6;
+                const idx = Math.max(0, Math.min(allDates.length - 1, Math.floor(x / cellW)));
+                setSelectedDate(new Date(allDates[idx]));
+              }}
+              onPointerUp={(e) => {
+                const el = dateScrollRef.current;
+                if (!el) return;
+                el.releasePointerCapture(e.pointerId);
+                (el as any)._dragging = false;
+              }}
             >
-              {(() => {
-                const selIdx = allDates.findIndex(d => isSameDay(d, selectedDate));
-                const startIdx = Math.max(0, Math.min(selIdx - 2, allDates.length - 5));
-                const visible = allDates.slice(startIdx, startIdx + 5);
-                return visible.map(d => {
+              <div style={{ display: "flex", width: allDates.length * 56 }}>
+                {allDates.map(d => {
                   const isT = isSameDay(d, today);
                   const isSel = isSameDay(d, selectedDate);
                   return (
-                    <div key={d.getTime()} className={isSel ? "" : "tap"} onClick={() => !isSel && setSelectedDate(new Date(d))}
-                      style={{ flex: 1, borderRadius: 50, padding: "10px 0", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: isSel ? "default" : "pointer", background: isSel ? "#FFD000" : "transparent", transition: "background 0.2s" }}>
-                      <div style={{ fontSize: 10, fontWeight: 500, color: isSel ? "rgba(0,0,0,0.5)" : "var(--t5)", fontFamily: MONO }}>{DAYS[d.getDay()]}</div>
-                      <div style={{ fontSize: isSel ? 18 : 16, fontWeight: isSel ? 700 : 600, color: isSel ? "#0a0a0a" : "var(--t5)", lineHeight: 1.2 }}>{d.getDate()}</div>
-                      {isT && !isSel && <div style={{ width: 4, height: 4, borderRadius: "50%", marginTop: 2, background: "var(--accent)" }} />}
+                    <div key={d.getTime()} onClick={() => setSelectedDate(new Date(d))}
+                      style={{ width: 56, flexShrink: 0, borderRadius: 50, padding: "10px 0", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: "pointer", background: isSel ? "#FFD000" : "transparent", transition: "background 0.15s", position: "relative" }}>
+                      <div style={{ fontSize: 10, fontWeight: 500, color: isSel ? "rgba(0,0,0,0.5)" : "#3a3a3a", fontFamily: MONO }}>{DAYS[d.getDay()]}</div>
+                      <div style={{ fontSize: isSel ? 18 : 16, fontWeight: isSel ? 700 : 600, color: isSel ? "#0a0a0a" : "#3a3a3a", lineHeight: 1.2 }}>{d.getDate()}</div>
+                      {isT && !isSel && <div style={{ width: 5, height: 5, borderRadius: "50%", marginTop: 2, background: "#FFD000" }} />}
                     </div>
                   );
-                });
-              })()}
+                })}
+              </div>
             </div>
             {/* Month label below strip */}
             <div className="tap" onClick={() => setMonthPickerOpen(!monthPickerOpen)} style={{ textAlign: "center", marginTop: 8, cursor: "pointer" }}>
@@ -530,24 +550,24 @@ const getTypeLabel = (typeId: string): string => {
             </div>
             {/* Month picker overlay — centered fixed modal */}
             {monthPickerOpen && (
-              <div onClick={() => setMonthPickerOpen(false)} style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 200, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", opacity: 1, transition: "opacity 0.2s ease" }}>
-                <div ref={monthScrollRef} onClick={(e) => e.stopPropagation()} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 16, padding: "16px 16px 12px", width: 240 }}>
+              <div onClick={() => setMonthPickerOpen(false)} style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 100, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", animation: "monthFadeIn 0.2s ease" }}>
+                <div ref={monthScrollRef} onClick={(e) => e.stopPropagation()} style={{ background: "#161616", border: "1px solid #2a2a2a", borderRadius: 16, padding: 20, width: 280 }}>
                   {/* Year navigation */}
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, padding: "0 4px" }}>
-                    <div className="tap" onClick={() => setViewYear(y => y - 1)} style={{ width: 28, height: 28, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", background: "rgba(255,255,255,0.05)" }}>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" strokeWidth="2" strokeLinecap="round"><polyline points="15 18 9 12 15 6" /></svg>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, padding: "0 4px" }}>
+                    <div className="tap" onClick={() => setViewYear(y => Math.max(2024, y - 1))} style={{ width: 32, height: 32, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", background: "rgba(255,255,255,0.05)" }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" strokeWidth="2" strokeLinecap="round"><polyline points="15 18 9 12 15 6" /></svg>
                     </div>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: "var(--t1)", fontFamily: MONO, letterSpacing: 1 }}>{viewYear}</span>
-                    <div className="tap" onClick={() => setViewYear(y => y + 1)} style={{ width: 28, height: 28, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", background: "rgba(255,255,255,0.05)" }}>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6" /></svg>
+                    <span style={{ fontSize: 16, fontWeight: 700, color: "var(--t1)", fontFamily: MONO }}>{viewYear}</span>
+                    <div className="tap" onClick={() => setViewYear(y => Math.min(2030, y + 1))} style={{ width: 32, height: 32, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", background: "rgba(255,255,255,0.05)" }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6" /></svg>
                     </div>
                   </div>
-                  {/* Month grid */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 4 }}>
+                  {/* Month grid — 4x3 */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
                     {MONTHS_SHORT.map((m, i) => {
                       const isCur = i === today.getMonth() && viewYear === today.getFullYear();
-                      const isSel = i === viewMonth && viewYear === new Date(selectedDate).getFullYear();
-                      return <div key={m} data-active={isSel ? "true" : "false"} className="tap" onClick={() => pickMonth(i)} style={{ padding: "8px 4px", textAlign: "center", borderRadius: 8, fontSize: 11, fontFamily: MONO, fontWeight: 600, cursor: "pointer", background: isSel ? "var(--accent-10)" : "transparent", color: isSel ? "var(--accent)" : isCur ? "var(--accent)" : "var(--t5)" }}>{m}</div>;
+                      const isSel = i === viewMonth;
+                      return <div key={m} data-active={isSel ? "true" : "false"} className="tap" onClick={() => pickMonth(i)} style={{ padding: "10px 0", textAlign: "center", borderRadius: 50, fontSize: 11, fontFamily: MONO, fontWeight: 600, cursor: "pointer", background: isSel ? "#FFD000" : isCur ? "var(--accent-10)" : "#222", color: isSel ? "#0a0a0a" : isCur ? "var(--accent)" : "var(--t4)", transition: "all 0.15s" }}>{m}</div>;
                     })}
                   </div>
                 </div>
@@ -728,13 +748,13 @@ const getTypeLabel = (typeId: string): string => {
                       const ct = task as any;
                       return (
                         <div key={ct.id} style={{ marginBottom: 8, animation: `fadeUp 0.3s ease ${i * 0.04}s both` }}>
-                          <div style={{ background: "var(--card)", borderRadius: 50, border: "1px solid var(--border)", padding: "16px 22px", display: "flex", alignItems: "center", minHeight: 72 }}>
+                          <div style={{ background: "var(--card)", borderRadius: ct.name.length > 35 ? 28 : 50, border: "1px solid var(--border)", padding: "18px 22px", display: "flex", alignItems: "center", minHeight: 72 }}>
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
                                 <span style={{ fontSize: 8, color: "#c8a000", background: "rgba(255,208,0,0.1)", padding: "2px 6px", borderRadius: 50, fontFamily: MONO, fontWeight: 700, letterSpacing: 1 }}>COLLAB</span>
                                 <div style={{ fontSize: 10, color: "var(--t5)", fontFamily: MONO, fontWeight: 500 }}>{ct.time} — {fmtTime(Math.floor((ct.timeMin + ct.duration) / 60) % 24, (ct.timeMin + ct.duration) % 60)}</div>
                               </div>
-                              <div style={{ fontSize: 16, color: "var(--t2)", fontWeight: 600, fontFamily: DISPLAY, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const, overflow: "hidden" }}>{ct.name}</div>
+                              <div style={{ fontSize: 16, color: "var(--t2)", fontWeight: 600, fontFamily: DISPLAY, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const, overflow: "hidden", lineHeight: 1.3 }}>{ct.name}</div>
                               <div style={{ display: "flex", gap: 5, marginTop: 6 }}>
                                 <span style={{ fontSize: 9, color: "var(--t4)", background: "#222", padding: "3px 10px", borderRadius: 50, fontFamily: MONO, fontWeight: 500 }}>w/ {ct.friendName}</span>
                                 <span style={{ fontSize: 9, color: "var(--t4)", background: "#222", padding: "3px 10px", borderRadius: 50, fontFamily: MONO, fontWeight: 500 }}>{fmtDur(ct.duration)}</span>
@@ -782,7 +802,7 @@ const getTypeLabel = (typeId: string): string => {
                             </div>
                             {/* Row 2: name + timer */}
                             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-                              <div style={{ fontSize: 19, fontWeight: 700, color: "#0a0a0a", fontFamily: DISPLAY, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const, overflow: "hidden", flex: 1, minWidth: 0 }}>{task.name}</div>
+                              <div style={{ fontSize: 19, fontWeight: 700, color: "#0a0a0a", fontFamily: DISPLAY, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const, overflow: "hidden", lineHeight: 1.3, flex: 1, minWidth: 0 }}>{task.name}</div>
                               <div style={{ fontSize: 24, fontWeight: 700, color: "#0a0a0a", fontFamily: MONO, fontVariantNumeric: "tabular-nums" }}>{activeTimerStr}</div>
                             </div>
                             {/* Row 3: action buttons */}
@@ -812,13 +832,13 @@ const getTypeLabel = (typeId: string): string => {
                       <div key={task.id} style={{ marginBottom: 8, animation: `fadeUp 0.3s ease ${i * 0.04}s both` }}>
                         <div style={{
                           background: task.urgent ? "var(--danger-fill)" : "var(--card)",
-                          borderRadius: isExpanded ? 16 : 50,
+                          borderRadius: isExpanded ? 16 : (task.name.length > 35 ? 28 : 50),
                           border: `1px solid ${isExpanded ? "var(--border2)" : task.urgent ? "transparent" : "var(--border)"}`,
                           transition: "border-radius 0.2s",
                           minHeight: 72,
                         }}>
                           <div style={{ display: "flex", alignItems: "center" }}>
-                            <div className="tap" onClick={() => setExpandedTask(isExpanded ? null : task.id)} style={{ flex: 1, padding: "16px 0 16px 22px" }}>
+                            <div className="tap" onClick={() => setExpandedTask(isExpanded ? null : task.id)} style={{ flex: 1, padding: isExpanded ? "18px 0 14px 20px" : "18px 0 18px 22px" }}>
                               {/* Upcoming badge */}
                               {isUpcomingSoon && (
                                 <div style={{ marginBottom: 6 }}>
@@ -832,11 +852,11 @@ const getTypeLabel = (typeId: string): string => {
                                 </div>
                               )}
                               {/* Timestamp */}
-                              <div style={{ fontSize: 10, color: task.urgent ? "var(--fill-sub)" : "var(--t5)", fontFamily: MONO, fontWeight: 500, marginBottom: 4 }}>{displayTime} — {endTime}</div>
+                              <div style={{ fontSize: 10, color: task.urgent ? "var(--fill-sub)" : "var(--t5)", fontFamily: MONO, fontWeight: 500, marginBottom: 4, minHeight: 14 }}>{displayTime} — {endTime}</div>
                               {/* Task name */}
-                              <div style={{ fontSize: 16, color: task.urgent ? "var(--fill-title)" : "var(--t2)", fontWeight: 600, fontFamily: DISPLAY, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const, overflow: "hidden" }}>{task.name}</div>
+                              <div style={{ fontSize: 16, color: task.urgent ? "var(--fill-title)" : "var(--t2)", fontWeight: 600, fontFamily: DISPLAY, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const, overflow: "hidden", lineHeight: 1.3 }}>{task.name}</div>
                               {/* Badges */}
-                              <div style={{ display: "flex", gap: 5, marginTop: 6, flexWrap: "wrap" }}>
+                              <div style={{ display: "flex", gap: 5, marginTop: 8, flexWrap: "wrap" }}>
                                 <span style={{ fontSize: 9, color: task.urgent ? "var(--fill-sub)" : "#444", background: task.urgent ? "rgba(255,255,255,0.12)" : "#222", padding: "3px 10px", borderRadius: 50, fontFamily: MONO, fontWeight: 500 }}>{(task.customType || task.type).toUpperCase()}</span>
                                 <span style={{ fontSize: 9, color: task.urgent ? "var(--fill-sub)" : "#444", background: task.urgent ? "rgba(255,255,255,0.12)" : "#222", padding: "3px 10px", borderRadius: 50, fontFamily: MONO, fontWeight: 500 }}>{fmtDur(task.duration)}</span>
                                 {task.tags && task.tags.map((tagId: string) => {
@@ -924,9 +944,9 @@ const getTypeLabel = (typeId: string): string => {
                         const displayTime = getDisplayTime(task);
                         const endTime = fmtTime(Math.floor((getDisplayTimeMin(task) + (task.actual_duration || task.duration)) / 60) % 24, (getDisplayTimeMin(task) + (task.actual_duration || task.duration)) % 60);
                         return (
-                          <div key={task.id} className="tap" onClick={() => markUndone(task)} style={{ background: "var(--card)", borderRadius: 50, padding: "12px 22px", border: "1px solid var(--border)", opacity: 0.5, display: "flex", alignItems: "center", gap: 12, cursor: "pointer", minHeight: 52 }}>
+                          <div key={task.id} className="tap" onClick={() => markUndone(task)} style={{ background: "var(--card)", borderRadius: task.name.length > 35 ? 28 : 50, padding: "18px 22px", border: "1px solid var(--border)", opacity: 0.5, display: "flex", alignItems: "center", gap: 12, cursor: "pointer", minHeight: 52 }}>
                             <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontSize: 13, color: "var(--t5)", textDecoration: "line-through", fontFamily: BODY, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const, overflow: "hidden" }}>{task.name}</div>
+                              <div style={{ fontSize: 13, color: "var(--t5)", textDecoration: "line-through", fontFamily: BODY, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const, overflow: "hidden", lineHeight: 1.3 }}>{task.name}</div>
                               <div style={{ fontSize: 10, color: "var(--t5)", fontFamily: MONO, marginTop: 2, fontWeight: 500 }}>{displayTime} — {endTime}{task.actual_duration ? ` · ${fmtDur(task.actual_duration)} actual` : ""}</div>
                             </div>
                           </div>
@@ -951,9 +971,9 @@ const getTypeLabel = (typeId: string): string => {
                       {skippedTasks.map((task) => {
                         const displayTime = getDisplayTime(task);
                         return (
-                          <div key={task.id} style={{ background: "var(--card)", borderRadius: 50, padding: "12px 22px", border: "1px solid var(--border)", opacity: 0.5, display: "flex", alignItems: "center", gap: 12, minHeight: 52 }}>
+                          <div key={task.id} style={{ background: "var(--card)", borderRadius: task.name.length > 35 ? 28 : 50, padding: "18px 22px", border: "1px solid var(--border)", opacity: 0.5, display: "flex", alignItems: "center", gap: 12, minHeight: 52 }}>
                             <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontSize: 13, color: "var(--t5)", textDecoration: "line-through", fontFamily: BODY, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const, overflow: "hidden" }}>{task.name}</div>
+                              <div style={{ fontSize: 13, color: "var(--t5)", textDecoration: "line-through", fontFamily: BODY, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const, overflow: "hidden", lineHeight: 1.3 }}>{task.name}</div>
                               <div style={{ fontSize: 10, color: "var(--t5)", fontFamily: MONO, marginTop: 2, fontWeight: 500 }}>{displayTime} · skipped{task.actual_duration ? ` · ${fmtDur(task.actual_duration)} partial` : ""}</div>
                             </div>
                             <div className="tap" onClick={() => { const u = tasks.map((t) => t.id === task.id ? { ...t, status: "pending" as const, skippedAt: null } : t); setTasks(u); save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom); }} style={{ padding: "5px 12px", borderRadius: 50, background: "var(--warn-10)", fontSize: 10, fontWeight: 600, fontFamily: MONO, color: "var(--warn)", cursor: "pointer", flexShrink: 0 }}>REDO</div>
@@ -1059,7 +1079,7 @@ const getTypeLabel = (typeId: string): string => {
         onSkipOverdue={() => overdueTask && skipPendingTask(overdueTask)}
         onStartUpcoming={() => upcoming && startTask(upcoming)}
       />
-      <BottomNav active={bottomTab} onChange={handleTabChange} onAdd={() => setShowCreateSheet(true)} expanded={navExpanded} />
+      <BottomNav active={bottomTab} onChange={handleTabChange} onAdd={() => setShowCreateSheet(true)} expanded={navExpanded} onExpand={expandNav} />
     </div>
   );
 }

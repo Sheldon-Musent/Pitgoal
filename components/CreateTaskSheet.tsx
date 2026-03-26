@@ -260,12 +260,18 @@ export default function CreateTaskSheet({
               border: `1.5px solid ${selectedTypeObj.color}40`,
               borderBottom: hasSuggestions ? "0.5px solid var(--border)" : undefined,
             }}>
-              <input ref={inputRef} value={name}
-                onChange={(e) => handleNameChange(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-                placeholder="Task name..."
-                style={{ width: "100%", background: "none", border: "none", color: "var(--t1)", fontSize: 15, fontFamily: BODY, outline: "none" }}
-              />
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <input ref={inputRef} value={name}
+                  maxLength={60}
+                  onChange={(e) => handleNameChange(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+                  placeholder="Task name..."
+                  style={{ flex: 1, background: "none", border: "none", color: "var(--t1)", fontSize: 15, fontFamily: BODY, outline: "none" }}
+                />
+                {name.length >= 45 && (
+                  <span style={{ fontSize: 9, color: "var(--t5)", fontFamily: MONO, flexShrink: 0 }}>{name.length}/60</span>
+                )}
+              </div>
             </div>
             {hasSuggestions && (
               <div style={{

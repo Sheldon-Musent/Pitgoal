@@ -1,5 +1,5 @@
 "use client";
-import React from "react";
+import React, { useRef, useEffect, useCallback } from "react";
 
 type BottomTab = "main" | "community" | "friends" | "profile";
 
@@ -7,7 +7,8 @@ interface BottomNavProps {
   active: BottomTab;
   onChange: (tab: BottomTab) => void;
   onAdd?: () => void;
-  expanded?: boolean;
+  expanded: boolean;
+  onExpand?: () => void;
 }
 
 const TAB_LABELS: Record<BottomTab, string> = {
@@ -17,7 +18,6 @@ const TAB_LABELS: Record<BottomTab, string> = {
   profile: "You",
 };
 
-// ── Tab definitions (icon-only, per v13 spec) ──
 const TABS: { id: BottomTab; icon: (active: boolean) => React.ReactNode }[] = [
   {
     id: "main",
@@ -69,7 +69,65 @@ const TABS: { id: BottomTab; icon: (active: boolean) => React.ReactNode }[] = [
   },
 ];
 
-export default function BottomNav({ active, onChange, onAdd, expanded = false }: BottomNavProps) {
+export default function BottomNav({ active, onChange, onAdd, expanded, onExpand }: BottomNavProps) {
+  const pillRef = useRef<HTMLDivElement>(null);
+  const cellRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const highlightRef = useRef<HTMLDivElement>(null);
+  const draggingRef = useRef(false);
+
+  // Position the highlight on the active cell
+  const updateHighlight = useCallback(() => {
+    const pill = pillRef.current;
+    const highlight = highlightRef.current;
+    if (!pill || !highlight) return;
+    const idx = TABS.findIndex(t => t.id === active);
+    const cell = cellRefs.current[idx];
+    if (!cell) return;
+    highlight.style.left = `${cell.offsetLeft}px`;
+    highlight.style.width = `${cell.offsetWidth}px`;
+    highlight.style.height = `${cell.offsetHeight}px`;
+  }, [active]);
+
+  useEffect(() => {
+    // Small delay to allow layout to settle after expand/collapse
+    const t = setTimeout(updateHighlight, 20);
+    return () => clearTimeout(t);
+  }, [active, expanded, updateHighlight]);
+
+  const getTabFromPointer = (clientX: number): BottomTab | null => {
+    for (let i = 0; i < TABS.length; i++) {
+      const cell = cellRefs.current[i];
+      if (!cell) continue;
+      const rect = cell.getBoundingClientRect();
+      if (clientX >= rect.left && clientX <= rect.right) return TABS[i].id;
+    }
+    return null;
+  };
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    const pill = pillRef.current;
+    if (!pill) return;
+    pill.setPointerCapture(e.pointerId);
+    draggingRef.current = true;
+    onExpand?.();
+    const tab = getTabFromPointer(e.clientX);
+    if (tab) onChange(tab);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!draggingRef.current) return;
+    const tab = getTabFromPointer(e.clientX);
+    if (tab) onChange(tab);
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    const pill = pillRef.current;
+    if (pill) pill.releasePointerCapture(e.pointerId);
+    draggingRef.current = false;
+    // onExpand was already called — page.tsx starts the 2s collapse timer on expand
+    onExpand?.();
+  };
+
   return (
     <div
       style={{
@@ -85,6 +143,10 @@ export default function BottomNav({ active, onChange, onAdd, expanded = false }:
     >
       {/* Nav pill */}
       <div
+        ref={pillRef}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
         style={{
           display: "flex",
           alignItems: "center",
@@ -92,42 +154,62 @@ export default function BottomNav({ active, onChange, onAdd, expanded = false }:
           borderRadius: 50,
           padding: 5,
           border: "1px solid #222",
-          transition: "all 0.3s ease",
+          position: "relative",
+          touchAction: "none",
+          userSelect: "none",
         }}
       >
-        {TABS.map((tab) => {
+        {/* Yellow highlight (absolute positioned) */}
+        <div
+          ref={highlightRef}
+          style={{
+            position: "absolute",
+            top: 5,
+            borderRadius: 50,
+            background: "#FFD000",
+            transition: "left 0.3s ease, width 0.3s ease",
+            pointerEvents: "none",
+            zIndex: 0,
+          }}
+        />
+        {TABS.map((tab, idx) => {
           const isActive = active === tab.id;
           return (
             <div
               key={tab.id}
-              className="tap"
-              onClick={() => onChange(tab.id)}
+              ref={(el) => { cellRefs.current[idx] = el; }}
               style={{
-                width: expanded ? 60 : 50,
-                height: expanded ? 58 : 50,
-                borderRadius: expanded ? 20 : "50%",
+                height: 50,
                 display: "flex",
-                flexDirection: "column",
+                flexDirection: "row",
                 alignItems: "center",
                 justifyContent: "center",
-                gap: expanded ? 3 : 0,
+                gap: expanded ? 6 : 0,
                 cursor: "pointer",
-                transition: "all 0.3s ease",
-                background: isActive ? "#FFD000" : "transparent",
+                position: "relative",
+                zIndex: 1,
+                borderRadius: 50,
+                width: expanded ? "auto" : 50,
+                paddingLeft: expanded ? 14 : 0,
+                paddingRight: expanded ? 14 : 0,
+                transition: "width 0.3s ease, padding 0.3s ease",
+                minWidth: 50,
               }}
             >
-              {tab.icon(isActive)}
-              {expanded && (
-                <span style={{
-                  fontSize: 9,
-                  fontWeight: 600,
-                  color: isActive ? "#0a0a0a" : "#3a3a3a",
-                  lineHeight: 1,
-                  transition: "opacity 0.3s ease",
-                }}>
-                  {TAB_LABELS[tab.id]}
-                </span>
-              )}
+              <div style={{ flexShrink: 0 }}>{tab.icon(isActive)}</div>
+              <span style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: isActive ? "#0a0a0a" : "#666",
+                lineHeight: 1,
+                overflow: "hidden",
+                whiteSpace: "nowrap",
+                width: expanded ? "auto" : 0,
+                opacity: expanded ? 1 : 0,
+                transition: "width 0.3s ease, opacity 0.3s ease",
+              }}>
+                {TAB_LABELS[tab.id]}
+              </span>
             </div>
           );
         })}
