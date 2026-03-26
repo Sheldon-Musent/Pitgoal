@@ -107,7 +107,6 @@ export default function Home() {
 
   const powerTapTimer = useRef<any>(null);
   const monthScrollRef = useRef<HTMLDivElement>(null);
-  const dateScrollRef = useRef<HTMLDivElement>(null);
   const suggestTimer = useRef<any>(null);
   const today = useMemo(() => new Date(), []);
 
@@ -228,8 +227,6 @@ export default function Home() {
     return () => { window.removeEventListener("scroll", handleScroll); clearTimeout(navScrollTimer.current); };
   }, [expandNav]);
 
-  const dateScrollInitRef = useRef(false);
-  useEffect(() => { if (!dateScrollRef.current) return; const i = selectedDate.getDate() - 1; const cellW = 56; const behavior = dateScrollInitRef.current ? "smooth" : "auto"; dateScrollInitRef.current = true; dateScrollRef.current.scrollTo({ left: Math.max(0, i * cellW - dateScrollRef.current.clientWidth / 2 + cellW / 2), behavior }); }, [selectedDate, viewMonth]);
   useEffect(() => { const fn = () => { if (document.visibilityState === "visible") { const n = new Date(); setViewMonth(n.getMonth()); setViewYear(n.getFullYear()); } }; document.addEventListener("visibilitychange", fn); return () => document.removeEventListener("visibilitychange", fn); }, []);
   useEffect(() => { if (monthPickerOpen && monthScrollRef.current) { const el = monthScrollRef.current.querySelector('[data-active="true"]'); if (el) (el as HTMLElement).scrollIntoView({ block: "center", behavior: "auto" }); } }, [monthPickerOpen]);
 
@@ -457,21 +454,29 @@ const getTypeLabel = (typeId: string): string => {
   const pauseElapsedSec = pausedTask ? Math.floor((Date.now() - (pausedTask.pausedAt || Date.now())) / 1000) : 0;
   const pauseTimerStr = `${pad(Math.floor(pauseElapsedSec / 3600))}:${pad(Math.floor((pauseElapsedSec % 3600) / 60))}:${pad(pauseElapsedSec % 60)}`;
   const allDates = useMemo(() => getAllDatesInMonth(viewYear, viewMonth), [viewYear, viewMonth]);
+  const [dateWindowStart, setDateWindowStart] = useState(() => {
+    const t = new Date();
+    const idx = t.getDate() - 1;
+    return Math.max(0, idx - 2);
+  });
+  // Keep dateWindowStart in range when month/year changes
+  useEffect(() => {
+    const idx = selectedDate.getMonth() === viewMonth && selectedDate.getFullYear() === viewYear
+      ? selectedDate.getDate() - 1 : 0;
+    setDateWindowStart(Math.max(0, Math.min(allDates.length - 5, idx - 2)));
+  }, [viewMonth, viewYear]); // eslint-disable-line react-hooks/exhaustive-deps
+  const visibleDates = useMemo(() => allDates.slice(dateWindowStart, dateWindowStart + 5), [allDates, dateWindowStart]);
   const PILL_H = 62;
 
   const lastDateTapRef = useRef(0);
 
-  // Scroll date strip to selectedDate when returning to main tab
+  // Center date window on selectedDate when returning to main tab
   useEffect(() => {
     if (bottomTab !== "main") return;
-    const el = dateScrollRef.current;
-    if (!el) return;
-    const t = setTimeout(() => {
-      const i = selectedDate.getDate() - 1;
-      const cellW = 56;
-      el.scrollTo({ left: Math.max(0, i * cellW - el.clientWidth / 2 + cellW / 2), behavior: "smooth" });
-    }, 50);
-    return () => clearTimeout(t);
+    if (selectedDate.getMonth() === viewMonth && selectedDate.getFullYear() === viewYear) {
+      const idx = selectedDate.getDate() - 1;
+      setDateWindowStart(Math.max(0, Math.min(allDates.length - 5, idx - 2)));
+    }
   }, [bottomTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleTabChange = (tab: BottomTab) => setBottomTab(tab);
@@ -511,12 +516,9 @@ const getTypeLabel = (typeId: string): string => {
           {/* ═══ SECTION B: Drag Date Strip ═══ */}
           <div style={{ marginBottom: 18, position: "relative" }}>
             <div
-              ref={dateScrollRef}
-              className="no-scrollbar"
-              style={{ background: "#161616", borderRadius: 50, padding: 6, border: "1px solid #1e1e1e", overflow: "hidden", position: "relative" }}
+              style={{ background: "#161616", borderRadius: 50, padding: 6, border: "1px solid #1e1e1e", overflow: "hidden", position: "relative", touchAction: "none" }}
               onPointerDown={(e) => {
-                const el = dateScrollRef.current;
-                if (!el) return;
+                const el = e.currentTarget;
                 // Double-tap detection: reset to today
                 const now = Date.now();
                 if (now - lastDateTapRef.current < 300) {
@@ -524,50 +526,60 @@ const getTypeLabel = (typeId: string): string => {
                   setSelectedDate(todayDate);
                   setViewMonth(todayDate.getMonth());
                   setViewYear(todayDate.getFullYear());
-                  const i = todayDate.getDate() - 1;
-                  const cellW = 56;
-                  el.scrollTo({ left: Math.max(0, i * cellW - el.clientWidth / 2 + cellW / 2), behavior: "smooth" });
                   lastDateTapRef.current = 0;
                   return;
                 }
                 lastDateTapRef.current = now;
                 el.setPointerCapture(e.pointerId);
                 (el as any)._dragging = true;
-                (el as any)._startX = e.clientX;
-                (el as any)._scrollStart = el.scrollLeft;
-                // Determine which date is under pointer
+                // Determine which date cell is under pointer
                 const rect = el.getBoundingClientRect();
-                const cellW = 56;
-                const x = e.clientX - rect.left + el.scrollLeft - 6;
-                const idx = Math.max(0, Math.min(allDates.length - 1, Math.floor(x / cellW)));
-                setSelectedDate(new Date(allDates[idx]));
+                const cellW = (rect.width - 12) / 5;
+                const x = e.clientX - rect.left - 6;
+                const idx = Math.max(0, Math.min(4, Math.floor(x / cellW)));
+                if (visibleDates[idx]) setSelectedDate(new Date(visibleDates[idx]));
               }}
               onPointerMove={(e) => {
-                const el = dateScrollRef.current;
-                if (!el || !(el as any)._dragging) return;
-                const dx = (el as any)._startX - e.clientX;
-                el.scrollLeft = (el as any)._scrollStart + dx;
-                // Update selected date based on pointer position
+                const el = e.currentTarget;
+                if (!(el as any)._dragging) return;
                 const rect = el.getBoundingClientRect();
-                const cellW = 56;
-                const x = e.clientX - rect.left + el.scrollLeft - 6;
-                const idx = Math.max(0, Math.min(allDates.length - 1, Math.floor(x / cellW)));
-                setSelectedDate(new Date(allDates[idx]));
+                const cellW = (rect.width - 12) / 5;
+                const x = e.clientX - rect.left - 6;
+                const idx = Math.floor(x / cellW);
+                if (idx > 4) {
+                  // Dragged past right edge — shift window forward
+                  const maxStart = allDates.length - 5;
+                  setDateWindowStart(prev => {
+                    const next = Math.min(maxStart, prev + 1);
+                    const d = allDates[next + 4];
+                    if (d) setSelectedDate(new Date(d));
+                    return next;
+                  });
+                } else if (idx < 0) {
+                  // Dragged past left edge — shift window back
+                  setDateWindowStart(prev => {
+                    const next = Math.max(0, prev - 1);
+                    const d = allDates[next];
+                    if (d) setSelectedDate(new Date(d));
+                    return next;
+                  });
+                } else {
+                  if (visibleDates[idx]) setSelectedDate(new Date(visibleDates[idx]));
+                }
               }}
               onPointerUp={(e) => {
-                const el = dateScrollRef.current;
-                if (!el) return;
+                const el = e.currentTarget;
                 el.releasePointerCapture(e.pointerId);
                 (el as any)._dragging = false;
               }}
             >
-              <div style={{ display: "flex", width: allDates.length * 56 }}>
-                {allDates.map(d => {
+              <div style={{ display: "flex" }}>
+                {visibleDates.map(d => {
                   const isT = isSameDay(d, today);
                   const isSel = isSameDay(d, selectedDate);
                   return (
                     <div key={d.getTime()} onClick={() => setSelectedDate(new Date(d))}
-                      style={{ width: 56, flexShrink: 0, borderRadius: 50, padding: "10px 0", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: "pointer", background: isSel ? "#FFD000" : "transparent", transition: "background 0.15s", position: "relative" }}>
+                      style={{ flex: 1, borderRadius: 50, padding: "10px 0", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: "pointer", background: isSel ? "#FFD000" : "transparent", transition: "background 0.15s", position: "relative" }}>
                       <div style={{ fontSize: 10, fontWeight: 500, color: isSel ? "rgba(0,0,0,0.5)" : "#3a3a3a", fontFamily: MONO }}>{DAYS[d.getDay()]}</div>
                       <div style={{ fontSize: isSel ? 18 : 16, fontWeight: isSel ? 700 : 600, color: isSel ? "#0a0a0a" : "#3a3a3a", lineHeight: 1.2 }}>{d.getDate()}</div>
                       {isT && !isSel && <div style={{ width: 5, height: 5, borderRadius: "50%", marginTop: 2, background: "#FFD000" }} />}
