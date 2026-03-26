@@ -529,7 +529,7 @@ export default function Home() {
 
               {/* ── Create task bar ── */}
               <div style={{ marginBottom: 24 }}>
-                <div style={{ background: "var(--card)", borderRadius: 16, padding: "12px 14px", border: "1px dashed var(--border)", display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ background: "var(--card)", borderRadius: 20, padding: "20px 16px", border: "1px dashed var(--border)", opacity: 0.5, display: "flex", alignItems: "center", gap: 8 }}>
                   <div className="tap" onClick={() => setCmdCategory(c => c === "task" ? "rest" : c === "rest" ? "life" : "task")}
                     style={{ background: cmdCategory === "task" ? "var(--accent-20)" : cmdCategory === "rest" ? "var(--rest-20)" : "var(--warn-20)", border: `1px solid ${cmdCategory === "task" ? "var(--accent)" : cmdCategory === "rest" ? "var(--rest)" : "var(--warn)"}`, borderRadius: 8, padding: "5px 10px", fontSize: 9, fontWeight: 700, fontFamily: MONO, color: cmdCategory === "task" ? "var(--accent)" : cmdCategory === "rest" ? "var(--rest)" : "var(--warn)", cursor: "pointer", flexShrink: 0, letterSpacing: 1 }}>{cmdCategory.toUpperCase()}</div>
                   <input value={cmdInput} onChange={e => { setCmdInput(e.target.value); fetchSuggestions(e.target.value); }} onKeyDown={e => e.key === "Enter" && addTask()} placeholder="add task... 7pm 1.5h"
