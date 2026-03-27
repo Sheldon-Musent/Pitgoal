@@ -1153,9 +1153,9 @@ const getTypeLabel = (typeId: string): string => {
       {statPopup !== null && (() => {
         const pS = {
           heroLabel: { fontSize: 11, color: "var(--t5, #3a3a3a)", letterSpacing: 3, fontFamily: MONO, marginBottom: 16 } as React.CSSProperties,
-          heroNum: { fontSize: 72, fontWeight: 700, lineHeight: 1, letterSpacing: -3, fontFamily: MONO } as React.CSSProperties,
+          heroNum: { fontSize: 52, fontWeight: 700, lineHeight: 1, letterSpacing: -3, fontFamily: MONO } as React.CSSProperties,
           heroSub: { fontSize: 13, color: "var(--t4, #555)", marginTop: 4, fontFamily: MONO } as React.CSSProperties,
-          sep: { height: 1, background: "var(--border, #1e1e1e)", margin: "20px 0" } as React.CSSProperties,
+          sep: { height: 1, background: "var(--border, #1e1e1e)", margin: "16px 0" } as React.CSSProperties,
           secTitle: { fontSize: 10, color: "var(--t4, #444)", letterSpacing: 2, fontFamily: MONO, marginBottom: 14 } as React.CSSProperties,
           row: { display: "flex" as const, justifyContent: "space-between" as const, alignItems: "center" as const, padding: "8px 0" } as React.CSSProperties,
           rowLabel: { fontSize: 13, color: "var(--t3, #666)" } as React.CSSProperties,
@@ -1319,8 +1319,6 @@ const getTypeLabel = (typeId: string): string => {
             </div>
             <div style={{ fontSize: 11, color: "var(--t5, #333)", marginTop: 8, fontFamily: MONO }}>{currentStreak} day streak</div>
 
-            <div style={{ flex: 1 }} />
-
             <div style={pS.sep} />
             <div style={pS.row}>
               <span style={pS.rowLabel}>Best streak</span>
@@ -1376,8 +1374,6 @@ const getTypeLabel = (typeId: string): string => {
               ))
             )}
 
-            <div style={{ flex: 1 }} />
-
             <div style={pS.sep} />
             <div style={pS.row}>
               <span style={pS.rowLabel}>This week</span>
@@ -1399,7 +1395,7 @@ const getTypeLabel = (typeId: string): string => {
             <div style={pS.heroLabel}>ENERGY</div>
 
             <div style={{ textAlign: "center", margin: "0 0 8px" }}>
-              <svg width={220} height={220} viewBox="0 0 220 220">
+              <svg width={180} height={180} viewBox="0 0 220 220">
                 <circle cx={110} cy={110} r={90} fill="none" stroke="var(--border, #1a1a1a)" strokeWidth={14} />
                 {idleDrainPct > 0 && (
                   <circle cx={110} cy={110} r={90} fill="none" stroke="#555555" strokeWidth={14}
@@ -1513,7 +1509,7 @@ const getTypeLabel = (typeId: string): string => {
           <div
             style={{
               position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 200,
-              display: "flex", flexDirection: "column", paddingTop: 20,
+              display: "flex", flexDirection: "column", alignItems: "stretch", justifyContent: "center", padding: "40px 0",
             }}
             onClick={() => setStatPopup(null)}
           >
@@ -1529,9 +1525,9 @@ const getTypeLabel = (typeId: string): string => {
                 swipeStartX.current = null; swipeDelta.current = 0;
               }}
               style={{
-                background: "var(--card)", borderRadius: 20, margin: "0 12px", flex: 1,
+                background: "var(--card)", borderRadius: 20, margin: "0 12px", flex: "none",
                 display: "flex", flexDirection: "column", position: "relative",
-                overflowY: "auto", overflowX: "hidden", border: "1px solid var(--border)",
+                maxHeight: "85vh", overflowY: "auto", overflowX: "hidden", border: "1px solid var(--border)",
                 WebkitOverflowScrolling: "touch", animation: "popupSlideUp 0.25s ease",
               }}
             >
@@ -1549,13 +1545,13 @@ const getTypeLabel = (typeId: string): string => {
               </div>
 
               {/* Content area */}
-              <div style={{ padding: "0 24px 20px", flex: 1, display: "flex", flexDirection: "column", marginTop: -20 }}>
+              <div style={{ padding: "0 24px 20px", display: "flex", flexDirection: "column", marginTop: -20 }}>
                 {statPopup === 0 && renderDonePopup()}
                 {statPopup === 1 && renderTrackedPopup()}
                 {statPopup === 2 && renderEnergyPopup()}
 
                 {/* Dot indicators + swipe hint */}
-                <div style={{ marginTop: "auto", paddingTop: 16 }}>
+                <div style={{ marginTop: "auto", paddingTop: 10 }}>
                   <div style={{ display: "flex", gap: 6, justifyContent: "center", paddingBottom: 8 }}>
                     {[0, 1, 2].map((i) => (
                       <div key={i} onClick={() => setStatPopup(i)} style={{
@@ -1568,7 +1564,7 @@ const getTypeLabel = (typeId: string): string => {
                   </div>
                   <div style={{
                     fontSize: 11, color: "var(--t5, #2a2a2a)", textAlign: "center",
-                    fontFamily: MONO, letterSpacing: 1, paddingBottom: 12,
+                    fontFamily: MONO, letterSpacing: 1, paddingBottom: 8,
                   }}>
                     swipe for more
                   </div>
