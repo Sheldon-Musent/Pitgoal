@@ -163,6 +163,9 @@ export default function BottomNav({ active, onChange, onAdd, expanded, onExpand 
 
   return (
     <div
+      className="nav-fixed"
+      onTouchStart={(e) => e.stopPropagation()}
+      onTouchMove={(e) => e.stopPropagation()}
       style={{
         position: "fixed",
         bottom: "calc(16px + env(safe-area-inset-bottom, 0px))",
@@ -172,7 +175,11 @@ export default function BottomNav({ active, onChange, onAdd, expanded, onExpand 
         display: "flex",
         alignItems: "center",
         gap: 10,
-      }}
+        willChange: "transform",
+        WebkitBackfaceVisibility: "hidden",
+        backfaceVisibility: "hidden",
+        isolation: "isolate",
+      } as React.CSSProperties}
     >
       {/* Nav pill */}
       <div
@@ -191,6 +198,9 @@ export default function BottomNav({ active, onChange, onAdd, expanded, onExpand 
           position: "relative",
           touchAction: "none",
           userSelect: "none",
+          willChange: "transform",
+          WebkitTransform: "translateZ(0)",
+          transform: "translateZ(0)",
           maxWidth: expanded ? "calc(100vw - 56px)" : "calc(100vw - 80px)",
           overflow: "hidden",
         }}
@@ -206,6 +216,9 @@ export default function BottomNav({ active, onChange, onAdd, expanded, onExpand 
             transition: "left 0.3s ease, width 0.3s ease",
             pointerEvents: "none",
             zIndex: 0,
+            willChange: "left, width",
+            WebkitTransform: "translateZ(0)",
+            transform: "translateZ(0)",
           }}
         />
         {TABS.map((tab, idx) => {
@@ -267,6 +280,9 @@ export default function BottomNav({ active, onChange, onAdd, expanded, onExpand 
             cursor: "pointer",
             flexShrink: 0,
             transition: "width 0.3s ease, height 0.3s ease",
+            willChange: "transform",
+            WebkitTransform: "translateZ(0)",
+            transform: "translateZ(0)",
           }}
         >
           <svg width={expanded ? "16" : "22"} height={expanded ? "16" : "22"} viewBox="0 0 24 24" fill="none" stroke="#0a0a0a" strokeWidth="2.5" strokeLinecap="round" style={{ transition: "width 0.3s ease, height 0.3s ease" }}>

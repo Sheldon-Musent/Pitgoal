@@ -781,7 +781,8 @@ const getTypeLabel = (typeId: string): string => {
 
   // ═══ RENDER ═══
   return (
-    <div data-theme="dark" style={{ background: "var(--bg-gradient, var(--bg))", minHeight: "100vh", fontFamily: BODY, color: "var(--t2)", maxWidth: 430, margin: "0 auto", position: "relative", paddingBottom: hasActivePopup ? 200 : 110, paddingTop: "env(safe-area-inset-top, 0px)" }}>
+    <div data-theme="dark" style={{ height: "100dvh", display: "flex", flexDirection: "column", overflow: "hidden", position: "relative", background: "var(--bg-gradient, var(--bg))", fontFamily: BODY, color: "var(--t2)", maxWidth: 430, margin: "0 auto" }}>
+    <div className="scroll-content" style={{ flex: 1, overflowY: "auto", overflowX: "hidden", WebkitOverflowScrolling: "touch" as any, paddingBottom: hasActivePopup ? 200 : 100, paddingTop: "env(safe-area-inset-top, 0px)", position: "relative", minHeight: 0 }}>
 
       {/* ── MAIN TAB ── */}
       {bottomTab === "main" && (
@@ -1356,6 +1357,8 @@ const getTypeLabel = (typeId: string): string => {
           resetAll={resetAll}
         />
       )}
+
+      </div>{/* end scroll-content */}
 
       {/* ── EDIT MODAL ── */}
       {editModal && (

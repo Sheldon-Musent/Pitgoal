@@ -453,7 +453,7 @@ export default function FriendsTab() {
       </div>
 
       {/* Chat list */}
-      <div className="no-scrollbar" style={{ flex: 1, overflowY: "auto" }}>
+      <div className="no-scrollbar" style={{ flex: 1, overflowY: "auto", overflowX: "hidden", minHeight: 0, paddingBottom: 120 }}>
         {filteredChats.length === 0 && (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "48px 20px", gap: 8 }}>
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--t5)" strokeWidth="1.5" strokeLinecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>

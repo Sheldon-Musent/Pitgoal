@@ -197,8 +197,9 @@ export default function ProfileTab({ energy, streak, tasksDoneCount, resetAll }:
   // ── Render ──
   return (
     <div style={{
-      height: "100%", overflowY: "auto",
+      flex: 1, overflowY: "auto", overflowX: "hidden",
       WebkitOverflowScrolling: "touch" as any, paddingBottom: 120,
+      minHeight: 0,
     }}>
 
       {/* ── PROFILE HERO ── */}

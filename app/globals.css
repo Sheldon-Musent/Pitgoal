@@ -163,12 +163,28 @@
 
 input:focus { outline: none; }
 
-body {
+html, body {
   margin: 0;
   padding: 0;
+  overflow: hidden;
+  height: 100%;
+  height: 100dvh;
+  overscroll-behavior: none;
   background: var(--bg-gradient, var(--bg));
   color: var(--t1);
   transition: background 0.3s ease, color 0.3s ease;
+}
+
+.scroll-content {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  scroll-behavior: smooth;
+}
+
+/* Prevent nav area from participating in overscroll */
+.nav-fixed {
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: auto;
 }
 
 /* ── Scrollbar hiding ── */
