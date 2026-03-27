@@ -1,325 +1,532 @@
 "use client";
-import { useState } from "react";
-import { DISPLAY, BODY, MONO, DEFAULT_RATES, RATE_LIMITS, STORAGE_KEY, PLAN_KEY, SETTINGS_KEY } from "../lib/constants";
-import { fmtTime, fmtDur, getMYDate } from "../lib/utils";
-import type { DrainRates, Theme, ProfileView, SettingsSection, Task, Template, DayHistory } from "../lib/types";
+import { useState, useEffect } from "react";
+import React from "react";
 
+// ── Props ──
 interface Props {
-  userId: string | null;
-  theme: Theme;
-  setTheme: (t: Theme) => void;
-  tasksDoneCount: number;
+  energy: number;
   streak: number;
-  ePct: number;
-  drainRates: DrainRates;
-  saveDrainRates: (r: DrainRates) => void;
-  notifEnabled: boolean;
-  setNotifEnabled: (v: boolean) => void;
-  initNotifications: () => Promise<boolean>;
-  clearAllNotifications: () => void;
-  scheduleTaskNotifications: (tasks: Task[]) => void;
-  scheduleDaySummary: (h: number, m: number) => void;
-  tasks: Task[];
-  templates: Template[];
-  history: Record<string, DayHistory>;
-  customGroups: string[];
-  dayLog: any[];
+  tasksDoneCount: number;
   resetAll: () => void;
 }
 
-export default function ProfileTab(props: Props) {
-  const {
-    userId, theme, setTheme, tasksDoneCount, streak, ePct,
-    drainRates, saveDrainRates, notifEnabled, setNotifEnabled,
-    initNotifications, clearAllNotifications, scheduleTaskNotifications,
-    scheduleDaySummary, tasks, templates, history, customGroups, dayLog, resetAll,
-  } = props;
-
-  const [view, setView] = useState<ProfileView>("main");
-  const [section, setSection] = useState<SettingsSection>(null);
-  const [displayName, setDisplayName] = useState("Anonymous");
-  const [editingName, setEditingName] = useState(false);
-
-  // ── PROFILE MAIN ──
-  if (view === "main") return (
-    <div style={{ padding: "16px 14px 0" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-        <div style={{ fontSize: 20, fontWeight: 800, color: "var(--t1)", fontFamily: DISPLAY }}>Profile</div>
-        <div className="tap" onClick={() => { setView("settings"); setSection(null); }}
-          style={{ width: 36, height: 36, borderRadius: 12, background: "var(--card)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--t4)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" /></svg>
-        </div>
-      </div>
-
-      {/* User card */}
-      <div style={{ background: "var(--card)", borderRadius: 20, padding: "24px 20px", border: "1px solid var(--border)", marginBottom: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20 }}>
-          <div style={{ width: 56, height: 56, borderRadius: 18, background: "var(--accent-10)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <span style={{ fontSize: 22, fontWeight: 800, color: "var(--accent)", fontFamily: DISPLAY }}>{displayName[0]?.toUpperCase()}</span>
-          </div>
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: "var(--t1)", fontFamily: DISPLAY }}>{displayName}</div>
-            <div style={{ fontSize: 10, color: "var(--t4)", fontFamily: MONO }}>{userId ? `ID: ${userId.slice(0, 8)}...` : "Offline mode"}</div>
-          </div>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-          {[
-            { v: tasksDoneCount, l: "TODAY",  c: "var(--accent)", bg: "var(--accent-bg)" },
-            { v: streak,         l: "STREAK", c: "var(--warn)",   bg: "var(--warn-bg)" },
-            { v: "0",            l: "COINS",  c: "var(--pink)",   bg: "var(--pink-bg)" },
-          ].map((s, i) => (
-            <div key={i} style={{ background: s.bg, borderRadius: 14, padding: "14px 10px", textAlign: "center" }}>
-              <div style={{ fontSize: 24, fontWeight: 800, color: "var(--t1)", fontFamily: DISPLAY, lineHeight: 1 }}>{s.v}</div>
-              <div style={{ fontSize: 9, color: s.c, fontFamily: MONO, letterSpacing: 1, marginTop: 4 }}>{s.l}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Quick links */}
-      {[
-        { icon: "⚡", label: "Energy settings", desc: `${ePct}% remaining · ${drainRates.maxEnergyHours}h max`, color: "var(--accent)", action: () => { setView("settings"); setSection("energy"); } },
-        { icon: "🐾", label: "Pet settings", desc: "Manage your digital companion", color: "var(--rest)", soon: true },
-        { icon: "◈",  label: "Coin history", desc: "Earned, spent, invested", color: "var(--warn)", soon: true },
-      ].map((item, i) => (
-        <div key={i} className={item.action ? "tap" : ""} onClick={item.action || undefined}
-          style={{ background: "var(--card)", borderRadius: 20, padding: "18px 20px", border: "1px solid var(--border)", marginBottom: 8, display: "flex", alignItems: "center", gap: 14, cursor: item.action ? "pointer" : "default" }}>
-          <div style={{ width: 40, height: 40, borderRadius: 12, background: "var(--glow)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>{item.icon}</div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: "var(--t1)", fontFamily: DISPLAY }}>{item.label}</div>
-            <div style={{ fontSize: 11, color: "var(--t4)", marginTop: 2 }}>{item.desc}</div>
-          </div>
-          {item.soon ? (
-            <div style={{ fontSize: 9, color: "var(--t6)", fontFamily: MONO, letterSpacing: 1, background: "var(--card2)", padding: "4px 8px", borderRadius: 6 }}>SOON</div>
-          ) : (
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--t6)" strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6" /></svg>
-          )}
-        </div>
-      ))}
-
-      {/* Sync */}
-      <div style={{ background: "var(--card)", borderRadius: 20, padding: "14px 20px", border: "1px solid var(--border)", marginBottom: 8, display: "flex", alignItems: "center", gap: 10 }}>
-        <div style={{ width: 8, height: 8, borderRadius: "50%", background: userId ? "var(--accent)" : "var(--pink)", flexShrink: 0 }} />
-        <span style={{ fontSize: 12, color: "var(--t4)" }}>{userId ? "Synced to Supabase" : "Offline — local only"}</span>
-      </div>
-      <div style={{ fontSize: 11, color: "var(--t6)", fontFamily: MONO, textAlign: "center", marginTop: 20 }}>PITGOAL v9.0</div>
+// ── Toggle ──
+function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
+  return (
+    <div
+      onClick={onToggle}
+      style={{
+        width: 44, height: 26, borderRadius: 13,
+        background: on ? "var(--accent, #FFD000)" : "var(--t5, #333)",
+        position: "relative", cursor: "pointer", transition: "background 0.2s", flexShrink: 0,
+      }}
+    >
+      <div style={{
+        position: "absolute", top: 3, left: on ? 21 : 3,
+        width: 20, height: 20, borderRadius: "50%", background: "#fff", transition: "left 0.2s",
+      }} />
     </div>
   );
+}
 
-  // ── SETTINGS VIEW ──
+// ── SettingsRow ──
+function SettingsRow({ icon, iconBg, label, sub, right, danger, onClick }: {
+  icon: React.ReactNode; iconBg: string; label: string; sub?: string;
+  right?: React.ReactNode; danger?: boolean; onClick?: () => void;
+}) {
   return (
-    <div style={{ padding: "16px 14px 0" }}>
-      {/* Back header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-        <div className="tap" onClick={() => { if (section) setSection(null); else setView("main"); }}
-          style={{ width: 36, height: 36, borderRadius: 12, background: "var(--card)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" strokeWidth="2" strokeLinecap="round"><polyline points="15 18 9 12 15 6" /></svg>
+    <div
+      onClick={onClick}
+      style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "14px 18px", cursor: onClick ? "pointer" : "default",
+        borderBottom: "1px solid var(--border, #111)",
+        background: danger ? "rgba(226,75,74,0.04)" : "transparent",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0 }}>
+        <div style={{
+          width: 32, height: 32, borderRadius: 10,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          flexShrink: 0, background: iconBg,
+        }}>
+          {icon}
         </div>
-        <div style={{ fontSize: 20, fontWeight: 800, color: "var(--t1)", fontFamily: DISPLAY }}>
-          {section === "energy" ? "Energy" : section === "account" ? "Account" : section === "appearance" ? "Appearance" : section === "notifications" ? "Notifications" : section === "data" ? "Data" : "Settings"}
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 500, color: danger ? "var(--danger, #E24B4A)" : "var(--t1, #ddd)" }}>
+            {label}
+          </div>
+          {sub && <div style={{ fontSize: 11, color: "var(--t4, #444)", fontFamily: "monospace", marginTop: 1 }}>{sub}</div>}
+        </div>
+      </div>
+      {right || (onClick && <span style={{ color: "var(--t5, #333)", fontSize: 14, flexShrink: 0, marginLeft: 8 }}>›</span>)}
+    </div>
+  );
+}
+
+// ── RateSlider ──
+function RateSlider({ label, value, min, max, step, color, unit, onChange }: {
+  label: string; value: number; min: number; max: number; step: number;
+  color: string; unit: string; onChange: (v: number) => void;
+}) {
+  return (
+    <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--border, #111)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        <span style={{ fontSize: 13, color: "var(--t2, #aaa)" }}>{label}</span>
+        <span style={{ fontSize: 13, color, fontFamily: "monospace", fontWeight: 600 }}>
+          {value.toFixed(1)}{unit}
+        </span>
+      </div>
+      <input
+        type="range" min={min} max={max} step={step} value={value}
+        onChange={(e) => onChange(parseFloat(e.target.value))}
+        style={{ width: "100%", accentColor: color, height: 6, cursor: "pointer" }}
+      />
+      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+        <span style={{ fontSize: 10, color: "var(--t5, #333)", fontFamily: "monospace" }}>{min}</span>
+        <span style={{ fontSize: 10, color: "var(--t5, #333)", fontFamily: "monospace" }}>{max}</span>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// PROFILE TAB — "You" settings page
+// ═══════════════════════════════════════════════════════════
+export default function ProfileTab({ energy, streak, tasksDoneCount, resetAll }: Props) {
+
+  // ── State ──
+  const [userName, setUserName] = useState(() =>
+    (typeof window !== "undefined" && localStorage.getItem("pitgoal-username")) || "User"
+  );
+  const [avatarColor, setAvatarColor] = useState(() =>
+    (typeof window !== "undefined" && localStorage.getItem("pitgoal-avatar-color")) || "#FFD000"
+  );
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState("");
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
+
+  // Notification toggles
+  const [notifEnabled, setNotifEnabled] = useState(() =>
+    typeof window !== "undefined" ? localStorage.getItem("pitgoal-notif") !== "false" : true
+  );
+  const [restWarning, setRestWarning] = useState(() =>
+    typeof window !== "undefined" ? localStorage.getItem("pitgoal-rest-warning") !== "false" : true
+  );
+  const [overdueAlerts, setOverdueAlerts] = useState(() =>
+    typeof window !== "undefined" ? localStorage.getItem("pitgoal-overdue-alerts") !== "false" : true
+  );
+
+  // Energy drain rates
+  const [idleRate, setIdleRate] = useState(() =>
+    typeof window !== "undefined" ? parseFloat(localStorage.getItem("pitgoal-rate-idle") || "0.5") : 0.5
+  );
+  const [taskRate, setTaskRate] = useState(() =>
+    typeof window !== "undefined" ? parseFloat(localStorage.getItem("pitgoal-rate-task") || "1.0") : 1.0
+  );
+  const [urgentRate, setUrgentRate] = useState(() =>
+    typeof window !== "undefined" ? parseFloat(localStorage.getItem("pitgoal-rate-urgent") || "1.5") : 1.5
+  );
+  const [restRate, setRestRate] = useState(() =>
+    typeof window !== "undefined" ? parseFloat(localStorage.getItem("pitgoal-rate-rest") || "0.3") : 0.3
+  );
+  const [sleepRate, setSleepRate] = useState(() =>
+    typeof window !== "undefined" ? parseFloat(localStorage.getItem("pitgoal-rate-sleep") || "12.5") : 12.5
+  );
+
+  // ── Save helpers ──
+  useEffect(() => { localStorage.setItem("pitgoal-username", userName); }, [userName]);
+  useEffect(() => { localStorage.setItem("pitgoal-avatar-color", avatarColor); }, [avatarColor]);
+  useEffect(() => { localStorage.setItem("pitgoal-notif", notifEnabled.toString()); }, [notifEnabled]);
+  useEffect(() => { localStorage.setItem("pitgoal-rest-warning", restWarning.toString()); }, [restWarning]);
+  useEffect(() => { localStorage.setItem("pitgoal-overdue-alerts", overdueAlerts.toString()); }, [overdueAlerts]);
+  useEffect(() => {
+    localStorage.setItem("pitgoal-rate-idle", idleRate.toString());
+    localStorage.setItem("pitgoal-rate-task", taskRate.toString());
+    localStorage.setItem("pitgoal-rate-urgent", urgentRate.toString());
+    localStorage.setItem("pitgoal-rate-rest", restRate.toString());
+    localStorage.setItem("pitgoal-rate-sleep", sleepRate.toString());
+    // TODO: call onEnergyRatesChange?.({ idle: idleRate, task: taskRate, urgent: urgentRate, rest: restRate, sleep: sleepRate }) when wired to page.tsx
+  }, [idleRate, taskRate, urgentRate, restRate, sleepRate]);
+
+  // ── Handlers ──
+  function handleSaveName() {
+    const trimmed = nameInput.trim();
+    if (trimmed) setUserName(trimmed);
+    setEditingName(false);
+  }
+
+  function handleExport() {
+    const data: Record<string, string | null> = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key) data[key] = localStorage.getItem(key);
+    }
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `pitgoal-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function handleReset() {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key) keysToRemove.push(key);
+    }
+    keysToRemove.forEach(k => localStorage.removeItem(k));
+    resetAll();
+    window.location.reload();
+  }
+
+  function resetEnergyRates() {
+    setIdleRate(0.5);
+    setTaskRate(1.0);
+    setUrgentRate(1.5);
+    setRestRate(0.3);
+    setSleepRate(12.5);
+  }
+
+  const AVATAR_COLORS = ["#FFD000", "#f472b6", "#fb923c", "#a78bfa", "#00d4ff", "#2ECDA7", "#E24B4A", "#6b8a7a"];
+
+  // ── Render ──
+  return (
+    <div style={{
+      height: "100%", overflowY: "auto",
+      WebkitOverflowScrolling: "touch" as any, paddingBottom: 120,
+    }}>
+
+      {/* ── PROFILE HERO ── */}
+      <div style={{
+        display: "flex", flexDirection: "column", alignItems: "center",
+        padding: "28px 20px 20px",
+      }}>
+        {/* Avatar */}
+        <div style={{ position: "relative", marginBottom: 12 }}>
+          <div
+            onClick={() => setShowAvatarPicker(true)}
+            style={{
+              width: 80, height: 80, borderRadius: "50%",
+              background: `${avatarColor}22`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 32, fontWeight: 700, color: avatarColor, cursor: "pointer",
+            }}
+          >
+            {userName[0]?.toUpperCase() || "?"}
+          </div>
+          <div
+            onClick={() => setShowAvatarPicker(true)}
+            style={{
+              position: "absolute", bottom: 0, right: 0,
+              width: 28, height: 28, borderRadius: "50%",
+              background: "var(--accent, #FFD000)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: "pointer", border: "2px solid var(--bg, #0a0a0a)",
+            }}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#0a0a0a" strokeWidth="2.5" strokeLinecap="round">
+              <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+              <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+          </div>
+        </div>
+
+        {/* Name */}
+        <div
+          onClick={() => { setNameInput(userName); setEditingName(true); }}
+          style={{ fontSize: 20, fontWeight: 700, color: "var(--t1, #fff)", cursor: "pointer" }}
+        >
+          {userName}
+        </div>
+        <div style={{ fontSize: 12, color: "var(--t4, #444)", fontFamily: "monospace" }}>
+          @{userName.toLowerCase().replace(/\s+/g, "")}
+        </div>
+
+        {/* Mini stats row */}
+        <div style={{ display: "flex", gap: 8, width: "100%", marginTop: 14 }}>
+          {[
+            { num: String(streak || "—"), label: "STREAK", color: "var(--accent, #FFD000)" },
+            { num: String(tasksDoneCount || "—"), label: "DONE", color: "var(--t1, #fff)" },
+            { num: `${Math.round(energy)}%`, label: "ENERGY", color: energy > 80 ? "#2ECDA7" : energy > 50 ? "var(--accent)" : "var(--danger, #E24B4A)" },
+            { num: "0", label: "COINS", color: "var(--accent, #FFD000)" },
+          ].map((s, i) => (
+            <div key={i} style={{
+              flex: 1, background: "var(--card, #161616)", border: "1px solid var(--border, #1e1e1e)",
+              borderRadius: 12, padding: "12px 8px", textAlign: "center",
+            }}>
+              <div style={{ fontSize: 20, fontWeight: 700, fontFamily: "monospace", color: s.color }}>{s.num}</div>
+              <div style={{ fontSize: 9, color: "var(--t5, #3a3a3a)", letterSpacing: 2, fontFamily: "monospace", marginTop: 2 }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+        {/* TODO: Wire coins from page.tsx state */}
+      </div>
+
+      {/* ── ENERGY SETTINGS ── */}
+      <div style={{ fontSize: 10, color: "var(--t5, #333)", letterSpacing: 2, fontFamily: "monospace", padding: "20px 20px 10px" }}>
+        ENERGY SETTINGS
+      </div>
+      <div style={{ background: "var(--card, #161616)", border: "1px solid var(--border, #1e1e1e)", borderRadius: 16, margin: "0 16px 8px", overflow: "hidden" }}>
+        <RateSlider label="Idle drain" value={idleRate} min={0.1} max={2.0} step={0.1} color="var(--t3, #555)" unit="/min" onChange={setIdleRate} />
+        <RateSlider label="Task drain" value={taskRate} min={0.1} max={3.0} step={0.1} color="#fb923c" unit="/min" onChange={setTaskRate} />
+        <RateSlider label="Urgent drain" value={urgentRate} min={0.1} max={4.0} step={0.1} color="var(--danger, #E24B4A)" unit="/min" onChange={setUrgentRate} />
+        <RateSlider label="Rest restore" value={restRate} min={0.1} max={2.0} step={0.1} color="var(--rest, #6b8a7a)" unit="/min" onChange={setRestRate} />
+        <RateSlider label="Sleep restore" value={sleepRate} min={5.0} max={25.0} step={0.5} color="#a78bfa" unit="%/hr" onChange={setSleepRate} />
+        <div
+          onClick={resetEnergyRates}
+          style={{ padding: "14px 18px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}
+        >
+          <span style={{ fontSize: 13, color: "var(--accent, #FFD000)" }}>Reset to defaults</span>
+          <span style={{ color: "var(--accent, #FFD000)", fontSize: 14 }}>↺</span>
         </div>
       </div>
 
-      {/* Settings menu */}
-      {!section && (
-        <>
-          {[
-            { id: "account" as const, label: "Account", desc: displayName, icon: "👤", color: "var(--accent)" },
-            { id: "appearance" as const, label: "Appearance", desc: theme === "dark" ? "Dark mode" : "Light mode", icon: theme === "dark" ? "🌙" : "☀️", color: "var(--t3)" },
-            { id: "energy" as const, label: "Energy & sleep", desc: `Wake ${fmtTime(drainRates.wakeHour, drainRates.wakeMinute)} · Sleep ${fmtTime(drainRates.sleepHour, drainRates.sleepMinute)}`, icon: "⚡", color: "var(--warn)" },
-            { id: "notifications" as const, label: "Notifications", desc: notifEnabled ? "Enabled" : "Disabled", icon: "🔔", color: "var(--rest)" },
-            { id: "data" as const, label: "Data & storage", desc: "Export, reset, manage", icon: "💾", color: "var(--pink)" },
-          ].map(item => (
-            <div key={item.id} className="tap" onClick={() => setSection(item.id)}
-              style={{ background: "var(--card)", borderRadius: 20, padding: "16px 18px", border: "1px solid var(--border)", marginBottom: 8, display: "flex", alignItems: "center", gap: 14, cursor: "pointer" }}>
-              <div style={{ width: 40, height: 40, borderRadius: 12, background: "var(--glow)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>{item.icon}</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: "var(--t1)", fontFamily: DISPLAY }}>{item.label}</div>
-                <div style={{ fontSize: 11, color: "var(--t4)", marginTop: 2 }}>{item.desc}</div>
-              </div>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--t6)" strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6" /></svg>
-            </div>
-          ))}
-        </>
+      {/* ── NOTIFICATIONS ── */}
+      <div style={{ fontSize: 10, color: "var(--t5, #333)", letterSpacing: 2, fontFamily: "monospace", padding: "20px 20px 10px" }}>
+        NOTIFICATIONS
+      </div>
+      <div style={{ background: "var(--card, #161616)", border: "1px solid var(--border, #1e1e1e)", borderRadius: 16, margin: "0 16px 8px", overflow: "hidden" }}>
+        <SettingsRow
+          icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFD000" strokeWidth="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>}
+          iconBg="rgba(255,208,0,0.1)"
+          label="Push notifications"
+          sub="Task reminders & alerts"
+          right={<Toggle on={notifEnabled} onToggle={() => setNotifEnabled(!notifEnabled)} />}
+        />
+        <SettingsRow
+          icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#E24B4A" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M8 12l2 2 4-4"/></svg>}
+          iconBg="rgba(226,75,74,0.1)"
+          label="REST NOW warning"
+          sub="Alert at 20% energy"
+          right={<Toggle on={restWarning} onToggle={() => setRestWarning(!restWarning)} />}
+        />
+        <SettingsRow
+          icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fb923c" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>}
+          iconBg="rgba(251,146,60,0.1)"
+          label="Overdue alerts"
+          sub="When tasks pass their window"
+          right={<Toggle on={overdueAlerts} onToggle={() => setOverdueAlerts(!overdueAlerts)} />}
+        />
+      </div>
+
+      {/* ── DATA ── */}
+      <div style={{ fontSize: 10, color: "var(--t5, #333)", letterSpacing: 2, fontFamily: "monospace", padding: "20px 20px 10px" }}>
+        DATA
+      </div>
+      <div style={{ background: "var(--card, #161616)", border: "1px solid var(--border, #1e1e1e)", borderRadius: 16, margin: "0 16px 8px", overflow: "hidden" }}>
+        <SettingsRow
+          icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00d4ff" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>}
+          iconBg="rgba(0,212,255,0.1)"
+          label="Export data"
+          sub="Download as JSON"
+          onClick={handleExport}
+        />
+        <SettingsRow
+          icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>}
+          iconBg="rgba(167,139,250,0.1)"
+          label="Import data"
+          sub="Restore from backup"
+          onClick={() => {
+            // TODO: implement file picker and import logic
+            alert("Import coming soon");
+          }}
+        />
+        <SettingsRow
+          icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#E24B4A" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>}
+          iconBg="rgba(226,75,74,0.1)"
+          label="Reset all data"
+          sub="Delete everything"
+          danger
+          onClick={() => setShowResetConfirm(true)}
+        />
+      </div>
+
+      {/* ── ABOUT ── */}
+      <div style={{ fontSize: 10, color: "var(--t5, #333)", letterSpacing: 2, fontFamily: "monospace", padding: "20px 20px 10px" }}>
+        ABOUT
+      </div>
+      <div style={{ background: "var(--card, #161616)", border: "1px solid var(--border, #1e1e1e)", borderRadius: 16, margin: "0 16px 8px", overflow: "hidden" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", padding: "14px 18px", borderBottom: "1px solid var(--border, #111)" }}>
+          <span style={{ fontSize: 14, color: "var(--t1, #ddd)", fontWeight: 500 }}>Version</span>
+          <span style={{ fontSize: 13, color: "var(--t4, #555)", fontFamily: "monospace" }}>v13.1</span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", padding: "14px 18px", borderBottom: "1px solid var(--border, #111)" }}>
+          <span style={{ fontSize: 14, color: "var(--t1, #ddd)", fontWeight: 500 }}>Build</span>
+          <span style={{ fontSize: 13, color: "var(--t4, #555)", fontFamily: "monospace" }}>2026.03.27</span>
+        </div>
+        <SettingsRow
+          icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--t3, #888)" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>}
+          iconBg="rgba(136,136,136,0.1)"
+          label="What's Pitgoal?"
+          onClick={() => setShowAbout(true)}
+        />
+        <div style={{ padding: "14px 18px", cursor: "pointer", display: "flex", justifyContent: "space-between" }}>
+          <span style={{ fontSize: 14, color: "var(--accent, #FFD000)", fontWeight: 500 }}>Rate this app</span>
+          <span style={{ color: "var(--accent, #FFD000)", fontSize: 14 }}>›</span>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div style={{ textAlign: "center", padding: "24px 0 40px" }}>
+        <div style={{ fontSize: 11, color: "var(--border, #222)", fontFamily: "monospace" }}>pitgoal.com</div>
+        <div style={{ fontSize: 10, color: "var(--border, #1a1a1a)", fontFamily: "monospace", marginTop: 4 }}>Made by July</div>
+      </div>
+
+      {/* ── MODALS ── */}
+
+      {/* Edit Name */}
+      {editingName && (
+        <div onClick={() => setEditingName(false)} style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 200,
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+        }}>
+          <div onClick={(e) => e.stopPropagation()} style={{
+            background: "var(--card, #161616)", border: "1px solid var(--border, #1e1e1e)",
+            borderRadius: 20, padding: 24, width: 300, maxWidth: "90vw", textAlign: "center",
+          }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "var(--t1, #fff)", marginBottom: 6 }}>Edit name</div>
+            <div style={{ fontSize: 13, color: "var(--t4, #555)", marginBottom: 16 }}>This is shown to your friends</div>
+            <input
+              autoFocus
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSaveName()}
+              maxLength={24}
+              placeholder="Your name..."
+              style={{
+                background: "var(--badge-bg, #222)", border: "1px solid var(--border2, #333)",
+                borderRadius: 12, padding: "10px 14px", color: "var(--t1, #fff)",
+                fontSize: 15, width: "100%", outline: "none", fontFamily: "inherit",
+                marginBottom: 12, boxSizing: "border-box" as const,
+              }}
+            />
+            <div
+              onClick={handleSaveName}
+              style={{
+                padding: 12, background: "var(--accent, #FFD000)", color: "#0a0a0a",
+                borderRadius: 50, fontWeight: 700, fontSize: 14, cursor: "pointer",
+                marginBottom: 8, textAlign: "center",
+              }}
+            >Save</div>
+            <div
+              onClick={() => setEditingName(false)}
+              style={{
+                padding: 12, background: "var(--badge-bg, #222)", color: "var(--t3, #888)",
+                borderRadius: 50, fontSize: 14, cursor: "pointer", textAlign: "center",
+              }}
+            >Cancel</div>
+          </div>
+        </div>
       )}
 
-      {/* ── APPEARANCE ── */}
-      {section === "appearance" && (
-        <div>
-          <div style={{ background: "var(--card)", borderRadius: 20, padding: "22px", border: "1px solid var(--border)", marginBottom: 12 }}>
-            <div style={{ fontSize: 10, color: "var(--t3)", fontFamily: MONO, letterSpacing: 2, marginBottom: 14 }}>THEME</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              {(["dark", "light"] as const).map(t => (
-                <div key={t} className="tap" onClick={() => {
-                  setTheme(t);
-                  try { const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}"); s.theme = t; localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch (e) {}
-                }} style={{
-                  padding: "20px 16px", borderRadius: 16, textAlign: "center", cursor: "pointer",
-                  background: theme === t ? "var(--accent-20)" : "var(--bg)",
-                  border: `2px solid ${theme === t ? "var(--accent)" : "var(--border)"}`,
-                }}>
-                  <div style={{ fontSize: 28, marginBottom: 8 }}>{t === "dark" ? "🌙" : "☀️"}</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: theme === t ? "var(--accent)" : "var(--t3)", fontFamily: DISPLAY }}>{t === "dark" ? "Dark" : "Light"}</div>
+      {/* Avatar Color Picker */}
+      {showAvatarPicker && (
+        <div onClick={() => setShowAvatarPicker(false)} style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 200,
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+        }}>
+          <div onClick={(e) => e.stopPropagation()} style={{
+            background: "var(--card, #161616)", border: "1px solid var(--border, #1e1e1e)",
+            borderRadius: 20, padding: 24, width: 300, maxWidth: "90vw", textAlign: "center",
+          }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "var(--t1, #fff)", marginBottom: 6 }}>Choose color</div>
+            <div style={{ fontSize: 13, color: "var(--t4, #555)", marginBottom: 16 }}>Pick your avatar accent</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center", marginBottom: 16 }}>
+              {AVATAR_COLORS.map((c) => (
+                <div
+                  key={c}
+                  onClick={() => { setAvatarColor(c); setShowAvatarPicker(false); }}
+                  style={{
+                    width: 44, height: 44, borderRadius: "50%",
+                    background: `${c}22`, display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 18, fontWeight: 700, color: c, cursor: "pointer",
+                    border: avatarColor === c ? `2px solid ${c}` : "2px solid transparent",
+                    transition: "border 0.2s",
+                  }}
+                >
+                  {userName[0]?.toUpperCase() || "?"}
                 </div>
               ))}
             </div>
-          </div>
-          <div style={{ background: "var(--card)", borderRadius: 20, padding: "18px 22px", border: "1px solid var(--border)", fontSize: 12, color: "var(--t4)", lineHeight: 1.6 }}>
-            Dark mode is easier on your eyes at night. Light mode works better in bright environments.
-          </div>
-        </div>
-      )}
-
-      {/* ── ACCOUNT ── */}
-      {section === "account" && (
-        <div>
-          <div style={{ background: "var(--card)", borderRadius: 20, padding: "22px", border: "1px solid var(--border)", marginBottom: 12 }}>
-            <div style={{ fontSize: 10, color: "var(--accent)", fontFamily: MONO, letterSpacing: 2, marginBottom: 10 }}>DISPLAY NAME</div>
-            {editingName ? (
-              <div style={{ display: "flex", gap: 8 }}>
-                <input autoFocus value={displayName} onChange={e => setDisplayName(e.target.value)} onKeyDown={e => e.key === "Enter" && setEditingName(false)}
-                  style={{ flex: 1, background: "var(--bg)", border: "1px solid var(--accent-30)", borderRadius: 12, padding: "12px 14px", color: "var(--t2)", fontSize: 14, fontFamily: BODY, outline: "none" }} />
-                <div className="tap" onClick={() => setEditingName(false)} style={{ background: "var(--accent)", borderRadius: 12, padding: "12px 16px", fontSize: 12, fontWeight: 700, color: "var(--accent-bg)", fontFamily: MONO, cursor: "pointer", display: "flex", alignItems: "center" }}>SAVE</div>
-              </div>
-            ) : (
-              <div className="tap" onClick={() => setEditingName(true)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", background: "var(--bg)", borderRadius: 12, border: "1px solid var(--border2)", cursor: "pointer" }}>
-                <span style={{ fontSize: 14, color: "var(--t2)" }}>{displayName}</span>
-                <span style={{ fontSize: 10, color: "var(--t4)", fontFamily: MONO }}>TAP TO EDIT</span>
-              </div>
-            )}
-          </div>
-          <div style={{ background: "var(--card)", borderRadius: 20, padding: "22px", border: "1px solid var(--border)" }}>
-            <div style={{ fontSize: 10, color: "var(--accent)", fontFamily: MONO, letterSpacing: 2, marginBottom: 10 }}>USER ID</div>
-            <div style={{ fontSize: 12, color: "var(--t4)", fontFamily: MONO, wordBreak: "break-all" }}>{userId || "Not connected"}</div>
+            <div
+              onClick={() => setShowAvatarPicker(false)}
+              style={{
+                padding: 12, background: "var(--badge-bg, #222)", color: "var(--t3, #888)",
+                borderRadius: 50, fontSize: 14, cursor: "pointer",
+              }}
+            >Done</div>
           </div>
         </div>
       )}
 
-      {/* ── ENERGY ── */}
-      {section === "energy" && (
-        <div>
-          <div style={{ background: "var(--card)", borderRadius: 20, padding: "22px", border: "1px solid var(--border)", marginBottom: 12 }}>
-            <div style={{ fontSize: 10, color: "var(--warn)", fontFamily: MONO, letterSpacing: 2, marginBottom: 14 }}>SCHEDULE</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              <div>
-                <div style={{ fontSize: 10, color: "var(--t4)", fontFamily: MONO, marginBottom: 6 }}>WAKE UP</div>
-                <input type="time" value={fmtTime(drainRates.wakeHour, drainRates.wakeMinute)}
-                  onChange={e => { const [h, m] = e.target.value.split(":").map(Number); saveDrainRates({ ...drainRates, wakeHour: h, wakeMinute: m }); }}
-                  style={{ width: "100%", background: "var(--bg)", border: "1px solid var(--border2)", borderRadius: 12, padding: "12px 14px", color: "var(--warn)", fontSize: 16, fontFamily: MONO, outline: "none", fontWeight: 700 }} />
-              </div>
-              <div>
-                <div style={{ fontSize: 10, color: "var(--t4)", fontFamily: MONO, marginBottom: 6 }}>SLEEP</div>
-                <input type="time" value={fmtTime(drainRates.sleepHour, drainRates.sleepMinute)}
-                  onChange={e => { const [h, m] = e.target.value.split(":").map(Number); saveDrainRates({ ...drainRates, sleepHour: h, sleepMinute: m }); }}
-                  style={{ width: "100%", background: "var(--bg)", border: "1px solid var(--border2)", borderRadius: 12, padding: "12px 14px", color: "var(--warn)", fontSize: 16, fontFamily: MONO, outline: "none", fontWeight: 700 }} />
-              </div>
+      {/* Reset Confirm */}
+      {showResetConfirm && (
+        <div onClick={() => setShowResetConfirm(false)} style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 200,
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+        }}>
+          <div onClick={(e) => e.stopPropagation()} style={{
+            background: "var(--card, #161616)", border: "1px solid var(--border, #1e1e1e)",
+            borderRadius: 20, padding: 24, width: 300, maxWidth: "90vw", textAlign: "center",
+          }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "var(--danger, #E24B4A)", marginBottom: 6 }}>Reset all data?</div>
+            <div style={{ fontSize: 13, color: "var(--t4, #555)", marginBottom: 20, lineHeight: 1.5 }}>
+              This will delete all your tasks, progress, settings, and energy history. This cannot be undone.
             </div>
-            <div style={{ marginTop: 12 }}>
-              <div style={{ fontSize: 10, color: "var(--t4)", fontFamily: MONO, marginBottom: 6 }}>MAX ENERGY (HOURS)</div>
-              <input type="number" value={drainRates.maxEnergyHours}
-                onChange={e => saveDrainRates({ ...drainRates, maxEnergyHours: Math.min(24, Math.max(1, parseInt(e.target.value) || 17)) })}
-                style={{ width: "100%", background: "var(--bg)", border: "1px solid var(--border2)", borderRadius: 12, padding: "12px 14px", color: "var(--warn)", fontSize: 16, fontFamily: MONO, outline: "none", fontWeight: 700 }} />
-            </div>
-          </div>
-
-          {/* Drain rates */}
-          <div style={{ background: "var(--card)", borderRadius: 20, padding: "22px", border: "1px solid var(--border)" }}>
-            <div style={{ fontSize: 10, color: "var(--warn)", fontFamily: MONO, letterSpacing: 2, marginBottom: 6 }}>DRAIN RATES</div>
-            <div style={{ fontSize: 11, color: "var(--t5)", marginBottom: 14 }}>How fast each state consumes energy. 1x = 1 min per real min.</div>
-            {([
-              { key: "idle" as const, label: "IDLE",   desc: "No task running",   color: "var(--t4)", icon: "○" },
-              { key: "work" as const, label: "WORK",   desc: "Normal task drain", color: "var(--accent)", icon: "▶" },
-              { key: "urgent" as const, label: "URGENT", desc: "High intensity",   color: "var(--pink)", icon: "⚡" },
-              { key: "rest" as const, label: "REST",   desc: "Recharge rate",     color: "var(--rest)", icon: "◆" },
-            ]).map(item => (
-              <div key={item.key} style={{ marginBottom: 16 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ color: item.color, fontSize: 12 }}>{item.icon}</span>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: item.color, fontFamily: MONO }}>{item.label}</span>
-                    <span style={{ fontSize: 10, color: "var(--t5)" }}>{item.desc}</span>
-                  </div>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: item.color, fontFamily: MONO }}>{drainRates[item.key]}x</span>
-                </div>
-                <input type="range" min={RATE_LIMITS[item.key].min * 10} max={RATE_LIMITS[item.key].max * 10} value={drainRates[item.key] * 10}
-                  onChange={e => saveDrainRates({ ...drainRates, [item.key]: parseInt(e.target.value) / 10 })}
-                  style={{ width: "100%", accentColor: item.color }} />
-              </div>
-            ))}
-            <div className="tap" onClick={() => saveDrainRates(DEFAULT_RATES)}
-              style={{ textAlign: "center", padding: "10px", borderRadius: 12, border: "1px solid var(--border2)", fontSize: 11, color: "var(--t4)", fontFamily: MONO, cursor: "pointer", marginTop: 4 }}>RESET TO DEFAULTS</div>
+            <div
+              onClick={handleReset}
+              style={{
+                padding: 12, background: "var(--danger, #E24B4A)", color: "#fff",
+                borderRadius: 50, fontWeight: 700, fontSize: 14, cursor: "pointer", marginBottom: 8,
+              }}
+            >Delete everything</div>
+            <div
+              onClick={() => setShowResetConfirm(false)}
+              style={{
+                padding: 12, background: "var(--badge-bg, #222)", color: "var(--t3, #888)",
+                borderRadius: 50, fontSize: 14, cursor: "pointer",
+              }}
+            >Cancel</div>
           </div>
         </div>
       )}
 
-      {/* ── NOTIFICATIONS ── */}
-      {section === "notifications" && (
-        <div>
-          <div style={{ background: "var(--card)", borderRadius: 20, padding: "22px", border: "1px solid var(--border)", marginBottom: 12 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: "var(--t1)", fontFamily: DISPLAY }}>Task reminders</div>
-                <div style={{ fontSize: 11, color: "var(--t4)", marginTop: 2 }}>Get notified when tasks are about to start</div>
-              </div>
-              <div className="tap" onClick={async () => {
-                if (notifEnabled) { clearAllNotifications(); setNotifEnabled(false); }
-                else { const ok = await initNotifications(); setNotifEnabled(ok); if (ok) { scheduleTaskNotifications(tasks); scheduleDaySummary(drainRates.sleepHour, drainRates.sleepMinute); } }
-              }} style={{ width: 50, height: 28, borderRadius: 14, cursor: "pointer", background: notifEnabled ? "var(--accent)" : "var(--border2)", display: "flex", alignItems: "center", padding: "2px", transition: "background 0.2s" }}>
-                <div style={{ width: 24, height: 24, borderRadius: 12, background: "#fff", transform: notifEnabled ? "translateX(22px)" : "translateX(0)", transition: "transform 0.2s" }} />
-              </div>
+      {/* About */}
+      {showAbout && (
+        <div onClick={() => setShowAbout(false)} style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 200,
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+        }}>
+          <div onClick={(e) => e.stopPropagation()} style={{
+            background: "var(--card, #161616)", border: "1px solid var(--border, #1e1e1e)",
+            borderRadius: 20, padding: 24, width: 320, maxWidth: "90vw",
+          }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: "var(--t1, #fff)", marginBottom: 12, textAlign: "center" }}>Pitgoal</div>
+            <div style={{ fontSize: 13, color: "var(--t3, #888)", lineHeight: 1.6, marginBottom: 20 }}>
+              A predictable app that keeps you forward without thinking.
+              <br /><br />
+              Track daily tasks, manage energy, build streaks, and stay accountable with friends.
+              <br /><br />
+              Color = status. Everything else is grayscale.
+              <br /><br />
+              Built by July in Cyberjaya, Malaysia.
             </div>
-          </div>
-          {["Day summary", "Pause reminders"].map((label, i) => (
-            <div key={i} style={{ background: "var(--card)", borderRadius: 20, padding: "22px", border: "1px solid var(--border)", marginBottom: 12 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--t1)", fontFamily: DISPLAY }}>{label}</div>
-              <div style={{ fontSize: 11, color: "var(--t4)", marginTop: 2 }}>{i === 0 ? `Summary at bedtime (${fmtTime(drainRates.sleepHour, drainRates.sleepMinute)})` : "Reminds you to resume after 30 min pause"}</div>
-              <div style={{ marginTop: 8, fontSize: 10, color: notifEnabled ? "var(--accent)" : "var(--pink)", fontFamily: MONO }}>{notifEnabled ? "ACTIVE" : "REQUIRES NOTIFICATIONS ON"}</div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* ── DATA ── */}
-      {section === "data" && (
-        <div>
-          <div style={{ background: "var(--card)", borderRadius: 20, padding: "22px", border: "1px solid var(--border)", marginBottom: 12 }}>
-            <div style={{ fontSize: 10, color: "var(--pink)", fontFamily: MONO, letterSpacing: 2, marginBottom: 12 }}>STORAGE</div>
-            {[
-              { l: "Tasks today", v: tasks.length },
-              { l: "Templates", v: templates.length },
-              { l: "History days", v: Object.keys(history).length },
-              { l: "Custom groups", v: customGroups.length },
-            ].map((r, i) => (
-              <div key={i} style={{ display: "flex", justifyContent: "space-between", marginBottom: i < 3 ? 8 : 0 }}>
-                <span style={{ fontSize: 12, color: "var(--t3)" }}>{r.l}</span>
-                <span style={{ fontSize: 12, color: "var(--t2)", fontFamily: MONO }}>{r.v}</span>
-              </div>
-            ))}
-          </div>
-
-          <div className="tap" onClick={() => {
-            const data = { tasks, dayLog, templates, history, customGroups, drainRates, streak, exportedAt: new Date().toISOString(), version: "v9.0" };
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a"); a.href = url; a.download = `pitgoal-export-${getMYDate()}.json`; a.click(); URL.revokeObjectURL(url);
-          }} style={{ background: "var(--card)", borderRadius: 20, padding: "18px 20px", border: "1px solid var(--accent-30)", marginBottom: 8, display: "flex", alignItems: "center", gap: 14, cursor: "pointer" }}>
-            <div style={{ width: 40, height: 40, borderRadius: 12, background: "var(--accent-10)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>📦</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--t1)", fontFamily: DISPLAY }}>Export data</div>
-              <div style={{ fontSize: 11, color: "var(--t4)", marginTop: 2 }}>Download as JSON file</div>
-            </div>
-          </div>
-
-          <div className="tap" onClick={() => { if (confirm("Reset ALL data? This cannot be undone.")) resetAll(); }}
-            style={{ background: "var(--card)", borderRadius: 20, padding: "18px 20px", border: "1px solid var(--pink-30)", marginBottom: 8, display: "flex", alignItems: "center", gap: 14, cursor: "pointer" }}>
-            <div style={{ width: 40, height: 40, borderRadius: 12, background: "var(--pink-10)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>🗑️</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--pink)", fontFamily: DISPLAY }}>Reset all data</div>
-              <div style={{ fontSize: 11, color: "var(--t4)", marginTop: 2 }}>Clear everything and start fresh</div>
-            </div>
+            <div
+              onClick={() => setShowAbout(false)}
+              style={{
+                padding: 12, background: "var(--accent, #FFD000)", color: "#0a0a0a",
+                borderRadius: 50, fontWeight: 700, fontSize: 14, cursor: "pointer", textAlign: "center",
+              }}
+            >Close</div>
           </div>
         </div>
       )}
+
     </div>
   );
 }

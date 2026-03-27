@@ -25,6 +25,15 @@ import CreateTaskSheet from "../components/CreateTaskSheet";
 import type { TaskType, TaskTag, CreateTaskResult } from "../components/CreateTaskSheet";
 import { DEFAULT_TYPES, DEFAULT_TAGS, DEFAULT_TYPE_IDS, DEFAULT_TAG_IDS } from "../components/CreateTaskSheet";
 
+// ── Energy system constants ──
+const IDLE_RATE = 0.5;
+const TASK_RATE = 1.0;
+const URGENT_RATE = 1.5;
+const REST_RATE = -0.3;
+const SLEEP_RESTORE_PER_HOUR = 12.5;
+const WARN_THRESHOLD = 20;
+const SLEEP_COOLDOWN = 2 * 60 * 60 * 1000; // 2 hours
+
 // ── SVG icons ──
 function PlayIcon({ size = 18, color = "var(--accent)" }: { size?: number; color?: string }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none"><path d="M8 5.14v13.72a1 1 0 001.5.86l11.04-6.86a1 1 0 000-1.72L9.5 4.28A1 1 0 008 5.14z" fill={color} /></svg>;
@@ -44,6 +53,14 @@ export default function Home() {
   const [energyUsed, setEnergyUsed] = useState(0);
   const [energyCharged, setEnergyCharged] = useState(0);
   const [drainRates, setDrainRates] = useState<DrainRates>(DEFAULT_RATES);
+
+  // ── Energy system state ──
+  const [energy, setEnergy] = useState(100);
+  const [isSleeping, setIsSleeping] = useState(false);
+  const [sleepStartTime, setSleepStartTime] = useState<number | null>(null);
+  const [showWakePopup, setShowWakePopup] = useState(false);
+  const [showRestWarning, setShowRestWarning] = useState(false);
+  const lastEnergyTick = useRef<number>(Date.now());
 
   // ── UI state ──
   const [bottomTab, setBottomTab] = useState<BottomTab>("main");
@@ -179,6 +196,44 @@ export default function Home() {
         }
       }
     } catch {}
+
+    // ── Load energy & sleep state ──
+    try {
+      const savedEnergy = localStorage.getItem("pitgoal-energy");
+      const savedTick = localStorage.getItem("pitgoal-energy-tick");
+      const savedSleeping = localStorage.getItem("pitgoal-sleeping");
+      const savedSleepStart = localStorage.getItem("pitgoal-sleep-start");
+
+      if (savedSleeping === "true" && savedSleepStart) {
+        setIsSleeping(true);
+        setSleepStartTime(parseInt(savedSleepStart));
+        setShowWakePopup(true);
+        if (savedEnergy) setEnergy(parseFloat(savedEnergy));
+      } else if (savedEnergy && savedTick) {
+        const lastTick = parseInt(savedTick);
+        const offlineMinutes = (Date.now() - lastTick) / 60000;
+        // Check if there was an active task during offline
+        const raw2 = localStorage.getItem(STORAGE_KEY);
+        let offlineRate = IDLE_RATE;
+        if (raw2) {
+          try {
+            const d2 = JSON.parse(raw2);
+            if (d2.activeTask) {
+              const at = d2.activeTask;
+              const taskType = at.type?.toUpperCase?.() || "WORK";
+              if (taskType === "REST") offlineRate = REST_RATE;
+              else if (at.urgent) offlineRate = URGENT_RATE;
+              else offlineRate = TASK_RATE;
+            }
+          } catch {}
+        }
+        const offlineDrain = offlineRate * offlineMinutes;
+        const restoredEnergy = Math.max(0, Math.min(100, parseFloat(savedEnergy) - offlineDrain));
+        setEnergy(restoredEnergy);
+      }
+      lastEnergyTick.current = Date.now();
+    } catch {}
+
     ensureAuth().then(uid => { if (uid) setUserId(uid); });
     setLoaded(true);
   }, []);
@@ -214,9 +269,51 @@ export default function Home() {
     if (userId) saveProfile(userId, { drain_idle: rates.idle, drain_work: rates.work, drain_urgent: rates.urgent, drain_rest: rates.rest, wake_hour: rates.wakeHour, wake_minute: rates.wakeMinute, sleep_hour: rates.sleepHour, sleep_minute: rates.sleepMinute, max_energy_h: rates.maxEnergyHours });
   }, [userId]);
 
-  // ═══ TICK + ENERGY ═══
+  // ═══ ENERGY PERSISTENCE ═══
+  useEffect(() => {
+    localStorage.setItem("pitgoal-energy", energy.toString());
+    localStorage.setItem("pitgoal-energy-tick", Date.now().toString());
+  }, [energy]);
+
+  useEffect(() => {
+    localStorage.setItem("pitgoal-sleeping", isSleeping.toString());
+    if (sleepStartTime) {
+      localStorage.setItem("pitgoal-sleep-start", sleepStartTime.toString());
+    }
+  }, [isSleeping, sleepStartTime]);
+
+  // ═══ TICK ═══
   useEffect(() => { const id = setInterval(() => setTick(t => t + 1), 1000); return () => clearInterval(id); }, []);
-  useEffect(() => { if (!activeTask) return; const elapsed = (Date.now() - activeTask.startedAt) / 60000; if (activeTask.type === "work") setEnergyUsed(activeTask.baseUsed + elapsed); else setEnergyCharged(activeTask.baseCharged + elapsed); }, [tick, activeTask]);
+
+  // ═══ REAL-TIME ENERGY DRAIN ═══
+  useEffect(() => {
+    if (isSleeping) return;
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const deltaMinutes = (now - lastEnergyTick.current) / 60000;
+      lastEnergyTick.current = now;
+      let rate: number;
+      if (activeTask) {
+        const taskType = activeTask.type?.toUpperCase?.() || "WORK";
+        if (taskType === "REST") {
+          rate = REST_RATE;
+        } else if (activeTask.urgent) {
+          rate = URGENT_RATE;
+        } else {
+          rate = TASK_RATE;
+        }
+      } else {
+        rate = IDLE_RATE;
+      }
+      setEnergy(prev => Math.max(0, Math.min(100, prev - rate * deltaMinutes)));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isSleeping, activeTask]);
+
+  // ═══ REST NOW WARNING ═══
+  useEffect(() => {
+    setShowRestWarning(energy <= WARN_THRESHOLD && !isSleeping);
+  }, [energy, isSleeping]);
 
   // ═══ GRACE PERIOD AUTO-SKIP ═══
   useEffect(() => {
@@ -248,12 +345,34 @@ export default function Home() {
 
   const startTask = (task: Task) => {
     if (activeTask) stopAndComplete();
-    if (pausedTask && pausedTask.id === task.id) {
-      const at = { ...task, startedAt: Date.now() - (pausedTask.elapsedMs || 0), baseUsed: energyUsed, baseCharged: energyCharged } as ActiveTask;
-      setActiveTask(at); setPausedTask(null); const u = tasks.map(t => t.id === task.id ? { ...t, status: "active" as const } : t); setTasks(u); save(u, dayLog, energyUsed, energyCharged, at, customGroups, null, switchingFrom); return;
+
+    // ── Retroactive penalty for late starts ──
+    const now = Date.now();
+    const startStr = task.time;
+    let scheduledStart = now;
+    if (startStr) {
+      const [h, m] = startStr.split(":").map(Number);
+      const d = new Date();
+      d.setHours(h, m, 0, 0);
+      scheduledStart = d.getTime();
     }
-    const at = { ...task, startedAt: Date.now(), baseUsed: energyUsed, baseCharged: energyCharged } as ActiveTask;
-    setActiveTask(at); const u = tasks.map(t => t.id === task.id ? { ...t, status: "active" as const } : t); setTasks(u); setExpandedTask(null); save(u, dayLog, energyUsed, energyCharged, at, customGroups, pausedTask, switchingFrom);
+    if (scheduledStart < now) {
+      const missedMinutes = (now - scheduledStart) / 60000;
+      const taskType = task.type?.toUpperCase?.() || "WORK";
+      const actualRate = task.urgent ? URGENT_RATE : (taskType === "REST" ? 0 : TASK_RATE);
+      const rateDiff = actualRate - IDLE_RATE;
+      if (rateDiff > 0) {
+        const penalty = rateDiff * missedMinutes;
+        setEnergy(prev => Math.max(0, prev - penalty));
+      }
+    }
+
+    if (pausedTask && pausedTask.id === task.id) {
+      const at = { ...task, startedAt: Date.now() - (pausedTask.elapsedMs || 0), baseUsed: energyUsed, baseCharged: energyCharged, actualStartTime: task.actualStartTime || new Date().toISOString() } as ActiveTask;
+      setActiveTask(at); setPausedTask(null); const u = tasks.map(t => t.id === task.id ? { ...t, status: "active" as const, actualStartTime: t.actualStartTime || new Date().toISOString() } : t); setTasks(u); save(u, dayLog, energyUsed, energyCharged, at, customGroups, null, switchingFrom); return;
+    }
+    const at = { ...task, startedAt: Date.now(), baseUsed: energyUsed, baseCharged: energyCharged, actualStartTime: new Date().toISOString() } as ActiveTask;
+    setActiveTask(at); const u = tasks.map(t => t.id === task.id ? { ...t, status: "active" as const, actualStartTime: new Date().toISOString() } : t); setTasks(u); setExpandedTask(null); save(u, dayLog, energyUsed, energyCharged, at, customGroups, pausedTask, switchingFrom);
   };
 
   const stopAndComplete = () => {
@@ -435,7 +554,17 @@ const getTypeLabel = (typeId: string): string => {
   const resumePaused = () => { if (!pausedTask) return; const t = tasks.find(x => x.id === pausedTask.id); if (t) startTask(t); if (notifEnabled) cancelPauseReminder(); };
   const dismissPaused = () => { if (!pausedTask) return; setPausedTask(null); save(tasks, dayLog, energyUsed, energyCharged, activeTask, customGroups, null, switchingFrom); if (notifEnabled) cancelPauseReminder(); };
 
-  const markDone = (task: Task) => { const entry = { id: genId(), name: task.name, type: task.type, urgent: task.urgent, duration: task.duration, startTime: getDisplayTime(task), endTime: fmtTime(Math.floor((getDisplayTimeMin(task) + task.duration) / 60) % 24, (getDisplayTimeMin(task) + task.duration) % 60) }; const newLog = [...dayLog, entry]; const u = tasks.map(t => t.id === task.id ? { ...t, status: "done" as const, actual_duration: task.duration, completedAt: Date.now() } : t); setDayLog(newLog); setTasks(u); setExpandedTask(null); save(u, newLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom); if (notifEnabled) onTaskDone(task.id); if (activeTask?.id === task.id) { setActiveTask(null); save(u, newLog, energyUsed, energyCharged, null, customGroups, pausedTask, switchingFrom); } if (pausedTask?.id === task.id) setPausedTask(null); if (switchingFrom?.id === task.id) setSwitchingFrom(null); };
+  const markDone = (task: Task) => {
+    // Route to correct handler based on whether task was actively running
+    if (activeTask?.id === task.id && task.actualStartTime) {
+      return handleActiveDone(task);
+    }
+    if (!task.actualStartTime) {
+      return handleDirectDone(task);
+    }
+    // Fallback: original behavior
+    const entry = { id: genId(), name: task.name, type: task.type, urgent: task.urgent, duration: task.duration, startTime: getDisplayTime(task), endTime: fmtTime(Math.floor((getDisplayTimeMin(task) + task.duration) / 60) % 24, (getDisplayTimeMin(task) + task.duration) % 60) }; const newLog = [...dayLog, entry]; const u = tasks.map(t => t.id === task.id ? { ...t, status: "done" as const, actual_duration: task.duration, completedAt: Date.now() } : t); setDayLog(newLog); setTasks(u); setExpandedTask(null); save(u, newLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom); if (notifEnabled) onTaskDone(task.id); if (activeTask?.id === task.id) { setActiveTask(null); save(u, newLog, energyUsed, energyCharged, null, customGroups, pausedTask, switchingFrom); } if (pausedTask?.id === task.id) setPausedTask(null); if (switchingFrom?.id === task.id) setSwitchingFrom(null);
+  };
   const markUndone = (task: Task) => { const u = tasks.map(t => t.id === task.id ? { ...t, status: "pending" as const, actual_duration: null, completedAt: undefined } : t); const newLog = dayLog.filter(e => !(e.name === task.name && e.startTime === getDisplayTime(task))); setTasks(u); setDayLog(newLog); save(u, newLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom); };
   const skipPendingTask = (task: Task) => { const u = tasks.map(t => t.id === task.id ? { ...t, status: "skipped" as const, skippedAt: Date.now() } : t); setTasks(u); save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom); if (notifEnabled) onTaskDone(task.id); if (activeTask?.id === task.id) { setActiveTask(null); save(u, dayLog, energyUsed, energyCharged, null, customGroups, pausedTask, switchingFrom); } if (pausedTask?.id === task.id) setPausedTask(null); if (switchingFrom?.id === task.id) setSwitchingFrom(null); };
   const deleteTask = (task: Task) => { const u = tasks.filter(t => t.id !== task.id); setTasks(u); setExpandedTask(null); save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom); };
@@ -446,7 +575,7 @@ const getTypeLabel = (typeId: string): string => {
   const addGroup = () => { setGroupInput(""); setShowGroupModal(true); };
   const confirmAddGroup = () => { if (groupInput.trim()) { const x = [...customGroups, groupInput.trim()]; setCustomGroups(x); save(tasks, dayLog, energyUsed, energyCharged, activeTask, x, pausedTask, switchingFrom); } setShowGroupModal(false); setGroupInput(""); };
   const pickMonth = (m: number) => { setViewMonth(m); setMonthPickerOpen(false); setSelectedDate(m === today.getMonth() && viewYear === today.getFullYear() ? new Date(today) : new Date(viewYear, m, 1)); };
-  const resetAll = () => { setTasks([]); setDayLog([]); setTemplates([]); setHistory({}); setStreak(0); setCustomGroups([]); setEnergyUsed(0); setEnergyCharged(0); setActiveTask(null); setPausedTask(null); setSwitchingFrom(null); try { localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(PLAN_KEY); } catch {} };
+  const resetAll = () => { setTasks([]); setDayLog([]); setTemplates([]); setHistory({}); setStreak(0); setCustomGroups([]); setEnergyUsed(0); setEnergyCharged(0); setEnergy(100); setIsSleeping(false); setSleepStartTime(null); setActiveTask(null); setPausedTask(null); setSwitchingFrom(null); try { localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(PLAN_KEY); localStorage.removeItem("pitgoal-energy"); localStorage.removeItem("pitgoal-energy-tick"); localStorage.removeItem("pitgoal-sleeping"); localStorage.removeItem("pitgoal-sleep-start"); localStorage.removeItem("pitgoal-last-sleep"); } catch {} };
 
   const fetchSuggestions = useCallback((q: string) => {
     if (q.length < 2) { setSuggestions([]); setShowSuggestions(false); return; }
@@ -462,6 +591,117 @@ const getTypeLabel = (typeId: string): string => {
     }, 300);
   }, [userId]);
   const pickSuggestion = (s: any) => { setCmdInput(s.name); if (s.category) setCmdCategory(s.category); setSuggestions([]); setShowSuggestions(false); };
+
+  // ═══ TASK STATE DETECTION ═══
+  function getTaskState(task: any): "upcoming" | "available" | "overdue" | "active" | "done" | "skipped" {
+    if (task.status === "done") return "done";
+    if (task.status === "skipped") return "skipped";
+    if (task.id === activeTask?.id) return "active";
+
+    const now = Date.now();
+    const startStr = task.time;
+    if (!startStr) return "upcoming";
+
+    const [h, m] = startStr.split(":").map(Number);
+    const d = new Date();
+    d.setHours(h, m, 0, 0);
+    const start = d.getTime();
+
+    const durationMs = (task.duration || 60) * 60 * 1000;
+    const end = start + durationMs;
+
+    if (now < start) return "upcoming";
+    if (now >= start && now <= end && task.status === "pending") return "available";
+    if (now > end && task.status === "pending") return "overdue";
+    return "upcoming";
+  }
+
+  // ═══ HANDLE DO NOW (overdue tasks — no penalty) ═══
+  const handleDoNow = (task: Task) => {
+    const now = new Date();
+    const nowStr = fmtTime(now.getHours(), now.getMinutes());
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    const u = tasks.map(t => t.id === task.id ? { ...t, time: nowStr, timeMin: nowMin, adjustedTimeMin: null } : t);
+    setTasks(u);
+    save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom);
+    const updated = u.find(t => t.id === task.id);
+    if (updated) startTask(updated);
+  };
+
+  // ═══ HANDLE DIRECT DONE (never started — charge full duration) ═══
+  const handleDirectDone = (task: Task) => {
+    const durationMinutes = task.duration || 60;
+    const taskRate = task.urgent ? URGENT_RATE : TASK_RATE;
+    const fullCharge = taskRate * durationMinutes;
+
+    const startStr = task.time;
+    let scheduledStart = Date.now();
+    if (startStr) {
+      const [h, m] = startStr.split(":").map(Number);
+      const d = new Date();
+      d.setHours(h, m, 0, 0);
+      scheduledStart = d.getTime();
+    }
+
+    const elapsed = Math.min(durationMinutes, (Date.now() - scheduledStart) / 60000);
+    const alreadyDrained = IDLE_RATE * Math.max(0, elapsed);
+    const netDrain = Math.max(0, fullCharge - alreadyDrained);
+
+    setEnergy(prev => Math.max(0, prev - netDrain));
+
+    const entry = { id: genId(), name: task.name, type: task.type, urgent: task.urgent, duration: durationMinutes, startTime: getDisplayTime(task), endTime: fmtTime(Math.floor((getDisplayTimeMin(task) + durationMinutes) / 60) % 24, (getDisplayTimeMin(task) + durationMinutes) % 60) };
+    const newLog = [...dayLog, entry];
+    const u = tasks.map(t => t.id === task.id ? { ...t, status: "done" as const, actual_duration: durationMinutes, completedAt: Date.now() } : t);
+    setDayLog(newLog); setTasks(u); setExpandedTask(null);
+    save(u, newLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom);
+    if (notifEnabled) onTaskDone(task.id);
+    if (pausedTask?.id === task.id) setPausedTask(null);
+    if (switchingFrom?.id === task.id) setSwitchingFrom(null);
+  };
+
+  // ═══ HANDLE ACTIVE DONE (was running — lock actual elapsed) ═══
+  const handleActiveDone = (task: Task) => {
+    if (!(task as any).actualStartTime) return handleDirectDone(task);
+    stopAndComplete();
+  };
+
+  // ═══ SLEEP MODE ═══
+  const handleSleep = () => {
+    const lastSleep = localStorage.getItem("pitgoal-last-sleep");
+    if (lastSleep && Date.now() - parseInt(lastSleep) < SLEEP_COOLDOWN) {
+      const remaining = SLEEP_COOLDOWN - (Date.now() - parseInt(lastSleep));
+      const hrs = Math.floor(remaining / 3600000);
+      const mins = Math.ceil((remaining % 3600000) / 60000);
+      alert(`You can sleep again in ${hrs}h ${mins}m`);
+      return;
+    }
+
+    if (activeTask) {
+      skipTask();
+    }
+
+    setIsSleeping(true);
+    setSleepStartTime(Date.now());
+    localStorage.setItem("pitgoal-last-sleep", Date.now().toString());
+  };
+
+  // ═══ WAKE UP ═══
+  const handleWake = () => {
+    if (!sleepStartTime) return;
+    const sleepHours = (Date.now() - sleepStartTime) / 3600000;
+    const restore = Math.min(100, sleepHours * SLEEP_RESTORE_PER_HOUR);
+    setEnergy(prev => Math.min(100, prev + restore));
+    setIsSleeping(false);
+    setSleepStartTime(null);
+    setShowWakePopup(false);
+    lastEnergyTick.current = Date.now();
+    localStorage.removeItem("pitgoal-sleeping");
+    localStorage.removeItem("pitgoal-sleep-start");
+  };
+
+  const handleStillResting = () => {
+    setShowWakePopup(false);
+  };
 
   // ═══ COMPUTED ═══
   const activeElapsed = activeTask ? Math.floor((Date.now() - activeTask.startedAt) / 1000) : 0;
@@ -480,8 +720,9 @@ const getTypeLabel = (typeId: string): string => {
   const totalDrain = idleMins2 * drainRates.idle + totalWorkMins * drainRates.work + totalUrgentMins * drainRates.urgent;
   const totalRecharge = totalRestMins * drainRates.rest;
   const eRemain = Math.max(0, Math.min(eTotal, eTotal - totalDrain + totalRecharge));
-  const ePct = Math.round((eRemain / eTotal) * 100);
-  const eHrs = (eRemain / 60).toFixed(1);
+  // Real-time energy overrides computed value
+  const ePct = Math.round(energy);
+  const eHrs = ((energy / 100) * drainRates.maxEnergyHours).toFixed(1);
 
   const sorted = useMemo(() => [...tasks].sort((a, b) => getDisplayTimeMin(a) - getDisplayTimeMin(b)), [tasks]);
   const pendingTasks = sorted.filter(t => t.status === "pending" || t.status === "active");
@@ -557,9 +798,39 @@ const getTypeLabel = (typeId: string): string => {
               <div style={{ fontSize: 30, fontWeight: 700, color: "var(--accent)", letterSpacing: -1, lineHeight: 1 }}>{(totalTracked / 60).toFixed(1)}</div>
               <div style={{ fontSize: 9, color: "var(--t5)", fontFamily: MONO, letterSpacing: 2, fontWeight: 600, marginTop: 6 }}>TRACKED</div>
             </div>
-            <div className="tap" onClick={() => setStatPopup(2)} style={{ flex: 1, background: "var(--card)", borderRadius: 16, padding: "16px 12px", border: "1px solid var(--border)", textAlign: "center", cursor: "pointer" }}>
-              <div style={{ fontSize: 30, fontWeight: 700, color: ePct > 30 ? "var(--t1)" : ePct > 10 ? "var(--warn)" : "var(--danger)", letterSpacing: -1, lineHeight: 1 }}>{ePct}%</div>
-              <div style={{ fontSize: 9, color: "var(--t5)", fontFamily: MONO, letterSpacing: 2, fontWeight: 600, marginTop: 6 }}>ENERGY</div>
+            <div className="tap" onClick={() => setStatPopup(2)} style={{ flex: 1, background: "var(--card)", borderRadius: 16, padding: "16px 12px", border: isSleeping ? "1px solid var(--rest, #6b8a7a)" : "1px solid var(--border)", textAlign: "center", cursor: "pointer", position: "relative" }}>
+              {/* Sleep/Wake button */}
+              <div
+                onClick={(e) => { e.stopPropagation(); isSleeping ? handleWake() : handleSleep(); }}
+                style={{
+                  position: "absolute", top: 6, right: 6, width: 22, height: 22, borderRadius: "50%",
+                  background: "var(--badge-bg, #222)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
+                }}
+              >
+                {isSleeping ? (
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2">
+                    <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                    <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                  </svg>
+                ) : (
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--t4)" strokeWidth="2">
+                    <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+                  </svg>
+                )}
+              </div>
+              {isSleeping ? (
+                <>
+                  <div style={{ fontSize: 24, fontWeight: 700, color: "var(--rest, #6b8a7a)", letterSpacing: -1, lineHeight: 1 }} className="anim-pulse">ZZZ</div>
+                  <div style={{ fontSize: 9, color: "var(--rest, #6b8a7a)", fontFamily: MONO, letterSpacing: 2, fontWeight: 600, marginTop: 6 }}>{ePct}%</div>
+                </>
+              ) : (
+                <>
+                  <div style={{ fontSize: 30, fontWeight: 700, color: ePct > 30 ? "var(--t1)" : ePct > 10 ? "var(--warn)" : "var(--danger)", letterSpacing: -1, lineHeight: 1 }}>{ePct}%</div>
+                  <div style={{ fontSize: 9, color: "var(--t5)", fontFamily: MONO, letterSpacing: 2, fontWeight: 600, marginTop: 6 }}>ENERGY</div>
+                </>
+              )}
             </div>
           </div>
 
@@ -722,6 +993,24 @@ const getTypeLabel = (typeId: string): string => {
             })}
           </div>
 
+          {/* ── REST NOW BANNER ── */}
+          {showRestWarning && !isSleeping && (
+            <div style={{
+              margin: "0 0 12px", padding: "14px 18px",
+              background: "rgba(226,75,74,0.06)", border: "1px solid rgba(226,75,74,0.2)", borderRadius: 16,
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+            }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "var(--danger, #E24B4A)" }}>REST NOW</div>
+                <div style={{ fontSize: 11, color: "var(--t4)", fontFamily: MONO, marginTop: 2 }}>Energy at {Math.round(energy)}% — you&apos;re running low</div>
+              </div>
+              <div
+                onClick={handleSleep}
+                style={{ padding: "8px 16px", background: "var(--accent)", color: "#0a0a0a", borderRadius: 50, fontWeight: 700, fontSize: 12, cursor: "pointer", flexShrink: 0 }}
+              >Sleep</div>
+            </div>
+          )}
+
           {/* ── TODAY TAB CONTENT ── */}
           {activeTab === "today" && (
             <>
@@ -754,22 +1043,33 @@ const getTypeLabel = (typeId: string): string => {
                     isCollab: true, friendName: ct.friend,
                   }));
                   const now2 = nowMinutes();
+
+                  // Assign priority based on task state
+                  const statePriority = (t: any): number => {
+                    if (t.isCollab) return 5;
+                    const state = getTaskState(t);
+                    if (state === "active") return 0;
+                    if (state === "available") return 1;
+                    if (state === "overdue") return 2;
+                    return 3; // upcoming
+                  };
+
                   const allPending: any[] = [...pendingTasks.map(t => ({ ...t, isCollab: false, friendName: "" })), ...collabAsTasks]
                     .sort((a: any, b: any) => {
+                      const aPri = statePriority(a);
+                      const bPri = statePriority(b);
+                      if (aPri !== bPri) return aPri - bPri;
                       const aTime = a.adjustedTimeMin ?? a.timeMin;
                       const bTime = b.adjustedTimeMin ?? b.timeMin;
-                      const aActive = a.status === "active" ? 0 : 1;
-                      const bActive = b.status === "active" ? 0 : 1;
-                      if (aActive !== bActive) return aActive - bActive;
-                      const aUpcoming = (a.status === "pending" && !a.isCollab && aTime - now2 <= 5 && aTime - now2 > 0) ? 0 : 1;
-                      const bUpcoming = (b.status === "pending" && !b.isCollab && bTime - now2 <= 5 && bTime - now2 > 0) ? 0 : 1;
-                      if (aUpcoming !== bUpcoming) return aUpcoming - bUpcoming;
+                      // For overdue, sort by how overdue (most overdue first)
+                      if (aPri === 2) return bTime - aTime;
                       return aTime - bTime;
                     });
 
                   const priorityTasks = allPending.filter((t: any) => {
-                    const tTime = t.adjustedTimeMin ?? t.timeMin;
-                    return t.status === "active" || (t.status === "pending" && !t.isCollab && tTime - now2 <= 5 && tTime - now2 > 0);
+                    if (t.isCollab) return false;
+                    const state = getTaskState(t);
+                    return state === "active" || state === "available" || state === "overdue";
                   });
                   const restTasks = allPending.filter(t => !priorityTasks.includes(t));
 
@@ -860,20 +1160,36 @@ const getTypeLabel = (typeId: string): string => {
                     }
 
                     // ── Pending task card (pill or expanded) ──
+                    const taskState = getTaskState(task);
+                    const isOverdue = taskState === "overdue";
+                    const isAvailable = taskState === "available";
+
                     return (
                       <div key={task.id} style={{ marginBottom: 8, animation: `fadeUp 0.3s ease ${i * 0.04}s both` }}>
                         <div style={{
                           background: task.urgent ? "var(--danger-fill)" : "var(--card)",
                           borderRadius: isExpanded ? 16 : (task.name.length > 35 ? 28 : 50),
-                          border: `1px solid ${isExpanded ? "var(--border2)" : task.urgent ? "transparent" : "var(--border)"}`,
+                          border: `1px solid ${isExpanded ? "var(--border2)" : isOverdue ? "rgba(226,75,74,0.3)" : task.urgent ? "transparent" : "var(--border)"}`,
                           transition: "border-radius 0.2s",
                           minHeight: 72,
                           overflow: "hidden",
                         }}>
                           <div style={{ display: "flex", alignItems: "center" }}>
                             <div className="tap" onClick={() => setExpandedTask(isExpanded ? null : task.id)} style={{ flex: 1, minWidth: 0, overflow: "hidden", padding: isExpanded ? "18px 0 14px 20px" : "18px 0 18px 22px" }}>
+                              {/* Available badge */}
+                              {isAvailable && (
+                                <div style={{ marginBottom: 6 }}>
+                                  <span className="anim-pulse" style={{ fontSize: 9, color: "var(--accent)", background: "var(--accent-10)", padding: "2px 8px", borderRadius: 50, fontFamily: MONO, fontWeight: 700, letterSpacing: 1 }}>START</span>
+                                </div>
+                              )}
+                              {/* Overdue badge */}
+                              {isOverdue && (
+                                <div style={{ marginBottom: 6 }}>
+                                  <span style={{ fontSize: 9, color: "var(--danger, #E24B4A)", background: "rgba(226,75,74,0.1)", padding: "2px 8px", borderRadius: 50, fontFamily: MONO, fontWeight: 700, letterSpacing: 1 }}>OVERDUE</span>
+                                </div>
+                              )}
                               {/* Upcoming badge */}
-                              {isUpcomingSoon && (
+                              {isUpcomingSoon && !isAvailable && !isOverdue && (
                                 <div style={{ marginBottom: 6 }}>
                                   <span style={{ fontSize: 8, color: "var(--accent)", background: "var(--accent-10)", padding: "2px 6px", borderRadius: 50, fontFamily: MONO, fontWeight: 700, letterSpacing: 1 }}>IN {Math.max(1, Math.round(tTime - now2))} MIN</span>
                                 </div>
@@ -898,13 +1214,20 @@ const getTypeLabel = (typeId: string): string => {
                                   return <span key={tagId} style={{ fontSize: 9, color: task.urgent ? "var(--fill-sub)" : tagDef.color, background: task.urgent ? "rgba(255,255,255,0.12)" : `${tagDef.color}15`, padding: "3px 10px", borderRadius: 50, fontFamily: MONO, fontWeight: 500 }}>{tagDef.label}</span>;
                                 })}
                               </div>
+                              {/* Overdue action buttons (inline) */}
+                              {isOverdue && !isExpanded && (
+                                <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+                                  <div className="tap" onClick={(e) => { e.stopPropagation(); handleDoNow(task); }} style={{ padding: "7px 16px", background: "var(--accent)", color: "#0a0a0a", borderRadius: 50, fontWeight: 700, fontSize: 11, fontFamily: MONO, cursor: "pointer" }}>Do now</div>
+                                  <div className="tap" onClick={(e) => { e.stopPropagation(); skipPendingTask(task); }} style={{ padding: "7px 16px", background: "var(--badge-bg)", color: "var(--t4)", borderRadius: 50, fontWeight: 600, fontSize: 11, fontFamily: MONO, cursor: "pointer" }}>Skip</div>
+                                </div>
+                              )}
                             </div>
                             {/* Right side: play button or chevron */}
                             {isExpanded ? (
                               <div style={{ margin: "0 18px", padding: 8 }}>
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--play-icon)" strokeWidth="2" strokeLinecap="round"><polyline points="18 15 12 9 6 15" /></svg>
                               </div>
-                            ) : (
+                            ) : isOverdue ? null : (
                               <div className="tap" onClick={() => startTask(task)} style={{ margin: "0 14px" }}>
                                 <div style={{ width: 40, height: 40, borderRadius: "50%", border: "2px solid var(--play-border)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                                   <PlayIcon size={14} color="var(--play-icon)" />
@@ -1027,14 +1350,10 @@ const getTypeLabel = (typeId: string): string => {
       {bottomTab === "friends" && <FriendsTab />}
       {bottomTab === "profile" && (
         <ProfileTab
-          userId={userId} theme={"dark" as Theme} setTheme={() => {}}
-          tasksDoneCount={tasksDoneCount} streak={streak} ePct={ePct}
-          drainRates={drainRates} saveDrainRates={saveDrainRates}
-          notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled}
-          initNotifications={initNotifications} clearAllNotifications={clearAllNotifications}
-          scheduleTaskNotifications={scheduleTaskNotifications} scheduleDaySummary={scheduleDaySummary}
-          tasks={tasks} templates={templates} history={history}
-          customGroups={customGroups} dayLog={dayLog} resetAll={resetAll}
+          energy={energy}
+          streak={streak}
+          tasksDoneCount={tasksDoneCount}
+          resetAll={resetAll}
         />
       )}
 
@@ -1483,10 +1802,36 @@ const getTypeLabel = (typeId: string): string => {
               <span style={{ ...pS.rowVal, color: "var(--rest, #6b8a7a)" }}>+{drainRates.rest}/min</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0" }}>
-              <span style={{ fontSize: 16, fontWeight: 700, width: 24, textAlign: "center", color: "var(--accent)" }}>+</span>
-              <span style={{ fontSize: 13, color: "var(--t3, #666)", flex: 1 }}>New day</span>
-              <span style={{ ...pS.rowVal, color: "var(--accent)" }}>Full reset</span>
+              <span style={{ fontSize: 16, fontWeight: 700, width: 24, textAlign: "center", color: "var(--rest, #6b8a7a)" }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--rest, #6b8a7a)" strokeWidth="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+              </span>
+              <span style={{ fontSize: 13, color: "var(--t3, #666)", flex: 1 }}>Sleep</span>
+              <span style={{ ...pS.rowVal, color: "var(--rest, #6b8a7a)" }}>+{SLEEP_RESTORE_PER_HOUR}%/hr</span>
             </div>
+
+            {/* Sleep status */}
+            {isSleeping && sleepStartTime && (
+              <>
+                <div style={pS.sep} />
+                <div style={pS.secTitle}>SLEEP STATUS</div>
+                <div style={pS.row}>
+                  <span style={pS.rowLabel}>Currently</span>
+                  <span style={{ ...pS.rowVal, color: "var(--rest, #6b8a7a)" }}>Sleeping</span>
+                </div>
+                <div style={pS.row}>
+                  <span style={pS.rowLabel}>Started</span>
+                  <span style={{ ...pS.rowVal, color: "var(--t3, #888)" }}>{new Date(sleepStartTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                </div>
+                <div style={pS.row}>
+                  <span style={pS.rowLabel}>Restored so far</span>
+                  <span style={{ ...pS.rowVal, color: "var(--rest, #6b8a7a)" }}>+{Math.round(Math.min(100, ((Date.now() - sleepStartTime) / 3600000) * SLEEP_RESTORE_PER_HOUR))}%</span>
+                </div>
+                <div
+                  onClick={handleWake}
+                  style={{ marginTop: 12, padding: 12, background: "var(--accent)", color: "#0a0a0a", borderRadius: 50, fontWeight: 700, fontSize: 13, fontFamily: MONO, textAlign: "center", cursor: "pointer" }}
+                >Wake up</div>
+              </>
+            )}
 
             <div style={pS.sep} />
 
@@ -1574,6 +1919,52 @@ const getTypeLabel = (typeId: string): string => {
           </div>
         );
       })()}
+
+      {/* ── WAKE POPUP ── */}
+      {showWakePopup && isSleeping && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 210,
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+        }}>
+          <div style={{
+            background: "var(--card)", border: "1px solid var(--border)", borderRadius: 20,
+            padding: 28, width: 300, maxWidth: "90vw", textAlign: "center",
+          }}>
+            <div style={{ marginBottom: 16 }}>
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5">
+                <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+              </svg>
+            </div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: "var(--t1)", marginBottom: 6 }}>Start the day?</div>
+            <div style={{ fontSize: 13, color: "var(--t4)", marginBottom: 4, fontFamily: MONO }}>
+              Slept {sleepStartTime ? Math.round((Date.now() - sleepStartTime) / 3600000 * 10) / 10 : 0} hours
+            </div>
+            <div style={{ fontSize: 13, color: "var(--accent)", marginBottom: 20, fontFamily: MONO }}>
+              +{sleepStartTime ? Math.round(Math.min(100, ((Date.now() - sleepStartTime) / 3600000) * SLEEP_RESTORE_PER_HOUR)) : 0}% energy restored
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <div
+                onClick={handleWake}
+                style={{
+                  flex: 1, padding: 12, background: "var(--accent)", color: "#0a0a0a",
+                  borderRadius: 50, fontWeight: 700, fontSize: 14, cursor: "pointer", textAlign: "center",
+                }}
+              >Yes, let&apos;s go</div>
+              <div
+                onClick={handleStillResting}
+                style={{
+                  flex: 1, padding: 12, background: "var(--card)", color: "var(--t4)",
+                  borderRadius: 50, fontWeight: 600, fontSize: 14, cursor: "pointer", textAlign: "center",
+                  border: "1px solid var(--border)",
+                }}
+              >Still resting</div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <BottomNav active={bottomTab} onChange={handleTabChange} onAdd={() => setShowCreateSheet(true)} expanded={navExpanded} onExpand={expandNav} />
     </div>

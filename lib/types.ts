@@ -58,6 +58,7 @@ export interface Task {
   skippedAt: number | null;
   startedAt?: number;
   completedAt?: number;
+  actualStartTime?: string;  // ISO timestamp of when user actually tapped Play
   desc?: string;
   rate?: string;
   group?: string;
