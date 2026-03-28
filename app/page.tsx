@@ -16,7 +16,7 @@ import {
 } from "../lib/utils";
 import type { Task, ActiveTask, Template, DayHistory, DrainRates, Theme, BottomTab, CmdCategory } from "../lib/types";
 import BottomNav from "../components/BottomNav";
-import CommunityTab from "../components/CommunityTab";
+import PitTab from "../components/PitTab";
 import FriendsTab from "../components/FriendsTab";
 import FriendStack from "../components/FriendStack";
 import ProfileTab from "../components/ProfileTab";
@@ -774,8 +774,50 @@ const getTypeLabel = (typeId: string): string => {
 
   // ═══ LOADING ═══
   if (!loaded) return (
-    <div style={{ background: "var(--bg)", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ fontSize: 13, letterSpacing: 6, color: "#FFD000", fontFamily: MONO, fontWeight: 500 }} className="anim-pulse">PITGOAL</div>
+    <div style={{
+      background: '#060a12',
+      minHeight: '100dvh',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '24px',
+    }}>
+      <img
+        src="/Trademark-white.png"
+        alt="Pitgoal"
+        style={{
+          width: '220px',
+          height: 'auto',
+          opacity: 0.95,
+        }}
+      />
+      <div style={{
+        width: '40px',
+        height: '3px',
+        background: '#1e2530',
+        borderRadius: '2px',
+        overflow: 'hidden',
+        position: 'relative',
+      }}>
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          height: '100%',
+          width: '60%',
+          background: '#FFD000',
+          borderRadius: '2px',
+          animation: 'splash-slide 1.2s ease-in-out infinite',
+        }} />
+      </div>
+      <style>{`
+        @keyframes splash-slide {
+          0% { transform: translateX(-100%); }
+          50% { transform: translateX(80%); }
+          100% { transform: translateX(-100%); }
+        }
+      `}</style>
     </div>
   );
 
@@ -1347,7 +1389,7 @@ const getTypeLabel = (typeId: string): string => {
       )}
 
       {/* ── OTHER TABS (imported components) ── */}
-      {bottomTab === "community" && <CommunityTab />}
+      {bottomTab === "community" && <PitTab />}
       {bottomTab === "friends" && <FriendsTab />}
       {bottomTab === "profile" && (
         <ProfileTab
