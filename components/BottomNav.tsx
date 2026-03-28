@@ -34,7 +34,7 @@ const TABS: { id: BottomTab; icon: (active: boolean) => React.ReactNode }[] = [
     id: "community",
     icon: (a) => (
       <img
-        src="/icons/pit-nav-yellow.png"
+        src="/icons/pit-nav.png"
         width={22}
         height={22}
         alt="Pit"
