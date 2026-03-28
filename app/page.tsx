@@ -1304,13 +1304,6 @@ const getTypeLabel = (typeId: string): string => {
                     <>
                       {priorityTasks.map((t, i) => renderTask(t, i))}
                       {/* Friend status — between priority and rest */}
-                      <div style={{ marginTop: 8, marginBottom: 8 }}>
-                        <FriendStack friends={[
-                          { id: "f1", name: "Amir", initial: "A", activity: "studying C", state: "working" },
-                          { id: "f2", name: "Siti", initial: "S", activity: "doing exercises", state: "working" },
-                          { id: "f3", name: "Mei Ling", initial: "M", activity: "resting", state: "resting" },
-                        ]} />
-                      </div>
                       {restTasks.map((t, i) => renderTask(t, priorityTasks.length + i))}
                     </>
                   );

@@ -287,6 +287,33 @@ export default function ProfileTab({ energy, streak, tasksDoneCount, resetAll }:
         </div>
       </div>
 
+      {/* ── APPEARANCE ── */}
+      <div style={{ fontSize: 10, color: "var(--t5, #333)", letterSpacing: 2, fontFamily: "monospace", padding: "20px 20px 10px" }}>
+        APPEARANCE
+      </div>
+      <div style={{ background: "var(--card, #161616)", border: "1px solid var(--border, #1e1e1e)", borderRadius: 16, margin: "0 16px 8px", overflow: "hidden" }}>
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "14px 18px",
+        }}>
+          <div>
+            <div style={{ fontSize: 14, color: "var(--t1, #ddd)", fontWeight: 500 }}>Dark mode</div>
+            <div style={{ fontSize: 11, color: "var(--t4, #444)", marginTop: 2 }}>Light mode coming soon</div>
+          </div>
+          <div style={{
+            width: 44, height: 24, borderRadius: 12,
+            background: "var(--accent, #FFD000)", position: "relative",
+            cursor: "not-allowed", opacity: 0.7,
+          }}>
+            <div style={{
+              width: 20, height: 20, borderRadius: "50%",
+              background: "#fff", position: "absolute",
+              top: 2, right: 2, transition: "all 0.2s",
+            }} />
+          </div>
+        </div>
+      </div>
+
       {/* ── NOTIFICATIONS ── */}
       <div style={{ fontSize: 10, color: "var(--t5, #333)", letterSpacing: 2, fontFamily: "monospace", padding: "20px 20px 10px" }}>
         NOTIFICATIONS

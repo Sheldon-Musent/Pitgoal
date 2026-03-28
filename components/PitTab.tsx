@@ -241,7 +241,7 @@ function PhotoArea({ post }: { post: PitPost }) {
         display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
         gap: 12, padding: 20,
       }}>
-        <div style={{ fontSize: 40 }}>&#127942;</div>
+        <div style={{ fontSize: 40 }}>🏆</div>
         <div style={{ color: "#FFD000", fontSize: 18, fontWeight: 700 }}>42-Day Streak!</div>
         <div style={{ display: "flex", gap: 8 }}>
           {[{ label: "STREAK", value: "42d" }, { label: "DONE", value: "126" }, { label: "AVG", value: "3/day" }].map((s) => (
@@ -265,7 +265,7 @@ function PhotoArea({ post }: { post: PitPost }) {
       color: "#2a3040", fontSize: 12, maxHeight: 260, overflow: "hidden",
     }}>
       <div style={{ textAlign: "center", padding: 20, color: "#3a4048" }}>
-        <div style={{ fontSize: 24, marginBottom: 6 }}>{post.source?.platform === "tiktok" ? "&#9654;" : "&#128247;"}</div>
+        <div style={{ fontSize: 24, marginBottom: 6 }}>{post.source?.platform === "tiktok" ? "▶" : "📷"}</div>
         <div style={{ fontSize: 10 }}>{post.source?.handle || "content"}</div>
       </div>
     </div>
@@ -339,12 +339,12 @@ function CardMeta({ post }: { post: PitPost }) {
           {post.rank}
         </div>
         {post.coins != null && (
-          <span style={{ color: "#FFD000", fontSize: 9 }}>&#9679; {post.coins}</span>
+          <span style={{ color: "#FFD000", fontSize: 9 }}>● {post.coins}</span>
         )}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#4a5568" }}>
-        <span style={{ color: "#FFD000" }}>&#9650; {post.upvotes}</span>
-        <span>&#128172; {post.comments}</span>
+        <span style={{ color: "#FFD000" }}>▲ {post.upvotes}</span>
+        <span>💬 {post.comments}</span>
       </div>
     </div>
   );
@@ -634,7 +634,7 @@ function HistoryTab() {
           display: "flex", alignItems: "center", justifyContent: "center",
           fontSize: 22, color: "#34D399",
         }}>
-          &#9733;
+          ★
         </div>
         <div style={{ fontSize: 16, fontWeight: 700, color: "#e0e0e0" }}>Your Rocky Log</div>
         <div style={{ fontSize: 11, color: "#7a8490" }}>Everything you&apos;ve shared through Rocky</div>
@@ -716,8 +716,8 @@ function HistoryTab() {
 
             {/* Engagement */}
             <div style={{ display: "flex", gap: 6, fontSize: 8, color: "#4a5568" }}>
-              <span>&#9650; {item.upvotes}</span>
-              <span>&#128172; {item.comments}</span>
+              <span>▲ {item.upvotes}</span>
+              <span>💬 {item.comments}</span>
             </div>
           </div>
         ))}
@@ -748,7 +748,7 @@ export default function PitTab() {
           fontSize: 11, fontWeight: 700, letterSpacing: 0.3,
           display: "flex", alignItems: "center", gap: 4,
         }}>
-          &#8599; SHARE
+          ↗ SHARE
         </button>
       </div>
 

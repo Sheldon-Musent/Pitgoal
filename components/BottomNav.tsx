@@ -34,13 +34,14 @@ const TABS: { id: BottomTab; icon: (active: boolean) => React.ReactNode }[] = [
     id: "community",
     icon: (a) => (
       <img
-        src="/icons/pit-nav.png"
+        src="/icons/pit-nav-yellow.png"
         width={22}
         height={22}
         alt="Pit"
         style={{
-          opacity: a ? 1 : 0.4,
-          filter: a ? 'none' : 'grayscale(1) brightness(0.5)',
+          opacity: a ? 1 : 0.35,
+          filter: a ? 'none' : 'grayscale(1) brightness(0.4)',
+          transition: 'opacity 0.2s, filter 0.2s',
         }}
       />
     ),
@@ -171,17 +172,22 @@ export default function BottomNav({ active, onChange, onAdd, expanded, onExpand 
       onTouchMove={(e) => e.stopPropagation()}
       style={{
         position: "fixed",
-        bottom: "calc(16px + env(safe-area-inset-bottom, 0px))",
-        left: "50%",
-        transform: "translateX(-50%)",
+        bottom: 0,
+        left: 0,
+        right: 0,
         zIndex: 100,
+        background: "#060a12",
+        borderTop: "1px solid #1a2028",
+        transform: "translateZ(0)",
+        willChange: "transform",
         display: "flex",
         alignItems: "center",
+        justifyContent: "center",
         gap: 10,
-        willChange: "transform",
-        WebkitBackfaceVisibility: "hidden",
-        backfaceVisibility: "hidden",
-        isolation: "isolate",
+        paddingTop: 8,
+        paddingLeft: 16,
+        paddingRight: 16,
+        paddingBottom: "calc(8px + env(safe-area-inset-bottom, 0px))",
       } as React.CSSProperties}
     >
       {/* Nav pill */}
