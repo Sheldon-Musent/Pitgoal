@@ -168,9 +168,9 @@ html, body {
   padding: 0;
   overflow: hidden;
   height: 100%;
-  height: 100dvh;
+  min-height: 100dvh;
   overscroll-behavior: none;
-  background: var(--bg-gradient, var(--bg));
+  background: #060a12;
   color: var(--t1);
   transition: background 0.3s ease, color 0.3s ease;
 }

@@ -33,12 +33,16 @@ const TABS: { id: BottomTab; icon: (active: boolean) => React.ReactNode }[] = [
   {
     id: "community",
     icon: (a) => (
-      <svg width="22" height="22" viewBox="0 0 100 100" fill="none"
-        stroke={a ? "#0a0a0a" : "var(--nav-inactive)"}
-        strokeWidth="6" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M50 10C50 10 20 40 20 62C20 78 33 92 50 92C67 92 80 78 80 62C80 40 50 10 50 10Z"/>
-        <path d="M50 50C50 50 36 64 36 72C36 80 42 86 50 86C58 86 64 80 64 72C64 64 50 50 50 50Z"/>
-      </svg>
+      <img
+        src="/icons/pit-nav.png"
+        width={22}
+        height={22}
+        alt="Pit"
+        style={{
+          opacity: a ? 1 : 0.4,
+          filter: a ? 'none' : 'grayscale(1) brightness(0.5)',
+        }}
+      />
     ),
   },
   {
