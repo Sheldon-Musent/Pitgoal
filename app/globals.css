@@ -274,3 +274,38 @@ input[type="number"] {
 [data-theme="light"] input[type="number"] {
   color-scheme: light;
 }
+
+/* ═══ Desktop responsive ═══ */
+@media (min-width: 768px) {
+  .nav-fixed {
+    display: none !important;
+  }
+  .side-nav {
+    display: flex !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .side-nav {
+    display: none !important;
+  }
+  .day-timeline {
+    display: none !important;
+  }
+  .app-content {
+    max-width: 430px !important;
+    margin: 0 auto !important;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1199px) {
+  .day-timeline {
+    display: none !important;
+  }
+}
+
+@media (min-width: 1200px) {
+  .day-timeline {
+    display: flex !important;
+  }
+}

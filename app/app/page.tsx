@@ -24,6 +24,8 @@ import PopupBar from "../../components/PopupBar";
 import CreateTaskSheet from "../../components/CreateTaskSheet";
 import type { TaskType, TaskTag, CreateTaskResult } from "../../components/CreateTaskSheet";
 import { DEFAULT_TYPES, DEFAULT_TAGS, DEFAULT_TYPE_IDS, DEFAULT_TAG_IDS } from "../../components/CreateTaskSheet";
+import SideNav from "../../components/SideNav";
+import DayTimeline from "../../components/DayTimeline";
 
 // ── Energy system constants ──
 const IDLE_RATE = 0.5;
@@ -65,6 +67,8 @@ export default function Home() {
   // ── UI state ──
   const [bottomTab, setBottomTab] = useState<BottomTab>("main");
   const [activeTab, setActiveTab] = useState("today");
+  const [isDesktop, setIsDesktop] = useState(false);
+  const [isWideDesktop, setIsWideDesktop] = useState(false);
 
   const [loaded, setLoaded] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
@@ -284,6 +288,17 @@ export default function Home() {
 
   // ═══ TICK ═══
   useEffect(() => { const id = setInterval(() => setTick(t => t + 1), 1000); return () => clearInterval(id); }, []);
+
+  // ═══ DESKTOP DETECTION ═══
+  useEffect(() => {
+    const check = () => {
+      setIsDesktop(window.innerWidth >= 768);
+      setIsWideDesktop(window.innerWidth >= 1200);
+    };
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
 
   // ═══ REAL-TIME ENERGY DRAIN ═══
   useEffect(() => {
@@ -745,6 +760,7 @@ const getTypeLabel = (typeId: string): string => {
   const tasksDoneCount = dayLog.filter((e: any) => e.type === "work").length;
   const restsDoneCount = dayLog.filter((e: any) => e.type === "rest").length;
   const totalTracked = dayLog.reduce((s: number, e: any) => s + e.duration, 0);
+  const totalTrackedHrs = (totalTracked / 60).toFixed(1);
   const skippedCount = skippedTasks.length;
   const hasTasks = pendingTasks.length > 0 || doneTasks.length > 0 || skippedTasks.length > 0;
   const upcoming = sorted.find(t => t.status === "pending" && getDisplayTimeMin(t) - nowMinutes() > 0 && getDisplayTimeMin(t) - nowMinutes() <= 60);
@@ -823,7 +839,25 @@ const getTypeLabel = (typeId: string): string => {
 
   // ═══ RENDER ═══
   return (
-    <div data-theme="dark" style={{ minHeight: "100dvh", height: "100dvh", display: "flex", flexDirection: "column", overflow: "hidden", position: "relative", background: "var(--bg)", fontFamily: BODY, color: "var(--t2)", maxWidth: 430, margin: "0 auto" }}>
+    <div data-theme="dark" className="app-root" style={{ minHeight: "100dvh", height: "100dvh", display: "flex", flexDirection: "row", overflow: "hidden", position: "relative", background: "var(--bg)", fontFamily: BODY, color: "var(--t2)" }}>
+      {/* Desktop SideNav */}
+      {isDesktop && (
+        <SideNav
+          active={bottomTab}
+          onChange={handleTabChange}
+          onAdd={() => setShowCreateSheet(true)}
+          energy={energy}
+          isSleeping={isSleeping}
+          tasksDoneCount={tasksDoneCount + restsDoneCount}
+          totalTrackedHrs={totalTrackedHrs}
+          activeTask={activeTask}
+          activeTimerStr={activeTimerStr}
+          pendingTasks={pendingTasks}
+          doneTasks={doneTasks}
+          getDisplayTime={getDisplayTime}
+        />
+      )}
+      <div className="app-content" style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", maxWidth: isDesktop ? "none" : 430, margin: isDesktop ? 0 : "0 auto", width: isDesktop ? "auto" : "100%" }}>
     <div className="scroll-content" style={{ flex: 1, overflowY: "auto", overflowX: "hidden", WebkitOverflowScrolling: "touch" as any, paddingBottom: hasActivePopup ? 200 : 100, paddingTop: "env(safe-area-inset-top, 0px)", position: "relative", minHeight: 0 }}>
 
       {/* ── MAIN TAB ── */}
@@ -1399,7 +1433,7 @@ const getTypeLabel = (typeId: string): string => {
       {editModal && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
           <div onClick={() => setEditModal(null)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.6)" }} />
-          <div style={{ position: "relative", width: "100%", maxWidth: 430, background: "var(--card)", borderRadius: "24px 24px 0 0", padding: "24px 20px 36px", zIndex: 201, border: "1px solid var(--border)" }}>
+          <div style={{ position: "relative", width: "100%", maxWidth: isDesktop ? 500 : 430, background: "var(--card)", borderRadius: "24px 24px 0 0", padding: "24px 20px 36px", zIndex: 201, border: "1px solid var(--border)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
               <div style={{ fontSize: 18, fontWeight: 700, color: "var(--t1)", fontFamily: DISPLAY }}>Edit task</div>
               <div className="tap" onClick={() => setEditModal(null)} style={{ width: 32, height: 32, borderRadius: 10, background: "var(--card2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -1423,7 +1457,7 @@ const getTypeLabel = (typeId: string): string => {
       {showSwitchInput && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
           <div onClick={() => { setShowSwitchInput(false); if (switchingFrom && !activeTask) resumePaused(); }} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.6)" }} />
-          <div style={{ position: "relative", width: "100%", maxWidth: 430, background: "var(--card)", borderRadius: "24px 24px 0 0", padding: "24px 20px 36px", zIndex: 201, border: "1px solid var(--border)" }}>
+          <div style={{ position: "relative", width: "100%", maxWidth: isDesktop ? 500 : 430, background: "var(--card)", borderRadius: "24px 24px 0 0", padding: "24px 20px 36px", zIndex: 201, border: "1px solid var(--border)" }}>
             <div style={{ fontSize: 18, fontWeight: 700, color: "var(--pink)", fontFamily: DISPLAY, marginBottom: 16 }}>⚡ Switch to urgent task</div>
             <div style={{ display: "flex", gap: 8 }}>
               <input autoFocus value={switchInput} onChange={e => setSwitchInput(e.target.value)} onKeyDown={e => e.key === "Enter" && addSwitchTask()} placeholder="urgent task name 30m"
@@ -2004,7 +2038,19 @@ const getTypeLabel = (typeId: string): string => {
         </div>
       )}
 
-      <BottomNav active={bottomTab} onChange={handleTabChange} onAdd={() => setShowCreateSheet(true)} expanded={navExpanded} onExpand={expandNav} />
-    </div>
+      {!isDesktop && (
+        <BottomNav active={bottomTab} onChange={handleTabChange} onAdd={() => setShowCreateSheet(true)} expanded={navExpanded} onExpand={expandNav} />
+      )}
+    </div>{/* end app-content */}
+    {/* Desktop DayTimeline */}
+    {isWideDesktop && bottomTab === "main" && (
+      <DayTimeline
+        tasks={sorted}
+        activeTask={activeTask}
+        getDisplayTimeMin={getDisplayTimeMin}
+        getDisplayTime={getDisplayTime}
+      />
+    )}
+  </div>
   );
 }

@@ -4,12 +4,15 @@ import { useEffect, useRef } from "react";
 
 export default function Hero() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const fgCanvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    const bgCanvas = canvasRef.current;
+    const fgCanvas = fgCanvasRef.current;
+    if (!bgCanvas || !fgCanvas) return;
+    const bgCtx = bgCanvas.getContext("2d");
+    const fgCtx = fgCanvas.getContext("2d");
+    if (!bgCtx || !fgCtx) return;
 
     let animId: number;
 
@@ -21,37 +24,54 @@ export default function Hero() {
       trail: { x: number; y: number }[];
     }
 
-    const particles: Particle[] = [];
+    const bgParticles: Particle[] = [];
+    const fgParticles: Particle[] = [];
     let frame = 0;
     let cw = 0, ch = 0;
 
     const resize = () => {
-      const rect = canvas.parentElement?.getBoundingClientRect();
+      const rect = bgCanvas.parentElement?.getBoundingClientRect();
       if (!rect) return;
       const dpr = window.devicePixelRatio || 1;
       cw = rect.width;
       ch = rect.height;
-      canvas.width = cw * dpr;
-      canvas.height = ch * dpr;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      bgCanvas.width = cw * dpr;
+      bgCanvas.height = ch * dpr;
+      fgCanvas.width = cw * dpr;
+      fgCanvas.height = ch * dpr;
+      bgCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      fgCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
     };
     resize();
     window.addEventListener("resize", resize);
 
-    function spawn() {
+    function spawn(isForeground: boolean) {
       const midX = cw / 2;
       const midY = ch / 2;
       const ox = midX + (Math.random() * 200 - 100);
       const oy = midY + (Math.random() * 30 - 15);
       const spd = 0.15 + Math.random() * 0.6;
-      const sz = Math.random() < 0.3 ? (1.5 + Math.random()) : (0.5 + Math.random());
-      const r = Math.random();
-      let col: number[];
-      if (r < 0.75) { col = [255, 208, 0, 0.2 + Math.random() * 0.45]; }
-      else if (r < 0.88) { col = [255, 0, 64, 0.1 + Math.random() * 0.2]; }
-      else { col = [0, 255, 255, 0.08 + Math.random() * 0.15]; }
 
-      particles.push({
+      let sz: number;
+      let col: number[];
+
+      if (isForeground) {
+        // Foreground: slightly larger, more transparent
+        sz = 1.5 + Math.random() * 1.5;
+        const r = Math.random();
+        if (r < 0.7) { col = [255, 208, 0, 0.08 + Math.random() * 0.15]; }
+        else if (r < 0.85) { col = [255, 0, 64, 0.05 + Math.random() * 0.1]; }
+        else { col = [0, 255, 255, 0.04 + Math.random() * 0.08]; }
+      } else {
+        // Background: original sizing and opacity
+        sz = Math.random() < 0.3 ? (1.5 + Math.random()) : (0.5 + Math.random());
+        const r = Math.random();
+        if (r < 0.75) { col = [255, 208, 0, 0.2 + Math.random() * 0.45]; }
+        else if (r < 0.88) { col = [255, 0, 64, 0.1 + Math.random() * 0.2]; }
+        else { col = [0, 255, 255, 0.08 + Math.random() * 0.15]; }
+      }
+
+      const p: Particle = {
         x: ox, y: oy, startX: ox, startY: oy,
         vx: -spd, vy: (Math.random() - 0.5) * 0.2,
         sz, life: 1, decay: 0.002 + Math.random() * 0.004,
@@ -60,17 +80,13 @@ export default function Hero() {
         amp: 0.3 + Math.random() * 0.6,
         returning: false, travelDist: 40 + Math.random() * 100,
         trail: [],
-      });
+      };
+
+      if (isForeground) fgParticles.push(p);
+      else bgParticles.push(p);
     }
 
-    const animate = () => {
-      ctx.clearRect(0, 0, cw, ch);
-
-      if (frame % 3 === 0 && particles.length < 120) {
-        const n = Math.random() < 0.15 ? 2 : 1;
-        for (let i = 0; i < n; i++) spawn();
-      }
-
+    function drawParticles(ctx: CanvasRenderingContext2D, particles: Particle[]) {
       for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i];
         const wobble = Math.sin(p.phase + frame * p.freq) * p.amp;
@@ -110,15 +126,34 @@ export default function Hero() {
 
         if (p.life <= 0) particles.splice(i, 1);
       }
+    }
 
+    const animate = () => {
+      bgCtx.clearRect(0, 0, cw, ch);
+      fgCtx.clearRect(0, 0, cw, ch);
+
+      // Spawn background particles (reduced: max 70 instead of 120)
+      if (frame % 4 === 0 && bgParticles.length < 70) {
+        spawn(false);
+      }
+
+      // Spawn foreground particles (sparse: max 15, slower spawn rate)
+      if (frame % 12 === 0 && fgParticles.length < 15) {
+        spawn(true);
+      }
+
+      drawParticles(bgCtx, bgParticles);
+      drawParticles(fgCtx, fgParticles);
+
+      // Occasional scan line (kept on background canvas only)
       if (Math.random() < 0.025) {
         const midX = cw / 2;
         const midY = ch / 2;
         const sy = midY + (Math.random() * 50 - 25);
         const sw = 8 + Math.random() * 40;
         const sx = midX - 200 + Math.random() * 400;
-        ctx.fillStyle = "rgba(255,208,0,0.02)";
-        ctx.fillRect(sx, sy, sw, 0.5);
+        bgCtx.fillStyle = "rgba(255,208,0,0.02)";
+        bgCtx.fillRect(sx, sy, sw, 0.5);
       }
 
       frame++;
@@ -284,6 +319,19 @@ export default function Hero() {
               );
             })}
           </div>
+          {/* Foreground particles — float in front of text */}
+          <canvas
+            ref={fgCanvasRef}
+            style={{
+              position: "absolute",
+              top: "-40%",
+              left: "-20%",
+              width: "140%",
+              height: "180%",
+              pointerEvents: "none",
+              zIndex: 2,
+            }}
+          />
         </div>
 
         {/* Subtitle — BELOW the particle zone */}
