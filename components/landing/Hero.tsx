@@ -344,7 +344,7 @@ export default function Hero() {
 
       {/* Glitch + scroll keyframes */}
       <style>{`
-        .ch { position: relative; display: inline-block; font-family: 'P22 Folk Art', 'Sora', sans-serif; font-size: 76px; font-weight: 800; color: #FFD000; letter-spacing: 6px; line-height: 1; will-change: opacity; }
+        .ch { position: relative; display: inline-block; font-family: var(--font-hero, 'Sora', sans-serif); font-size: 76px; font-weight: 800; color: #FFD000; letter-spacing: 6px; line-height: 1; will-change: opacity; }
         .ch::before, .ch::after { content: attr(data-ch); position: absolute; top: 0; left: 0; width: 100%; height: 100%; font-size: inherit; font-weight: inherit; letter-spacing: inherit; line-height: inherit; overflow: hidden; }
         .ch::before { color: rgba(255,0,64,0.7); z-index: -1; }
         .ch::after { color: rgba(0,255,255,0.5); z-index: -2; }

@@ -83,6 +83,11 @@
   --nav-inactive: #3a3a3a;
   --play-border: #2a2a2a;
   --play-icon: #444444;
+
+  /* P22 Folk Art (Adobe Fonts) */
+  --font-hero: "p22-folk-art-stitch", "Sora", sans-serif;
+  --font-hero-block: "p22-folk-art-block", "Sora", sans-serif;
+  --font-hero-cross: "p22-folk-art-cross", "Sora", sans-serif;
 }
 
 /* ── Light theme ── */
