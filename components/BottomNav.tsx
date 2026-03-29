@@ -39,8 +39,8 @@ const TABS: { id: BottomTab; icon: (active: boolean) => React.ReactNode }[] = [
         height={22}
         alt="Pit"
         style={{
-          opacity: a ? 1 : 0.35,
-          filter: a ? 'none' : 'grayscale(1) brightness(0.4)',
+          opacity: a ? 1 : 0.4,
+          filter: a ? 'none' : 'invert(1) brightness(0.6)',
           transition: 'opacity 0.2s, filter 0.2s',
         }}
       />
@@ -176,7 +176,7 @@ export default function BottomNav({ active, onChange, onAdd, expanded, onExpand 
         left: 0,
         right: 0,
         zIndex: 100,
-        background: "#060a12",
+        background: "var(--bg)",
         transform: "translateZ(0)",
         willChange: "transform",
         display: "flex",
