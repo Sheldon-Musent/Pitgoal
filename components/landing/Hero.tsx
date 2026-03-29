@@ -132,6 +132,39 @@ export default function Hero() {
     };
   }, []);
 
+  // Font-flash glitch — randomly switches individual characters to Sora
+  useEffect(() => {
+    const chars = document.querySelectorAll<HTMLSpanElement>(".ch");
+    if (!chars.length) return;
+
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    function flashLoop() {
+      const idx = Math.floor(Math.random() * chars.length);
+      const span = chars[idx];
+      span.classList.add("font-flash");
+
+      const dur = 80 + Math.random() * 100;
+      setTimeout(() => span.classList.remove("font-flash"), dur);
+
+      // Occasionally flash an adjacent character too
+      if (Math.random() < 0.25) {
+        const idx2 = (idx + 1) % chars.length;
+        setTimeout(() => {
+          chars[idx2].classList.add("font-flash");
+          setTimeout(() => chars[idx2].classList.remove("font-flash"), dur);
+        }, 30);
+      }
+
+      const next = 800 + Math.random() * 2500;
+      timeoutId = setTimeout(flashLoop, next);
+    }
+
+    timeoutId = setTimeout(flashLoop, 1000);
+
+    return () => clearTimeout(timeoutId);
+  }, []);
+
   return (
     <section
       style={{
@@ -357,6 +390,8 @@ export default function Hero() {
         .ch-R2::before{animation:gA 3.4s infinite .5s} .ch-R2::after{animation:gB 5.5s infinite .3s} .ch-R2{animation:fk 7.5s infinite 1.3s}
         .ch-D::before{animation:gA 5s infinite .1s} .ch-D::after{animation:gB 3.9s infinite .6s} .ch-D{animation:fk 6.8s infinite .2s}
 
+        .ch.font-flash { font-family: 'Sora', sans-serif; font-size: 68px; }
+
         @keyframes gA{
           0%,100%{clip-path:inset(0 0 100% 0);transform:translateX(0)}
           12%{clip-path:inset(0 0 100% 0);transform:translateX(0)}
@@ -387,6 +422,7 @@ export default function Hero() {
 
         @media (max-width: 768px) {
           .ch { font-size: 42px !important; letter-spacing: 3px !important; }
+          .ch.font-flash { font-size: 38px !important; }
           .nav-links-desktop { display: none !important; }
         }
       `}</style>
