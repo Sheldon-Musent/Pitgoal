@@ -971,13 +971,15 @@ const getTypeLabel = (typeId: string): string => {
                 backdropFilter: "blur(15px) saturate(180%)",
                 WebkitBackdropFilter: "blur(15px) saturate(180%)",
                 borderRadius: 50,
-                padding: 6,
-                border: "1px solid rgba(255,255,255,0.12)",
+                padding: 5,
+                border: "none",
                 display: "flex",
                 gap: 0,
                 overflowX: "auto",
                 scrollSnapType: "x mandatory",
                 WebkitOverflowScrolling: "touch" as any,
+                maxWidth: 270,
+                margin: "0 auto",
               }}
             >
               {allDates.map(d => {
@@ -999,9 +1001,9 @@ const getTypeLabel = (typeId: string): string => {
                     setViewMonth(d.getMonth());
                     setViewYear(d.getFullYear());
                   }}
-                    style={{ width: 46, height: 52, flexShrink: 0, borderRadius: "50%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: "pointer", background: isSel ? "#FFD000" : "transparent", transition: "background 0.2s", scrollSnapAlign: "center" }}>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: isSel ? "#0a0a0a" : "var(--t5)", lineHeight: 1.2 }}>{d.getDate()}</div>
-                    <div style={{ fontSize: 9, fontWeight: 500, color: isSel ? "rgba(0,0,0,0.5)" : "var(--t5)", fontFamily: MONO }}>{DAYS[d.getDay()]}</div>
+                    style={{ width: 48, height: 48, flexShrink: 0, borderRadius: "50%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: "pointer", background: isSel ? "#FFD000" : "transparent", transition: "background 0.2s", scrollSnapAlign: "center" }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: isSel ? "#0a0a0a" : "var(--t5)", lineHeight: 1.2 }}>{d.getDate()}</div>
+                    <div style={{ fontSize: 8, fontWeight: 500, color: isSel ? "rgba(0,0,0,0.5)" : "var(--t5)", fontFamily: MONO }}>{DAYS[d.getDay()]}</div>
                     {isT && !isSel && <div style={{ width: 4, height: 4, borderRadius: "50%", marginTop: 2, background: "var(--accent)" }} />}
                   </div>
                 );
@@ -1014,14 +1016,14 @@ const getTypeLabel = (typeId: string): string => {
             {/* Month picker overlay — centered fixed modal */}
             {monthPickerOpen && (
               <div onClick={() => setMonthPickerOpen(false)} style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 100, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", animation: "monthFadeIn 0.2s ease" }}>
-                <div ref={monthScrollRef} onClick={(e) => e.stopPropagation()} style={{ background: "var(--card)", border: "1px solid var(--border2)", borderRadius: 16, padding: 20, width: 280 }}>
+                <div ref={monthScrollRef} onClick={(e) => e.stopPropagation()} style={{ background: "rgba(28,28,30,0.65)", backdropFilter: "blur(30px) saturate(180%)", WebkitBackdropFilter: "blur(30px) saturate(180%)", border: "none", borderRadius: 20, padding: 20, width: 320, maxWidth: "calc(100% - 48px)" }}>
                   {/* Year navigation */}
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, padding: "0 4px" }}>
-                    <div className="tap" onClick={() => setViewYear(y => Math.max(2024, y - 1))} style={{ width: 32, height: 32, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", background: "var(--badge-bg)" }}>
+                    <div className="tap" onClick={() => setViewYear(y => Math.max(2024, y - 1))} style={{ width: 32, height: 32, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", background: "rgba(255,255,255,0.06)" }}>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" strokeWidth="2" strokeLinecap="round"><polyline points="15 18 9 12 15 6" /></svg>
                     </div>
                     <span style={{ fontSize: 16, fontWeight: 700, color: "var(--t1)", fontFamily: MONO }}>{viewYear}</span>
-                    <div className="tap" onClick={() => setViewYear(y => Math.min(2030, y + 1))} style={{ width: 32, height: 32, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", background: "var(--badge-bg)" }}>
+                    <div className="tap" onClick={() => setViewYear(y => Math.min(2030, y + 1))} style={{ width: 32, height: 32, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", background: "rgba(255,255,255,0.06)" }}>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6" /></svg>
                     </div>
                   </div>
@@ -1030,7 +1032,7 @@ const getTypeLabel = (typeId: string): string => {
                     {MONTHS_SHORT.map((m, i) => {
                       const isCur = i === today.getMonth() && viewYear === today.getFullYear();
                       const isSel = i === viewMonth;
-                      return <div key={m} data-active={isSel ? "true" : "false"} className="tap" onClick={() => pickMonth(i)} style={{ padding: "10px 0", textAlign: "center", borderRadius: 50, fontSize: 11, fontFamily: MONO, fontWeight: 600, cursor: "pointer", background: isSel ? "#FFD000" : isCur ? "var(--accent-10)" : "var(--badge-bg)", color: isSel ? "#0a0a0a" : isCur ? "var(--accent)" : "var(--t4)", transition: "all 0.15s" }}>{m}</div>;
+                      return <div key={m} data-active={isSel ? "true" : "false"} className="tap" onClick={() => pickMonth(i)} style={{ padding: "10px 0", textAlign: "center", borderRadius: 50, fontSize: 11, fontFamily: MONO, fontWeight: 600, cursor: "pointer", background: isSel ? "#FFD000" : isCur ? "rgba(255,208,0,0.1)" : "rgba(255,255,255,0.04)", color: isSel ? "#0a0a0a" : isCur ? "var(--accent)" : "var(--t4)", transition: "all 0.15s" }}>{m}</div>;
                     })}
                   </div>
                 </div>
