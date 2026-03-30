@@ -26,6 +26,7 @@ import type { TaskType, TaskTag, CreateTaskResult } from "../../components/Creat
 import { DEFAULT_TYPES, DEFAULT_TAGS, DEFAULT_TYPE_IDS, DEFAULT_TAG_IDS } from "../../components/CreateTaskSheet";
 import SideNav from "../../components/SideNav";
 import DayTimeline from "../../components/DayTimeline";
+import ResizableLayout from "../../components/ResizableLayout";
 
 // ── Energy system constants ──
 const IDLE_RATE = 0.5;
@@ -69,6 +70,7 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState("today");
   const [isDesktop, setIsDesktop] = useState(false);
   const [isWideDesktop, setIsWideDesktop] = useState(false);
+  const [sideNavCollapsed, setSideNavCollapsed] = useState(false);
 
   const [loaded, setLoaded] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
@@ -838,26 +840,27 @@ const getTypeLabel = (typeId: string): string => {
   );
 
   // ═══ RENDER ═══
-  return (
-    <div data-theme="dark" className="app-root" style={{ minHeight: "100dvh", height: "100dvh", display: "flex", flexDirection: "row", overflow: "hidden", position: "relative", background: "var(--bg)", fontFamily: BODY, color: "var(--t2)" }}>
-      {/* Desktop SideNav */}
-      {isDesktop && (
-        <SideNav
-          active={bottomTab}
-          onChange={handleTabChange}
-          onAdd={() => setShowCreateSheet(true)}
-          energy={energy}
-          isSleeping={isSleeping}
-          tasksDoneCount={tasksDoneCount + restsDoneCount}
-          totalTrackedHrs={totalTrackedHrs}
-          activeTask={activeTask}
-          activeTimerStr={activeTimerStr}
-          pendingTasks={pendingTasks}
-          doneTasks={doneTasks}
-          getDisplayTime={getDisplayTime}
-        />
-      )}
-      <div className="app-content" style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", maxWidth: isDesktop ? "none" : 430, margin: isDesktop ? 0 : "0 auto", width: isDesktop ? "auto" : "100%" }}>
+  const sideNavElement = (
+    <SideNav
+      active={bottomTab}
+      onChange={handleTabChange}
+      onAdd={() => setShowCreateSheet(true)}
+      energy={energy}
+      isSleeping={isSleeping}
+      tasksDoneCount={tasksDoneCount + restsDoneCount}
+      totalTrackedHrs={totalTrackedHrs}
+      activeTask={activeTask}
+      activeTimerStr={activeTimerStr}
+      pendingTasks={pendingTasks}
+      doneTasks={doneTasks}
+      getDisplayTime={getDisplayTime}
+      collapsed={sideNavCollapsed}
+      onToggleCollapse={() => setSideNavCollapsed(prev => !prev)}
+    />
+  );
+
+  const appContent = (
+    <div className="app-content" style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", maxWidth: isDesktop ? "none" : 430, margin: isDesktop ? 0 : "0 auto", width: isDesktop ? "auto" : "100%" }}>
     <div className="scroll-content" style={{ flex: 1, overflowY: "auto", overflowX: "hidden", WebkitOverflowScrolling: "touch" as any, paddingBottom: hasActivePopup ? 200 : 100, paddingTop: "env(safe-area-inset-top, 0px)", position: "relative", minHeight: 0 }}>
 
       {/* ── MAIN TAB ── */}
@@ -2038,19 +2041,33 @@ const getTypeLabel = (typeId: string): string => {
         </div>
       )}
 
-      {!isDesktop && (
-        <BottomNav active={bottomTab} onChange={handleTabChange} onAdd={() => setShowCreateSheet(true)} expanded={navExpanded} onExpand={expandNav} />
+    </div>
+  );
+
+  const timelineElement = isWideDesktop && bottomTab === "main" ? (
+    <DayTimeline
+      tasks={sorted}
+      activeTask={activeTask}
+      getDisplayTimeMin={getDisplayTimeMin}
+      getDisplayTime={getDisplayTime}
+    />
+  ) : undefined;
+
+  return (
+    <div data-theme="dark" className="app-root" style={{ minHeight: "100dvh", height: "100dvh", display: "flex", flexDirection: "row", overflow: "hidden", position: "relative", background: "var(--bg)", fontFamily: BODY, color: "var(--t2)" }}>
+      {isDesktop ? (
+        <ResizableLayout
+          sideNavCollapsed={sideNavCollapsed}
+          sideNav={sideNavElement}
+          content={appContent}
+          timeline={timelineElement}
+        />
+      ) : (
+        <>
+          {appContent}
+          <BottomNav active={bottomTab} onChange={handleTabChange} onAdd={() => setShowCreateSheet(true)} expanded={navExpanded} onExpand={expandNav} />
+        </>
       )}
-    </div>{/* end app-content */}
-    {/* Desktop DayTimeline */}
-    {isWideDesktop && bottomTab === "main" && (
-      <DayTimeline
-        tasks={sorted}
-        activeTask={activeTask}
-        getDisplayTimeMin={getDisplayTimeMin}
-        getDisplayTime={getDisplayTime}
-      />
-    )}
-  </div>
+    </div>
   );
 }

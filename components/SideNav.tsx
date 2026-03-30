@@ -18,6 +18,8 @@ interface SideNavProps {
   getDisplayTime: (task: any) => string;
   onDone?: () => void;
   onSkip?: () => void;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
 }
 
 const NAV_ITEMS: { id: BottomTab; label: string; icon: (active: boolean) => React.ReactNode }[] = [
@@ -77,12 +79,13 @@ export default function SideNav({
   active, onChange, onAdd, energy, isSleeping,
   tasksDoneCount, totalTrackedHrs, activeTask, activeTimerStr,
   pendingTasks, doneTasks, getDisplayTime, onDone, onSkip,
+  collapsed, onToggleCollapse,
 }: SideNavProps) {
   const ePct = Math.round(energy);
 
   return (
     <div className="side-nav" style={{
-      width: 280,
+      width: collapsed ? 56 : 280,
       height: "100dvh",
       flexShrink: 0,
       background: "var(--bg)",
@@ -90,90 +93,121 @@ export default function SideNav({
       display: "flex",
       flexDirection: "column",
       overflow: "hidden",
+      transition: "width 0.2s ease",
     }}>
       {/* Header */}
       <div style={{
-        padding: "14px 16px",
+        padding: collapsed ? "14px 0" : "14px 16px",
         display: "flex",
-        justifyContent: "space-between",
+        justifyContent: collapsed ? "center" : "space-between",
         alignItems: "center",
         flexShrink: 0,
       }}>
-        <img src="/Trademark-white.png" alt="Pitgoal" style={{ height: 16, opacity: 0.8 }} />
-        <div style={{ display: "flex", gap: 6 }}>
-          <div
-            title="Expand to full view"
-            className="tap"
-            style={{
-              width: 22, height: 22, borderRadius: 6,
-              border: "1px solid var(--border)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              cursor: "pointer",
-            }}
-          >
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--t5)" strokeWidth="2">
-              <polyline points="15 3 21 3 21 9"/>
-              <polyline points="9 21 3 21 3 15"/>
-              <line x1="21" y1="3" x2="14" y2="10"/>
-              <line x1="3" y1="21" x2="10" y2="14"/>
-            </svg>
-          </div>
+        {!collapsed && (
+          <img src="/Trademark-white.png" alt="Pitgoal" style={{ height: 16, opacity: 0.8 }} />
+        )}
+        <div
+          className="tap"
+          onClick={onToggleCollapse}
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          style={{
+            width: 22, height: 22, borderRadius: 6,
+            border: "1px solid var(--border)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: "pointer",
+          }}
+        >
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--t5)" strokeWidth="2">
+            {collapsed ? (
+              <polyline points="9 18 15 12 9 6"/>
+            ) : (
+              <polyline points="15 18 9 12 15 6"/>
+            )}
+          </svg>
         </div>
       </div>
 
       {/* Energy + Stats */}
-      <div style={{ padding: "0 16px 12px", flexShrink: 0 }}>
-        <div style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 6,
-        }}>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
+      <div style={{
+        padding: collapsed ? "0 0 12px" : "0 16px 12px",
+        flexShrink: 0,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: collapsed ? "center" : "stretch",
+      }}>
+        {collapsed ? (
+          <>
             <span style={{
-              fontSize: 24,
-              fontWeight: 700,
+              fontSize: 18, fontWeight: 700, lineHeight: 1,
               color: isSleeping ? "var(--rest, #6b8a7a)" : ePct > 30 ? "var(--t1)" : ePct > 10 ? "var(--warn)" : "var(--danger)",
-              lineHeight: 1,
             }}>
-              {isSleeping ? "ZZZ" : `${ePct}%`}
+              {isSleeping ? "ZZ" : ePct}
             </span>
-            <span style={{ fontSize: 10, color: "var(--t5)" }}>energy</span>
-          </div>
-          <div style={{ display: "flex", gap: 12 }}>
-            <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: "var(--t1)", lineHeight: 1 }}>{tasksDoneCount}</div>
-              <div style={{ fontSize: 8, color: "var(--t5)", letterSpacing: 1.5 }}>DONE</div>
+            <span style={{ fontSize: 8, color: "var(--t5)", marginBottom: 6 }}>%</span>
+            <div style={{
+              width: 3, height: 80, borderRadius: 2,
+              background: "var(--border)", position: "relative",
+            }}>
+              <div style={{
+                position: "absolute", bottom: 0, left: 0, right: 0,
+                height: `${ePct}%`, borderRadius: 2,
+                background: isSleeping ? "var(--rest, #6b8a7a)" : "var(--accent)",
+                transition: "height 0.5s ease",
+              }} />
             </div>
-            <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: "var(--accent)", lineHeight: 1 }}>{totalTrackedHrs}</div>
-              <div style={{ fontSize: 8, color: "var(--t5)", letterSpacing: 1.5 }}>HRS</div>
+          </>
+        ) : (
+          <>
+            <div style={{
+              display: "flex", justifyContent: "space-between",
+              alignItems: "center", marginBottom: 6,
+            }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
+                <span style={{
+                  fontSize: 24, fontWeight: 700, lineHeight: 1,
+                  color: isSleeping ? "var(--rest, #6b8a7a)" : ePct > 30 ? "var(--t1)" : ePct > 10 ? "var(--warn)" : "var(--danger)",
+                }}>
+                  {isSleeping ? "ZZZ" : `${ePct}%`}
+                </span>
+                <span style={{ fontSize: 10, color: "var(--t5)" }}>energy</span>
+              </div>
+              <div style={{ display: "flex", gap: 12 }}>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "var(--t1)", lineHeight: 1 }}>{tasksDoneCount}</div>
+                  <div style={{ fontSize: 8, color: "var(--t5)", letterSpacing: 1.5 }}>DONE</div>
+                </div>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "var(--accent)", lineHeight: 1 }}>{totalTrackedHrs}</div>
+                  <div style={{ fontSize: 8, color: "var(--t5)", letterSpacing: 1.5 }}>HRS</div>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-        <div style={{
-          height: 3, borderRadius: 2,
-          background: "var(--border)", overflow: "hidden",
-        }}>
-          <div style={{
-            width: `${ePct}%`, height: "100%", borderRadius: 2,
-            background: isSleeping ? "var(--rest, #6b8a7a)" : "var(--accent)",
-            transition: "width 0.5s ease",
-          }} />
-        </div>
+            <div style={{
+              height: 3, borderRadius: 2,
+              background: "var(--border)", overflow: "hidden",
+            }}>
+              <div style={{
+                width: `${ePct}%`, height: "100%", borderRadius: 2,
+                background: isSleeping ? "var(--rest, #6b8a7a)" : "var(--accent)",
+                transition: "width 0.5s ease",
+              }} />
+            </div>
+          </>
+        )}
       </div>
 
       <div style={{ height: 1, background: "var(--border)", flexShrink: 0 }} />
 
-      {/* Active Task */}
+      {/* Active Task — collapsed: just a dot, expanded: full row */}
       {activeTask && (
         <div style={{
-          padding: "10px 16px",
+          padding: collapsed ? "10px 0" : "10px 16px",
           background: "var(--card)",
           borderBottom: "1px solid var(--border)",
           display: "flex",
-          alignItems: "center",
-          gap: 10,
+          alignItems: collapsed ? "center" : "center",
+          justifyContent: collapsed ? "center" : "flex-start",
+          gap: collapsed ? 0 : 10,
           flexShrink: 0,
         }}>
           <div style={{
@@ -182,170 +216,139 @@ export default function SideNav({
             animation: "pulse-dot 2s infinite",
             flexShrink: 0,
           }} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{
-              fontSize: 12, fontWeight: 600, color: "var(--t1)",
-              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-            }}>{activeTask.name}</div>
-          </div>
-          <div style={{
-            fontSize: 13, fontWeight: 600,
-            color: activeTask.type === "rest" ? "var(--rest, #6b8a7a)" : "var(--accent)",
-            fontVariantNumeric: "tabular-nums",
-            flexShrink: 0,
-          }}>{activeTimerStr}</div>
+          {!collapsed && (
+            <>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{
+                  fontSize: 12, fontWeight: 600, color: "var(--t1)",
+                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                }}>{activeTask.name}</div>
+              </div>
+              <div style={{
+                fontSize: 13, fontWeight: 600,
+                color: activeTask.type === "rest" ? "var(--rest, #6b8a7a)" : "var(--accent)",
+                fontVariantNumeric: "tabular-nums", flexShrink: 0,
+              }}>{activeTimerStr}</div>
+            </>
+          )}
         </div>
       )}
 
-      {/* Task Queue */}
-      <div style={{
-        flex: 1,
-        overflowY: "auto",
-        padding: "8px 16px",
-        minHeight: 0,
-      }}>
-        {pendingTasks.length > 0 && (
-          <>
-            <div style={{
-              fontSize: 9, color: "var(--t5)", letterSpacing: 2,
-              marginBottom: 6, fontWeight: 600,
-            }}>
-              {activeTask ? "NEXT UP" : "TODAY"}
-            </div>
-            {pendingTasks.slice(0, 12).map((task) => (
-              <div
-                key={task.id}
-                onClick={() => onChange("main")}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  padding: "8px 0",
-                  borderBottom: "1px solid var(--border)",
-                  cursor: "pointer",
-                }}
-              >
-                <div style={{
-                  width: 4, height: 4, borderRadius: "50%",
-                  background: task.type === "rest" ? "var(--rest, #6b8a7a)" : "var(--accent)",
-                  flexShrink: 0,
-                }} />
-                <span style={{
-                  fontSize: 12, color: "var(--t3)",
-                  flex: 1, whiteSpace: "nowrap",
-                  overflow: "hidden", textOverflow: "ellipsis",
-                }}>{task.name}</span>
-                <span style={{
-                  fontSize: 10, color: "var(--t5)",
-                  flexShrink: 0,
-                }}>{getDisplayTime(task)}</span>
+      {/* Task Queue — hidden when collapsed */}
+      {!collapsed && (
+        <div style={{
+          flex: 1, overflowY: "auto",
+          padding: "8px 16px", minHeight: 0,
+        }}>
+          {pendingTasks.length > 0 && (
+            <>
+              <div style={{
+                fontSize: 9, color: "var(--t5)", letterSpacing: 2,
+                marginBottom: 6, fontWeight: 600,
+              }}>
+                {activeTask ? "NEXT UP" : "TODAY"}
               </div>
-            ))}
-          </>
-        )}
+              {pendingTasks.slice(0, 12).map((task) => (
+                <div key={task.id} onClick={() => onChange("main")} style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  padding: "8px 0", borderBottom: "1px solid var(--border)", cursor: "pointer",
+                }}>
+                  <div style={{
+                    width: 4, height: 4, borderRadius: "50%",
+                    background: task.type === "rest" ? "var(--rest, #6b8a7a)" : "var(--accent)", flexShrink: 0,
+                  }} />
+                  <span style={{
+                    fontSize: 12, color: "var(--t3)", flex: 1,
+                    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                  }}>{task.name}</span>
+                  <span style={{ fontSize: 10, color: "var(--t5)", flexShrink: 0 }}>
+                    {getDisplayTime(task)}
+                  </span>
+                </div>
+              ))}
+            </>
+          )}
+          {doneTasks.length > 0 && (
+            <>
+              <div style={{
+                fontSize: 9, color: "var(--t5)", letterSpacing: 2,
+                marginTop: 12, marginBottom: 6, fontWeight: 600,
+              }}>DONE</div>
+              {doneTasks.slice(0, 5).map((task) => (
+                <div key={task.id} style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  padding: "8px 0", borderBottom: "1px solid var(--border)", opacity: 0.35,
+                }}>
+                  <div style={{
+                    width: 4, height: 4, borderRadius: "50%",
+                    background: task.type === "rest" ? "var(--rest, #6b8a7a)" : "var(--accent)", flexShrink: 0,
+                  }} />
+                  <span style={{
+                    fontSize: 12, color: "var(--t3)", flex: 1, textDecoration: "line-through",
+                    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                  }}>{task.name}</span>
+                  <span style={{ fontSize: 10, color: "var(--t5)", flexShrink: 0 }}>
+                    {getDisplayTime(task)}
+                  </span>
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+      )}
 
-        {doneTasks.length > 0 && (
-          <>
-            <div style={{
-              fontSize: 9, color: "var(--t5)", letterSpacing: 2,
-              marginTop: 12, marginBottom: 6, fontWeight: 600,
-            }}>DONE</div>
-            {doneTasks.slice(0, 5).map((task) => (
-              <div
-                key={task.id}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  padding: "8px 0",
-                  borderBottom: "1px solid var(--border)",
-                  opacity: 0.35,
-                }}
-              >
-                <div style={{
-                  width: 4, height: 4, borderRadius: "50%",
-                  background: task.type === "rest" ? "var(--rest, #6b8a7a)" : "var(--accent)",
-                  flexShrink: 0,
-                }} />
-                <span style={{
-                  fontSize: 12, color: "var(--t3)",
-                  flex: 1, textDecoration: "line-through",
-                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                }}>{task.name}</span>
-                <span style={{ fontSize: 10, color: "var(--t5)", flexShrink: 0 }}>
-                  {getDisplayTime(task)}
-                </span>
-              </div>
-            ))}
-          </>
-        )}
-      </div>
+      {/* Collapsed: just flex spacer */}
+      {collapsed && <div style={{ flex: 1 }} />}
 
       {/* Nav Tabs */}
       <div style={{
-        padding: "8px 12px",
+        padding: collapsed ? "8px 4px" : "8px 12px",
         borderTop: "1px solid var(--border)",
-        display: "flex",
-        flexDirection: "column",
-        gap: 2,
-        flexShrink: 0,
+        display: "flex", flexDirection: "column", gap: 2, flexShrink: 0,
       }}>
         {NAV_ITEMS.map((item) => {
           const isActive = active === item.id;
           return (
-            <div
-              key={item.id}
-              className="tap"
-              onClick={() => onChange(item.id)}
+            <div key={item.id} className="tap" onClick={() => onChange(item.id)}
+              title={collapsed ? item.label : undefined}
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                padding: "9px 12px",
+                display: "flex", alignItems: "center",
+                justifyContent: collapsed ? "center" : "flex-start",
+                gap: collapsed ? 0 : 10,
+                padding: collapsed ? "10px 0" : "9px 12px",
                 borderRadius: 10,
                 background: isActive ? "var(--card)" : "transparent",
-                cursor: "pointer",
-                transition: "background 0.15s",
-              }}
-            >
+                cursor: "pointer", transition: "background 0.15s",
+              }}>
               {item.icon(isActive)}
-              <span style={{
-                fontSize: 12,
-                fontWeight: isActive ? 600 : 400,
-                color: isActive ? "var(--t1)" : "var(--t5)",
-              }}>{item.label}</span>
+              {!collapsed && (
+                <span style={{
+                  fontSize: 12, fontWeight: isActive ? 600 : 400,
+                  color: isActive ? "var(--t1)" : "var(--t5)",
+                }}>{item.label}</span>
+              )}
             </div>
           );
         })}
       </div>
 
       {/* New Task Button */}
-      <div style={{ padding: "8px 16px 16px", flexShrink: 0 }}>
-        <div
-          className="tap"
-          onClick={onAdd}
-          style={{
-            width: "100%",
-            padding: 11,
-            borderRadius: 10,
-            background: "var(--accent)",
-            textAlign: "center",
-            fontSize: 12,
-            fontWeight: 700,
-            color: "#0a0a0a",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 6,
-          }}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+      <div style={{ padding: collapsed ? "8px 8px 16px" : "8px 16px 16px", flexShrink: 0 }}>
+        <div className="tap" onClick={onAdd} style={{
+          width: "100%", padding: collapsed ? 0 : 11,
+          height: collapsed ? 36 : "auto",
+          borderRadius: collapsed ? "50%" : 10,
+          background: "var(--accent)", textAlign: "center",
+          fontSize: 12, fontWeight: 700, color: "#0a0a0a",
+          cursor: "pointer", display: "flex",
+          alignItems: "center", justifyContent: "center", gap: 6,
+        }}>
+          <svg width={collapsed ? 16 : 14} height={collapsed ? 16 : 14} viewBox="0 0 24 24" fill="none"
             stroke="#0a0a0a" strokeWidth="2.5" strokeLinecap="round">
             <line x1="12" y1="5" x2="12" y2="19"/>
             <line x1="5" y1="12" x2="19" y2="12"/>
           </svg>
-          New task
+          {!collapsed && "New task"}
         </div>
       </div>
 
