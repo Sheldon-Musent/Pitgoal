@@ -2058,6 +2058,7 @@ const getTypeLabel = (typeId: string): string => {
       {isDesktop ? (
         <ResizableLayout
           sideNavCollapsed={sideNavCollapsed}
+          onSideNavCollapse={(collapsed) => setSideNavCollapsed(collapsed)}
           sideNav={sideNavElement}
           content={appContent}
           timeline={timelineElement}

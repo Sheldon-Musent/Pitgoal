@@ -6,21 +6,23 @@ interface ResizableLayoutProps {
   content: React.ReactNode;
   timeline?: React.ReactNode;
   sideNavCollapsed: boolean;
+  onSideNavCollapse?: (collapsed: boolean) => void;
 }
 
 const STORAGE_KEY_PANELS = "pitgoal-panel-widths";
-const SIDE_MIN = 56;
-const SIDE_MAX = 360;
-const SIDE_DEFAULT = 280;
 const SIDE_COLLAPSED = 56;
-const SIDE_SNAP_THRESHOLD = 180;
-const TIMELINE_MIN = 200;
+const SIDE_EXPANDED_MIN = 220;
+const SIDE_EXPANDED_DEFAULT = 280;
+const SIDE_EXPANDED_MAX = 360;
+const DEAD_ZONE_LOW = 100;
+const DEAD_ZONE_HIGH = 180;
+const TIMELINE_MIN = 180;
 const TIMELINE_DEFAULT = 380;
 
 export default function ResizableLayout({
-  sideNav, content, timeline, sideNavCollapsed,
+  sideNav, content, timeline, sideNavCollapsed, onSideNavCollapse,
 }: ResizableLayoutProps) {
-  const [sideWidth, setSideWidth] = useState(sideNavCollapsed ? SIDE_COLLAPSED : SIDE_DEFAULT);
+  const [sideWidth, setSideWidth] = useState(sideNavCollapsed ? SIDE_COLLAPSED : SIDE_EXPANDED_DEFAULT);
   const [timelineWidth, setTimelineWidth] = useState(TIMELINE_DEFAULT);
   const [dragging, setDragging] = useState<"side" | "timeline" | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -37,18 +39,15 @@ export default function ResizableLayout({
     } catch {}
   }, []);
 
-  // Sync collapsed state
+  // Sync collapsed state from parent toggle button
   useEffect(() => {
-    setSideWidth(sideNavCollapsed ? SIDE_COLLAPSED : SIDE_DEFAULT);
+    setSideWidth(sideNavCollapsed ? SIDE_COLLAPSED : SIDE_EXPANDED_DEFAULT);
   }, [sideNavCollapsed]);
 
-  // Save widths
+  // Save widths to localStorage
   const saveWidths = useCallback((sw: number, tw: number) => {
     try {
-      localStorage.setItem(STORAGE_KEY_PANELS, JSON.stringify({
-        sideWidth: sw,
-        timelineWidth: tw,
-      }));
+      localStorage.setItem(STORAGE_KEY_PANELS, JSON.stringify({ sideWidth: sw, timelineWidth: tw }));
     } catch {}
   }, []);
 
@@ -66,27 +65,51 @@ export default function ResizableLayout({
       const rect = container.getBoundingClientRect();
 
       if (dragging === "side") {
-        let newWidth = e.clientX - rect.left;
-        if (newWidth < SIDE_SNAP_THRESHOLD) {
-          newWidth = SIDE_COLLAPSED;
+        const raw = e.clientX - rect.left;
+
+        let newWidth: number;
+        if (raw < DEAD_ZONE_LOW) {
+          // Below dead zone: allow collapsed sizes (40-72)
+          newWidth = Math.max(40, Math.min(raw, 72));
+        } else if (raw >= DEAD_ZONE_LOW && raw < DEAD_ZONE_HIGH) {
+          // Inside dead zone: snap to nearest edge
+          newWidth = raw < (DEAD_ZONE_LOW + DEAD_ZONE_HIGH) / 2
+            ? SIDE_COLLAPSED
+            : SIDE_EXPANDED_DEFAULT;
         } else {
-          newWidth = Math.max(SIDE_DEFAULT, Math.min(SIDE_MAX, newWidth));
+          // Above dead zone: expanded range
+          newWidth = Math.max(SIDE_EXPANDED_MIN, Math.min(SIDE_EXPANDED_MAX, raw));
         }
+
         setSideWidth(newWidth);
+        // Update collapsed state in parent
+        if (onSideNavCollapse) {
+          onSideNavCollapse(newWidth < DEAD_ZONE_LOW);
+        }
       }
 
       if (dragging === "timeline") {
-        let newWidth = rect.right - e.clientX;
-        newWidth = Math.max(TIMELINE_MIN, Math.min(rect.width * 0.6, newWidth));
-        setTimelineWidth(newWidth);
+        const newWidth = rect.right - e.clientX;
+        setTimelineWidth(Math.max(TIMELINE_MIN, Math.min(rect.width * 0.55, newWidth)));
       }
     };
 
     const handleMouseUp = () => {
       setDragging(null);
-      // Snap to nearest valid width on release
-      setSideWidth(sw => {
-        const snapped = sw < SIDE_SNAP_THRESHOLD ? SIDE_COLLAPSED : SIDE_DEFAULT;
+
+      // On release: snap sidebar to clean value
+      setSideWidth(prev => {
+        let snapped: number;
+        if (prev < DEAD_ZONE_LOW) {
+          snapped = SIDE_COLLAPSED;
+        } else {
+          snapped = Math.max(SIDE_EXPANDED_MIN, Math.min(SIDE_EXPANDED_MAX, prev));
+        }
+
+        if (onSideNavCollapse) {
+          onSideNavCollapse(snapped <= SIDE_COLLAPSED);
+        }
+
         setTimelineWidth(tw => {
           saveWidths(snapped, tw);
           return tw;
@@ -101,7 +124,17 @@ export default function ResizableLayout({
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [dragging, saveWidths]);
+  }, [dragging, saveWidths, onSideNavCollapse]);
+
+  const dividerStyle = (active: boolean): React.CSSProperties => ({
+    width: 5,
+    flexShrink: 0,
+    cursor: "col-resize",
+    background: active ? "var(--accent)" : "transparent",
+    transition: "background 0.1s",
+    position: "relative",
+    zIndex: 10,
+  });
 
   return (
     <div
@@ -128,18 +161,10 @@ export default function ResizableLayout({
         {sideNav}
       </div>
 
-      {/* Divider: side <-> content */}
+      {/* Divider: side ↔ content */}
       <div
         onMouseDown={handleMouseDown("side")}
-        style={{
-          width: 4,
-          flexShrink: 0,
-          cursor: "col-resize",
-          background: dragging === "side" ? "var(--accent)" : "transparent",
-          transition: "background 0.15s",
-          position: "relative",
-          zIndex: 10,
-        }}
+        style={dividerStyle(dragging === "side")}
         onMouseEnter={(e) => { if (!dragging) e.currentTarget.style.background = "var(--border)"; }}
         onMouseLeave={(e) => { if (!dragging) e.currentTarget.style.background = "transparent"; }}
       />
@@ -147,7 +172,7 @@ export default function ResizableLayout({
       {/* Content panel */}
       <div style={{
         flex: 1,
-        minWidth: 280,
+        minWidth: 0,
         overflow: "hidden",
         display: "flex",
         flexDirection: "column",
@@ -155,25 +180,15 @@ export default function ResizableLayout({
         {content}
       </div>
 
-      {/* Divider: content <-> timeline (only if timeline exists) */}
+      {/* Divider + Timeline (only if timeline exists) */}
       {timeline && (
         <>
           <div
             onMouseDown={handleMouseDown("timeline")}
-            style={{
-              width: 4,
-              flexShrink: 0,
-              cursor: "col-resize",
-              background: dragging === "timeline" ? "var(--accent)" : "transparent",
-              transition: "background 0.15s",
-              position: "relative",
-              zIndex: 10,
-            }}
+            style={dividerStyle(dragging === "timeline")}
             onMouseEnter={(e) => { if (!dragging) e.currentTarget.style.background = "var(--border)"; }}
             onMouseLeave={(e) => { if (!dragging) e.currentTarget.style.background = "transparent"; }}
           />
-
-          {/* Timeline panel */}
           <div style={{
             width: timelineWidth,
             maxWidth: timelineWidth,

@@ -601,7 +601,7 @@ export default function DayTimeline({
   return (
     <div className="day-timeline" style={{
       width: "100%",
-      height: "100dvh",
+      height: "100%",
       display: "flex",
       flexDirection: "column",
       borderLeft: "1px solid var(--border)",

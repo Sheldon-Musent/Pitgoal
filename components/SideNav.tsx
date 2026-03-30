@@ -86,7 +86,7 @@ export default function SideNav({
   return (
     <div className="side-nav" style={{
       width: "100%",
-      height: "100dvh",
+      height: "100%",
       background: "var(--bg)",
       borderRight: "1px solid var(--border)",
       display: "flex",
