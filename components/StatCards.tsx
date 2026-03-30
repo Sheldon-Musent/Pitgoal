@@ -7,7 +7,7 @@ interface StatCardsProps {
   sleepRestoreRate: number;
   isSleeping: boolean;
   onCardClick: (index: number) => void;
-  onSleepToggle: () => void;
+
   isDesktop: boolean;
 }
 
@@ -17,7 +17,7 @@ const getEnergyColor = (energy: number): string => {
   return '#ef4444';
 };
 
-export default function StatCards({ energy, tasksDone, hoursTracked, sleepRestoreRate, isSleeping, onCardClick, onSleepToggle, isDesktop }: StatCardsProps) {
+export default function StatCards({ energy, tasksDone, hoursTracked, sleepRestoreRate, isSleeping, onCardClick, isDesktop }: StatCardsProps) {
   const ePct = Math.round(energy);
   const energyColor = getEnergyColor(energy);
   const hrsToFull = sleepRestoreRate > 0 ? Math.round(((100 - ePct) / sleepRestoreRate) * 10) / 10 : 0;
@@ -30,8 +30,10 @@ export default function StatCards({ energy, tasksDone, hoursTracked, sleepRestor
   const pad = isDesktop ? 16 : 14;
 
   const cardBase: React.CSSProperties = {
-    background: "transparent",
-    border: "1px solid rgba(255,255,255,0.06)",
+    background: "rgba(28,28,30,0.65)",
+    backdropFilter: "blur(15px) saturate(180%)",
+    WebkitBackdropFilter: "blur(15px) saturate(180%)",
+    border: "1px solid rgba(255,255,255,0.12)",
     borderRadius: radius,
     padding: pad,
     overflow: "hidden",
@@ -130,27 +132,6 @@ export default function StatCards({ energy, tasksDone, hoursTracked, sleepRestor
 
       {/* ── POWER BAR Card ── */}
       <div className="tap" onClick={() => onCardClick(2)} style={cardBase}>
-        {/* Sleep/Wake button */}
-        <div
-          onClick={(e) => { e.stopPropagation(); onSleepToggle(); }}
-          style={{
-            position: "absolute", top: 6, right: 6, width: 22, height: 22, borderRadius: "50%",
-            background: "rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", zIndex: 2,
-          }}
-        >
-          {isSleeping ? (
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={energyColor} strokeWidth="2">
-              <circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" />
-              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-              <line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" />
-              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-            </svg>
-          ) : (
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2">
-              <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
-            </svg>
-          )}
-        </div>
         <div style={textLayer}>
           <div style={{ display: "flex", alignItems: "baseline" }}>
             <span style={{ fontSize: numSize, fontWeight: 800, color: energyColor, lineHeight: 1 }}>{ePct}</span>

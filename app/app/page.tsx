@@ -36,7 +36,6 @@ const URGENT_RATE = 1.5;
 const REST_RATE = -0.3;
 const SLEEP_RESTORE_PER_HOUR = 12.5;
 const WARN_THRESHOLD = 20;
-const SLEEP_COOLDOWN = 2 * 60 * 60 * 1000; // 2 hours
 
 // ── SVG icons ──
 function PlayIcon({ size = 18, color = "var(--accent)" }: { size?: number; color?: string }) {
@@ -729,15 +728,6 @@ const getTypeLabel = (typeId: string): string => {
 
   // ═══ SLEEP MODE ═══
   const handleSleep = () => {
-    const lastSleep = localStorage.getItem("pitgoal-last-sleep");
-    if (lastSleep && Date.now() - parseInt(lastSleep) < SLEEP_COOLDOWN) {
-      const remaining = SLEEP_COOLDOWN - (Date.now() - parseInt(lastSleep));
-      const hrs = Math.floor(remaining / 3600000);
-      const mins = Math.ceil((remaining % 3600000) / 60000);
-      alert(`You can sleep again in ${hrs}h ${mins}m`);
-      return;
-    }
-
     if (activeTask) {
       skipTask();
     }
@@ -818,20 +808,33 @@ const getTypeLabel = (typeId: string): string => {
   const graceRemainingSec = overdueTask ? Math.max(0, Math.round((GRACE_PERIOD_MS - (nowMinutes() - getDisplayTimeMin(overdueTask)) * 60000) / 1000)) : 0;
   const pauseElapsedSec = pausedTask ? Math.floor((Date.now() - (pausedTask.pausedAt || Date.now())) / 1000) : 0;
   const pauseTimerStr = `${pad(Math.floor(pauseElapsedSec / 3600))}:${pad(Math.floor((pauseElapsedSec % 3600) / 60))}:${pad(pauseElapsedSec % 60)}`;
-  const allDates = useMemo(() => getAllDatesInMonth(viewYear, viewMonth), [viewYear, viewMonth]);
+  const allDates = useMemo(() => {
+    // Generate continuous dates: 30 days before selected date to 30 days after
+    const center = new Date(selectedDate);
+    const dates: Date[] = [];
+    for (let i = -30; i <= 30; i++) {
+      const d = new Date(center);
+      d.setDate(d.getDate() + i);
+      d.setHours(0, 0, 0, 0);
+      dates.push(d);
+    }
+    return dates;
+  }, [selectedDate.getMonth(), selectedDate.getFullYear()]);
   const lastDateTapRef = useRef(0);
 
   // Auto-scroll date strip to selected date
   useEffect(() => {
     const container = dateStripScrollRef.current;
     if (!container) return;
-    const idx = selectedDate.getMonth() === viewMonth && selectedDate.getFullYear() === viewYear
-      ? selectedDate.getDate() - 1 : 0;
-    const cellW = 56 + 4; // width + gap
-    const scrollPos = idx * cellW - container.clientWidth / 2 + 28;
-    container.scrollTo({ left: scrollPos, behavior: dateStripInitialScroll.current ? "smooth" : "auto" });
+    const items = container.children;
+    const centerIndex = allDates.findIndex(d => isSameDay(d, selectedDate));
+    if (centerIndex >= 0 && items[centerIndex]) {
+      const item = items[centerIndex] as HTMLElement;
+      const scrollLeft = item.offsetLeft - container.offsetWidth / 2 + item.offsetWidth / 2;
+      container.scrollTo({ left: scrollLeft, behavior: dateStripInitialScroll.current ? "smooth" : "auto" });
+    }
     dateStripInitialScroll.current = true;
-  }, [selectedDate, viewMonth, viewYear, bottomTab]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedDate, allDates, bottomTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleTabChange = (tab: BottomTab) => setBottomTab(tab);
 
@@ -921,7 +924,7 @@ const getTypeLabel = (typeId: string): string => {
             sleepRestoreRate={SLEEP_RESTORE_PER_HOUR}
             isSleeping={isSleeping}
             onCardClick={(i) => setStatPopup(i)}
-            onSleepToggle={() => isSleeping ? handleWake() : handleSleep()}
+
             isDesktop={isDesktop}
           />
 
@@ -930,7 +933,21 @@ const getTypeLabel = (typeId: string): string => {
             <div
               ref={dateStripScrollRef}
               className="no-scrollbar"
-              style={{ background: "var(--card)", borderRadius: 50, padding: 6, border: "1px solid var(--border)", display: "flex", gap: 4, overflowX: "auto", scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" as any }}
+              style={{
+                background: "rgba(28,28,30,0.65)",
+                backdropFilter: "blur(15px) saturate(180%)",
+                WebkitBackdropFilter: "blur(15px) saturate(180%)",
+                borderRadius: 50,
+                padding: 6,
+                border: "1px solid rgba(255,255,255,0.12)",
+                display: "flex",
+                gap: 0,
+                overflowX: "auto",
+                scrollSnapType: "x mandatory",
+                WebkitOverflowScrolling: "touch" as any,
+                WebkitMaskImage: "linear-gradient(to right, transparent 0%, black 10%, black 90%, transparent 100%)",
+                maskImage: "linear-gradient(to right, transparent 0%, black 10%, black 90%, transparent 100%)",
+              }}
             >
               {allDates.map(d => {
                 const isT = isSameDay(d, today);
@@ -948,10 +965,12 @@ const getTypeLabel = (typeId: string): string => {
                     }
                     lastDateTapRef.current = now;
                     setSelectedDate(new Date(d));
+                    setViewMonth(d.getMonth());
+                    setViewYear(d.getFullYear());
                   }}
-                    style={{ width: 56, height: 64, flexShrink: 0, borderRadius: 50, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: "pointer", background: isSel ? "#FFD000" : "transparent", transition: "background 0.2s", scrollSnapAlign: "center" }}>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: isSel ? "#0a0a0a" : "var(--t5)", lineHeight: 1.2 }}>{d.getDate()}</div>
-                    <div style={{ fontSize: 10, fontWeight: 500, color: isSel ? "rgba(0,0,0,0.5)" : "var(--t5)", fontFamily: MONO }}>{DAYS[d.getDay()]}</div>
+                    style={{ width: 46, height: 52, flexShrink: 0, borderRadius: "50%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: "pointer", background: isSel ? "#FFD000" : "transparent", transition: "background 0.2s", scrollSnapAlign: "center" }}>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: isSel ? "#0a0a0a" : "var(--t5)", lineHeight: 1.2 }}>{d.getDate()}</div>
+                    <div style={{ fontSize: 9, fontWeight: 500, color: isSel ? "rgba(0,0,0,0.5)" : "var(--t5)", fontFamily: MONO }}>{DAYS[d.getDay()]}</div>
                     {isT && !isSel && <div style={{ width: 4, height: 4, borderRadius: "50%", marginTop: 2, background: "var(--accent)" }} />}
                   </div>
                 );
@@ -1832,7 +1851,7 @@ const getTypeLabel = (typeId: string): string => {
           return (
             <>
               {/* Top section with SVG */}
-              <div style={{ position: "relative", overflow: "hidden", minHeight: 160, paddingBottom: 12, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+              <div style={{ position: "relative", overflow: "hidden", minHeight: 160, paddingBottom: 12, display: "flex", flexDirection: "column", justifyContent: "space-between", borderRadius: "20px 20px 0 0" }}>
                 <div style={{ position: "relative", zIndex: 1 }}>
                   <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
                     <span style={{ fontSize: 34, fontWeight: 800, color: "#22c55e", lineHeight: 1 }}>{filteredDoneCount}</span>
@@ -1951,7 +1970,7 @@ const getTypeLabel = (typeId: string): string => {
           return (
             <>
               {/* Top section with stopwatch SVG */}
-              <div style={{ position: "relative", overflow: "hidden", minHeight: 160, paddingBottom: 12, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+              <div style={{ position: "relative", overflow: "hidden", minHeight: 160, paddingBottom: 12, display: "flex", flexDirection: "column", justifyContent: "space-between", borderRadius: "20px 20px 0 0" }}>
                 <div style={{ position: "relative", zIndex: 1 }}>
                   <div style={{ fontSize: 34, fontWeight: 800, color: "#facc15", lineHeight: 1 }}>{(filteredTrackedMin / 60).toFixed(1)}</div>
                   <div style={{ fontSize: 11, color: "var(--t5)", marginTop: 6 }}>{filteredSessionCount} sessions {filterLabel(statFilter)}</div>
@@ -2087,7 +2106,7 @@ const getTypeLabel = (typeId: string): string => {
           return (
             <>
               {/* Top section with lightning bolt SVG */}
-              <div style={{ position: "relative", overflow: "hidden", minHeight: 160, paddingBottom: 12, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+              <div style={{ position: "relative", overflow: "hidden", minHeight: 160, paddingBottom: 12, display: "flex", flexDirection: "column", justifyContent: "space-between", borderRadius: "20px 20px 0 0" }}>
                 <div style={{ position: "relative", zIndex: 1 }}>
                   <div style={{ display: "flex", alignItems: "baseline" }}>
                     <span style={{ fontSize: 34, fontWeight: 800, color: popupEnergyColor, lineHeight: 1 }}>{energyVal}</span>
