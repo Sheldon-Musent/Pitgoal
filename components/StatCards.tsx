@@ -11,8 +11,15 @@ interface StatCardsProps {
   isDesktop: boolean;
 }
 
+const getEnergyColor = (energy: number): string => {
+  if (energy > 50) return '#22c55e';
+  if (energy >= 20) return '#facc15';
+  return '#ef4444';
+};
+
 export default function StatCards({ energy, tasksDone, hoursTracked, sleepRestoreRate, isSleeping, onCardClick, onSleepToggle, isDesktop }: StatCardsProps) {
   const ePct = Math.round(energy);
+  const energyColor = getEnergyColor(energy);
   const hrsToFull = sleepRestoreRate > 0 ? Math.round(((100 - ePct) / sleepRestoreRate) * 10) / 10 : 0;
 
   const numSize = isDesktop ? 34 : 26;
@@ -132,7 +139,7 @@ export default function StatCards({ energy, tasksDone, hoursTracked, sleepRestor
           }}
         >
           {isSleeping ? (
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#facc15" strokeWidth="2">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={energyColor} strokeWidth="2">
               <circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" />
               <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
               <line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" />
@@ -146,8 +153,8 @@ export default function StatCards({ energy, tasksDone, hoursTracked, sleepRestor
         </div>
         <div style={textLayer}>
           <div style={{ display: "flex", alignItems: "baseline" }}>
-            <span style={{ fontSize: numSize, fontWeight: 800, color: "#facc15", lineHeight: 1 }}>{ePct}</span>
-            <span style={{ fontSize: pctSymSize, fontWeight: 700, color: "#facc15" }}>%</span>
+            <span style={{ fontSize: numSize, fontWeight: 800, color: energyColor, lineHeight: 1 }}>{ePct}</span>
+            <span style={{ fontSize: pctSymSize, fontWeight: 700, color: energyColor }}>%</span>
           </div>
         </div>
         <div style={textLayer}>
@@ -168,7 +175,7 @@ export default function StatCards({ energy, tasksDone, hoursTracked, sleepRestor
             <path d="M70 4 Q68 0 64 2 L20 78 Q15 85 24 85 L39 85 Q43 85 41 90 L30 174 Q28 182 36 176 L108 76 Q114 68 105 68 L82 68 Q78 68 80 62 L100 6 Q102 0 96 2 Z" fill="rgba(255,255,255,0.025)" />
             <g clipPath="url(#bolt-clip)">
               {/* Back wave */}
-              <path fill="#facc15" opacity="0.35">
+              <path fill={energyColor} opacity="0.35">
                 <animate
                   attributeName="d"
                   dur="7s"
@@ -180,7 +187,7 @@ export default function StatCards({ energy, tasksDone, hoursTracked, sleepRestor
                 />
               </path>
               {/* Front wave */}
-              <path fill="#facc15" opacity="1">
+              <path fill={energyColor} opacity="1">
                 <animate
                   attributeName="d"
                   dur="5.5s"
