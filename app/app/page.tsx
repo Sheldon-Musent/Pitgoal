@@ -117,6 +117,12 @@ export default function Home() {
   const [editPillName, setEditPillName] = useState("");
   const [editPillColor, setEditPillColor] = useState("");
 
+  // Custom filter tags
+  const [customFilterTags, setCustomFilterTags] = useState<{ id: string; label: string; color?: string }[]>([]);
+  const [showAddFilterTag, setShowAddFilterTag] = useState(false);
+  const [editingFilterTag, setEditingFilterTag] = useState<{ id: string; label: string; color?: string } | null>(null);
+  const [filterTagInput, setFilterTagInput] = useState("");
+
   // Storage key for types/tags
   const TYPES_KEY = "pitgoal-custom-types";
   const TAGS_KEY = "pitgoal-custom-tags";
@@ -262,6 +268,19 @@ export default function Home() {
     ensureAuth().then(uid => { if (uid) setUserId(uid); });
     setLoaded(true);
   }, []);
+
+  // Load custom filter tags
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("pitgoal-filter-tags");
+      if (saved) setCustomFilterTags(JSON.parse(saved));
+    } catch {}
+  }, []);
+
+  const saveFilterTags = (tags: { id: string; label: string; color?: string }[]) => {
+    setCustomFilterTags(tags);
+    try { localStorage.setItem("pitgoal-filter-tags", JSON.stringify(tags)); } catch {};
+  };
 
   // ═══ NOTIFICATIONS ═══
   useEffect(() => { if (!loaded) return; const s = getPermissionStatus(); if (s === "granted") initNotifications().then(ok => setNotifEnabled(ok)); else if (s === "default") { const t = setTimeout(() => setNotifBanner(true), 3000); return () => clearTimeout(t); } }, [loaded]);
@@ -962,7 +981,7 @@ const getTypeLabel = (typeId: string): string => {
           />
 
           {/* ═══ SECTION B: Scrollable Date Strip ═══ */}
-          <div style={{ marginBottom: 18, position: "relative" }}>
+          <div style={{ marginBottom: 18, marginTop: 14, position: "relative" }}>
             <div
               ref={dateStripScrollRef}
               className="no-scrollbar"
@@ -978,8 +997,7 @@ const getTypeLabel = (typeId: string): string => {
                 overflowX: "auto",
                 scrollSnapType: "x mandatory",
                 WebkitOverflowScrolling: "touch" as any,
-                maxWidth: 270,
-                margin: "0 auto",
+                maxWidth: "100%",
               }}
             >
               {allDates.map(d => {
@@ -1040,101 +1058,198 @@ const getTypeLabel = (typeId: string): string => {
             )}
           </div>
 
-          {/* ═══ FILTER BAR — single scrollable row, hidden scrollbar ═══ */}
+          {/* ═══ FILTER BAR — DATE + custom tags ═══ */}
           <div
             className="no-scrollbar"
-            onClick={() => { if (deleteMode) setDeleteMode(false); }}
             style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "nowrap", marginBottom: 20, overflowX: "auto", WebkitUserSelect: "none", userSelect: "none" }}
           >
-            {/* ALL button */}
+            {/* DATE button — always first, can't be deleted */}
             <div className="tap pill-no-select" onClick={() => { setFilterMode("all"); setActiveTab("today"); }} style={{
               padding: filterMode === "all" ? "8px 20px" : "8px 18px", borderRadius: 50, fontFamily: MONO, fontSize: 11,
               fontWeight: filterMode === "all" ? 700 : 500, letterSpacing: 1, cursor: "pointer", flexShrink: 0,
               background: filterMode === "all" ? "#FFD000" : "var(--card)",
               color: filterMode === "all" ? "#0a0a0a" : "var(--t4)",
               border: filterMode === "all" ? "none" : "1px solid var(--border)",
-            }}>ALL</div>
+            }}>DATE</div>
 
-            {/* Types (pill shape) */}
-            {[...DEFAULT_TYPES, ...customTypes].map((t) => {
-              const isActive = filterMode === `type:${t.id}`;
-              const isCustom = !DEFAULT_TYPE_IDS.has(t.id);
+            {/* Custom tag pills */}
+            {customFilterTags.map((tag) => {
+              const isActive = filterMode === `tag:${tag.id}`;
               return (
-                <div key={`type-${t.id}`} style={{ position: "relative", flexShrink: 0 }}>
+                <div key={tag.id} style={{ position: "relative", flexShrink: 0 }}>
                   <div className="tap pill-no-select"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setFilterMode(isActive ? "all" : `type:${t.id}`);
+                    onClick={() => {
+                      setFilterMode(isActive ? "all" : `tag:${tag.id}`);
                       setActiveTab("today");
                     }}
                     onTouchStart={(e) => {
-                      if (isCustom) {
-                        e.preventDefault();
-                        const timer = setTimeout(() => {
-                          openPillEditor("type", t.id, t.label, t.color);
-                        }, 500);
-                        (e.currentTarget as any)._lpTimer = timer;
-                      }
+                      e.preventDefault();
+                      const timer = setTimeout(() => {
+                        setEditingFilterTag(tag);
+                      }, 500);
+                      (e.currentTarget as any)._lpTimer = timer;
                     }}
-                    onTouchEnd={(e) => { if (isCustom) clearTimeout((e.currentTarget as any)._lpTimer); }}
-                    onTouchMove={(e) => { if (isCustom) clearTimeout((e.currentTarget as any)._lpTimer); }}
+                    onTouchEnd={(e) => { clearTimeout((e.currentTarget as any)._lpTimer); }}
+                    onTouchMove={(e) => { clearTimeout((e.currentTarget as any)._lpTimer); }}
                     onMouseDown={() => {
-                      if (isCustom) longPressTimer.current = setTimeout(() => openPillEditor("type", t.id, t.label, t.color), 500);
+                      longPressTimer.current = setTimeout(() => setEditingFilterTag(tag), 500);
                     }}
                     onMouseUp={() => { if (longPressTimer.current) clearTimeout(longPressTimer.current); }}
-                    onContextMenu={(e) => { if (isCustom) e.preventDefault(); }}
+                    onContextMenu={(e) => e.preventDefault()}
                     style={{
                       padding: isActive ? "8px 20px" : "8px 18px", borderRadius: 50, fontFamily: MONO, fontSize: 11,
                       fontWeight: isActive ? 700 : 500, cursor: "pointer", transition: "all 0.15s", flexShrink: 0,
-                      background: isActive ? (isCustom ? t.color : "#FFD000") : "var(--card)",
-                      color: isActive ? "#0a0a0a" : isCustom ? t.color : "var(--t4)",
-                      border: isActive ? "none" : isCustom ? `1px solid ${t.color}4D` : "1px solid var(--border)",
+                      background: isActive ? (tag.color || "#FFD000") : "var(--card)",
+                      color: isActive ? "#0a0a0a" : tag.color || "var(--t4)",
+                      border: isActive ? "none" : `1px solid ${tag.color ? tag.color + "4D" : "var(--border)"}`,
                     }}
-                  >{t.label}</div>
+                  >{tag.label}</div>
                 </div>
               );
             })}
 
-            {/* Tags (pill shape) */}
-            {[...DEFAULT_TAGS, ...customTagDefs].map((t) => {
-              const isActive = filterMode === `tag:${t.id}`;
-              const isCustom = !DEFAULT_TAG_IDS.has(t.id);
-              return (
-                <div key={`tag-${t.id}`} style={{ position: "relative", flexShrink: 0 }}>
-                  <div className="tap pill-no-select"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setFilterMode(isActive ? "all" : `tag:${t.id}`);
-                      setActiveTab("today");
-                    }}
-                    onTouchStart={(e) => {
-                      if (isCustom) {
-                        e.preventDefault();
-                        const timer = setTimeout(() => {
-                          openPillEditor("tag", t.id, t.label, t.color);
-                        }, 500);
-                        (e.currentTarget as any)._lpTimer = timer;
-                      }
-                    }}
-                    onTouchEnd={(e) => { if (isCustom) clearTimeout((e.currentTarget as any)._lpTimer); }}
-                    onTouchMove={(e) => { if (isCustom) clearTimeout((e.currentTarget as any)._lpTimer); }}
-                    onMouseDown={() => {
-                      if (isCustom) longPressTimer.current = setTimeout(() => openPillEditor("tag", t.id, t.label, t.color), 500);
-                    }}
-                    onMouseUp={() => { if (longPressTimer.current) clearTimeout(longPressTimer.current); }}
-                    onContextMenu={(e) => { if (isCustom) e.preventDefault(); }}
-                    style={{
-                      padding: isActive ? "8px 20px" : "8px 18px", borderRadius: 50, fontFamily: MONO, fontSize: 11,
-                      fontWeight: isActive ? 700 : 500, cursor: "pointer", transition: "all 0.15s", flexShrink: 0,
-                      background: isActive ? (isCustom ? t.color : "#FFD000") : "var(--card)",
-                      color: isActive ? "#0a0a0a" : isCustom ? t.color : "var(--t4)",
-                      border: isActive ? "none" : isCustom ? `1px solid ${t.color}4D` : "1px solid var(--border)",
-                    }}
-                  >{t.label}</div>
-                </div>
-              );
-            })}
+            {/* Add tag button */}
+            <div className="tap" onClick={() => setShowAddFilterTag(true)} style={{
+              width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: "pointer", border: "1px solid var(--border)", background: "var(--card)",
+            }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t5)" strokeWidth="2" strokeLinecap="round">
+                <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            </div>
           </div>
+
+          {/* Add filter tag popup */}
+          {showAddFilterTag && (
+            <div onClick={() => { setShowAddFilterTag(false); setFilterTagInput(""); }} style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 100, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div onClick={(e) => e.stopPropagation()} style={{
+                background: "rgba(28,28,30,0.65)", backdropFilter: "blur(30px) saturate(180%)", WebkitBackdropFilter: "blur(30px) saturate(180%)",
+                border: "none", borderRadius: 20, padding: 20, width: 320, maxWidth: "calc(100% - 48px)",
+              }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "var(--t1)", marginBottom: 16 }}>Add tag</div>
+                <input
+                  autoFocus
+                  value={filterTagInput}
+                  onChange={(e) => setFilterTagInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && filterTagInput.trim()) {
+                      saveFilterTags([...customFilterTags, { id: genId(), label: filterTagInput.trim().toUpperCase() }]);
+                      setFilterTagInput("");
+                      setShowAddFilterTag(false);
+                    }
+                  }}
+                  placeholder="Tag name..."
+                  style={{
+                    width: "100%", padding: "12px 16px", borderRadius: 12,
+                    background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)",
+                    color: "var(--t1)", fontSize: 14, fontFamily: MONO, outline: "none",
+                  }}
+                />
+                <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                  <div className="tap" onClick={() => {
+                    if (filterTagInput.trim()) {
+                      saveFilterTags([...customFilterTags, { id: genId(), label: filterTagInput.trim().toUpperCase() }]);
+                      setFilterTagInput("");
+                      setShowAddFilterTag(false);
+                    }
+                  }} style={{
+                    flex: 1, padding: 12, borderRadius: 12, background: "var(--accent)",
+                    color: "#0a0a0a", textAlign: "center", fontWeight: 700, fontSize: 13, fontFamily: MONO, cursor: "pointer",
+                  }}>Add</div>
+                  <div className="tap" onClick={() => { setShowAddFilterTag(false); setFilterTagInput(""); }} style={{
+                    flex: 1, padding: 12, borderRadius: 12, border: "1px solid rgba(255,255,255,0.1)",
+                    color: "var(--t4)", textAlign: "center", fontWeight: 500, fontSize: 13, fontFamily: MONO, cursor: "pointer",
+                  }}>Cancel</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Edit filter tag popup (long-press) */}
+          {editingFilterTag && (
+            <div onClick={() => { setEditingFilterTag(null); setFilterTagInput(""); }} style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 100, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div onClick={(e) => e.stopPropagation()} style={{
+                background: "rgba(28,28,30,0.65)", backdropFilter: "blur(30px) saturate(180%)", WebkitBackdropFilter: "blur(30px) saturate(180%)",
+                border: "none", borderRadius: 20, padding: 20, width: 320, maxWidth: "calc(100% - 48px)",
+              }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "var(--t1)", marginBottom: 16 }}>Edit tag</div>
+
+                {/* Rename */}
+                <input
+                  autoFocus
+                  defaultValue={editingFilterTag.label}
+                  onChange={(e) => setFilterTagInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && (filterTagInput || editingFilterTag.label).trim()) {
+                      const updated = customFilterTags.map(t => t.id === editingFilterTag.id ? { ...t, label: (filterTagInput || editingFilterTag.label).trim().toUpperCase() } : t);
+                      saveFilterTags(updated);
+                      setEditingFilterTag(null);
+                      setFilterTagInput("");
+                    }
+                  }}
+                  placeholder="Tag name..."
+                  style={{
+                    width: "100%", padding: "12px 16px", borderRadius: 12,
+                    background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)",
+                    color: "var(--t1)", fontSize: 14, fontFamily: MONO, outline: "none",
+                  }}
+                />
+
+                {/* Move up / Move down */}
+                <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                  <div className="tap" onClick={() => {
+                    const idx = customFilterTags.findIndex(t => t.id === editingFilterTag.id);
+                    if (idx > 0) {
+                      const arr = [...customFilterTags];
+                      [arr[idx - 1], arr[idx]] = [arr[idx], arr[idx - 1]];
+                      saveFilterTags(arr);
+                    }
+                  }} style={{
+                    flex: 1, padding: 10, borderRadius: 12, background: "rgba(255,255,255,0.06)",
+                    color: "var(--t3)", textAlign: "center", fontSize: 11, fontFamily: MONO, cursor: "pointer",
+                  }}>← Move left</div>
+                  <div className="tap" onClick={() => {
+                    const idx = customFilterTags.findIndex(t => t.id === editingFilterTag.id);
+                    if (idx < customFilterTags.length - 1) {
+                      const arr = [...customFilterTags];
+                      [arr[idx], arr[idx + 1]] = [arr[idx + 1], arr[idx]];
+                      saveFilterTags(arr);
+                    }
+                  }} style={{
+                    flex: 1, padding: 10, borderRadius: 12, background: "rgba(255,255,255,0.06)",
+                    color: "var(--t3)", textAlign: "center", fontSize: 11, fontFamily: MONO, cursor: "pointer",
+                  }}>Move right →</div>
+                </div>
+
+                {/* Actions */}
+                <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                  <div className="tap" onClick={() => {
+                    const newLabel = (filterTagInput || editingFilterTag.label).trim().toUpperCase();
+                    if (newLabel) {
+                      const updated = customFilterTags.map(t => t.id === editingFilterTag.id ? { ...t, label: newLabel } : t);
+                      saveFilterTags(updated);
+                    }
+                    setEditingFilterTag(null);
+                    setFilterTagInput("");
+                  }} style={{
+                    flex: 1, padding: 12, borderRadius: 12, background: "var(--accent)",
+                    color: "#0a0a0a", textAlign: "center", fontWeight: 700, fontSize: 13, fontFamily: MONO, cursor: "pointer",
+                  }}>Save</div>
+                  <div className="tap" onClick={() => {
+                    const updated = customFilterTags.filter(t => t.id !== editingFilterTag.id);
+                    saveFilterTags(updated);
+                    if (filterMode === `tag:${editingFilterTag.id}`) setFilterMode("all");
+                    setEditingFilterTag(null);
+                    setFilterTagInput("");
+                  }} style={{
+                    flex: 1, padding: 12, borderRadius: 12, background: "rgba(239,68,68,0.1)",
+                    color: "#ef4444", textAlign: "center", fontWeight: 700, fontSize: 13, fontFamily: MONO, cursor: "pointer",
+                  }}>Delete</div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* ── REST NOW BANNER ── */}
           {showRestWarning && !isSleeping && (
