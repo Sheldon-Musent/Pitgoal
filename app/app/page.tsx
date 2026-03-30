@@ -836,6 +836,39 @@ const getTypeLabel = (typeId: string): string => {
     dateStripInitialScroll.current = true;
   }, [selectedDate, allDates, bottomTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Edge dim: fade dates at edges of visible scroll area
+  useEffect(() => {
+    const container = dateStripScrollRef.current;
+    if (!container) return;
+
+    const updateEdgeDim = () => {
+      const items = container.children;
+      const rect = container.getBoundingClientRect();
+      const fadeZone = 50; // px from edge where dimming starts
+
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i] as HTMLElement;
+        const itemRect = item.getBoundingClientRect();
+        const itemCenter = itemRect.left + itemRect.width / 2;
+
+        const distFromLeft = itemCenter - rect.left;
+        const distFromRight = rect.right - itemCenter;
+        const minDist = Math.min(distFromLeft, distFromRight);
+
+        if (minDist < fadeZone) {
+          const opacity = Math.max(0.15, minDist / fadeZone);
+          item.style.opacity = String(opacity);
+        } else {
+          item.style.opacity = "1";
+        }
+      }
+    };
+
+    updateEdgeDim();
+    container.addEventListener("scroll", updateEdgeDim, { passive: true });
+    return () => container.removeEventListener("scroll", updateEdgeDim);
+  }, [allDates]);
+
   const handleTabChange = (tab: BottomTab) => setBottomTab(tab);
 
   // ═══ LOADING ═══
@@ -934,7 +967,7 @@ const getTypeLabel = (typeId: string): string => {
               ref={dateStripScrollRef}
               className="no-scrollbar"
               style={{
-                background: "rgba(28,28,30,0.65)",
+                background: "rgba(28,28,30,0.35)",
                 backdropFilter: "blur(15px) saturate(180%)",
                 WebkitBackdropFilter: "blur(15px) saturate(180%)",
                 borderRadius: 50,
@@ -945,8 +978,6 @@ const getTypeLabel = (typeId: string): string => {
                 overflowX: "auto",
                 scrollSnapType: "x mandatory",
                 WebkitOverflowScrolling: "touch" as any,
-                WebkitMaskImage: "linear-gradient(to right, transparent 0%, black 10%, black 90%, transparent 100%)",
-                maskImage: "linear-gradient(to right, transparent 0%, black 10%, black 90%, transparent 100%)",
               }}
             >
               {allDates.map(d => {
