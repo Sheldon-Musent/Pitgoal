@@ -981,7 +981,7 @@ const getTypeLabel = (typeId: string): string => {
           />
 
           {/* ═══ SECTION B: Scrollable Date Strip ═══ */}
-          <div style={{ marginBottom: 18, marginTop: 14, position: "relative" }}>
+          <div style={{ marginBottom: 8, marginTop: 24, position: "relative" }}>
             <div
               ref={dateStripScrollRef}
               className="no-scrollbar"
@@ -997,7 +997,7 @@ const getTypeLabel = (typeId: string): string => {
                 overflowX: "auto",
                 scrollSnapType: "x mandatory",
                 WebkitOverflowScrolling: "touch" as any,
-                maxWidth: "100%",
+                maxWidth: "85%",
               }}
             >
               {allDates.map(d => {
@@ -1019,9 +1019,9 @@ const getTypeLabel = (typeId: string): string => {
                     setViewMonth(d.getMonth());
                     setViewYear(d.getFullYear());
                   }}
-                    style={{ width: 48, height: 48, flexShrink: 0, borderRadius: "50%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: "pointer", background: isSel ? "#FFD000" : "transparent", transition: "background 0.2s", scrollSnapAlign: "center" }}>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: isSel ? "#0a0a0a" : "var(--t5)", lineHeight: 1.2 }}>{d.getDate()}</div>
-                    <div style={{ fontSize: 8, fontWeight: 500, color: isSel ? "rgba(0,0,0,0.5)" : "var(--t5)", fontFamily: MONO }}>{DAYS[d.getDay()]}</div>
+                    style={{ width: 56, height: 56, flexShrink: 0, borderRadius: "50%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: "pointer", background: isSel ? "#FFD000" : "transparent", transition: "background 0.2s", scrollSnapAlign: "center" }}>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: isSel ? "#0a0a0a" : "var(--t5)", lineHeight: 1.2 }}>{d.getDate()}</div>
+                    <div style={{ fontSize: 9, fontWeight: 500, color: isSel ? "rgba(0,0,0,0.5)" : "var(--t5)", fontFamily: MONO }}>{DAYS[d.getDay()]}</div>
                     {isT && !isSel && <div style={{ width: 4, height: 4, borderRadius: "50%", marginTop: 2, background: "var(--accent)" }} />}
                   </div>
                 );
