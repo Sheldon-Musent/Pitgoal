@@ -27,6 +27,7 @@ import { DEFAULT_TYPES, DEFAULT_TAGS, DEFAULT_TYPE_IDS, DEFAULT_TAG_IDS } from "
 import SideNav from "../../components/SideNav";
 import DayTimeline from "../../components/DayTimeline";
 import ResizableLayout from "../../components/ResizableLayout";
+import StatCards from "../../components/StatCards";
 
 // ── Energy system constants ──
 const IDLE_RATE = 0.5;
@@ -911,50 +912,16 @@ const getTypeLabel = (typeId: string): string => {
 
 
           {/* ═══ SECTION A: 3 Stat Cards ═══ */}
-          <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
-            <div className="tap" onClick={() => setStatPopup(0)} style={{ flex: 1, background: "var(--card)", borderRadius: 16, padding: "16px 12px", border: "1px solid var(--border)", textAlign: "center", cursor: "pointer" }}>
-              <div style={{ fontSize: 30, fontWeight: 700, color: "var(--t1)", letterSpacing: -1, lineHeight: 1 }}>{tasksDoneCount + restsDoneCount}</div>
-              <div style={{ fontSize: 9, color: "var(--t5)", fontFamily: MONO, letterSpacing: 2, fontWeight: 600, marginTop: 6 }}>DONE</div>
-            </div>
-            <div className="tap" onClick={() => setStatPopup(1)} style={{ flex: 1, background: "var(--card)", borderRadius: 16, padding: "16px 12px", border: "1px solid var(--border)", textAlign: "center", cursor: "pointer" }}>
-              <div style={{ fontSize: 30, fontWeight: 700, color: "var(--accent)", letterSpacing: -1, lineHeight: 1 }}>{(totalTracked / 60).toFixed(1)}</div>
-              <div style={{ fontSize: 9, color: "var(--t5)", fontFamily: MONO, letterSpacing: 2, fontWeight: 600, marginTop: 6 }}>TRACKED</div>
-            </div>
-            <div className="tap" onClick={() => setStatPopup(2)} style={{ flex: 1, background: "var(--card)", borderRadius: 16, padding: "16px 12px", border: isSleeping ? "1px solid var(--rest, #6b8a7a)" : "1px solid var(--border)", textAlign: "center", cursor: "pointer", position: "relative" }}>
-              {/* Sleep/Wake button */}
-              <div
-                onClick={(e) => { e.stopPropagation(); isSleeping ? handleWake() : handleSleep(); }}
-                style={{
-                  position: "absolute", top: 6, right: 6, width: 22, height: 22, borderRadius: "50%",
-                  background: "var(--badge-bg, #222)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
-                }}
-              >
-                {isSleeping ? (
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2">
-                    <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
-                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-                    <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
-                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-                  </svg>
-                ) : (
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--t4)" strokeWidth="2">
-                    <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
-                  </svg>
-                )}
-              </div>
-              {isSleeping ? (
-                <>
-                  <div style={{ fontSize: 24, fontWeight: 700, color: "var(--rest, #6b8a7a)", letterSpacing: -1, lineHeight: 1 }} className="anim-pulse">ZZZ</div>
-                  <div style={{ fontSize: 9, color: "var(--rest, #6b8a7a)", fontFamily: MONO, letterSpacing: 2, fontWeight: 600, marginTop: 6 }}>{ePct}%</div>
-                </>
-              ) : (
-                <>
-                  <div style={{ fontSize: 30, fontWeight: 700, color: ePct > 30 ? "var(--t1)" : ePct > 10 ? "var(--warn)" : "var(--danger)", letterSpacing: -1, lineHeight: 1 }}>{ePct}%</div>
-                  <div style={{ fontSize: 9, color: "var(--t5)", fontFamily: MONO, letterSpacing: 2, fontWeight: 600, marginTop: 6 }}>ENERGY</div>
-                </>
-              )}
-            </div>
-          </div>
+          <StatCards
+            energy={energy}
+            tasksDone={tasksDoneCount + restsDoneCount}
+            hoursTracked={(totalTracked / 60).toFixed(1)}
+            sleepRestoreRate={SLEEP_RESTORE_PER_HOUR}
+            isSleeping={isSleeping}
+            onCardClick={(i) => setStatPopup(i)}
+            onSleepToggle={() => isSleeping ? handleWake() : handleSleep()}
+            isDesktop={isDesktop}
+          />
 
           {/* ═══ SECTION B: Scrollable Date Strip ═══ */}
           <div style={{ marginBottom: 18, position: "relative" }}>
