@@ -40,6 +40,10 @@ const DISPLAY = "'Sora', sans-serif";
 const MONO = "'IBM Plex Mono', monospace";
 const BODY = "'Plus Jakarta Sans', sans-serif";
 
+// Desktop bottom offset (no BottomNav on desktop)
+const BOTTOM_MOBILE = "calc(84px + env(safe-area-inset-bottom, 0px))";
+const BOTTOM_DESKTOP = "16px";
+
 const fmtDur = (m: number) => {
   if (m >= 60) {
     const h = Math.floor(m / 60);
@@ -72,9 +76,18 @@ export default function PopupBar({
   onStartUpcoming,
 }: PopupBarProps) {
   const [collapse, setCollapse] = useState<CollapseLevel>("full");
+  const [isDesktop, setIsDesktop] = useState(false);
   const touchStartY = useRef(0);
   const touchDelta = useRef(0);
   const prevState = useRef(popupState);
+
+  // Desktop detection for positioning
+  useEffect(() => {
+    const check = () => setIsDesktop(window.innerWidth >= 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
 
   const isMainTab = currentTab === "main";
   const isActiveState = popupState === "working" || popupState === "resting" || popupState === "paused";
@@ -279,15 +292,17 @@ export default function PopupBar({
         onTouchEnd={onTouchEnd}
         style={{
           position: "fixed",
-          bottom: "calc(84px + env(safe-area-inset-bottom, 0px))",
-          left: "50%",
+          bottom: isDesktop ? BOTTOM_DESKTOP : BOTTOM_MOBILE,
+          left: 0,
+          right: 0,
           width: "calc(100% - 32px)",
           maxWidth: 398,
+          margin: "0 auto",
           zIndex: 90,
           transform:
             collapse === "full"
-              ? "translate(-50%, 0)"
-              : "translate(-50%, calc(100% + 40px))",
+              ? "none"
+              : "translateY(calc(100% + 40px))",
           opacity: collapse === "full" ? 1 : 0,
           transition:
             "transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease",
@@ -461,15 +476,17 @@ export default function PopupBar({
         }}
         style={{
           position: "fixed",
-          bottom: "calc(84px + env(safe-area-inset-bottom, 0px))",
-          left: "50%",
+          bottom: isDesktop ? BOTTOM_DESKTOP : BOTTOM_MOBILE,
+          left: 0,
+          right: 0,
           width: "calc(100% - 32px)",
           maxWidth: 398,
+          margin: "0 auto",
           zIndex: 90,
           transform:
             collapse === "medium"
-              ? "translate(-50%, 0)"
-              : "translate(-50%, calc(100% + 40px))",
+              ? "none"
+              : "translateY(calc(100% + 40px))",
           opacity: collapse === "medium" ? 1 : 0,
           transition:
             "transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease",
@@ -589,13 +606,16 @@ export default function PopupBar({
         onClick={expandOne}
         style={{
           position: "fixed",
-          bottom: "calc(84px + env(safe-area-inset-bottom, 0px))",
-          left: "50%",
+          bottom: isDesktop ? BOTTOM_DESKTOP : BOTTOM_MOBILE,
+          left: 0,
+          right: 0,
+          width: "fit-content",
+          margin: "0 auto",
           zIndex: 90,
           transform:
             collapse === "pill"
-              ? "translateX(-50%) translateY(0)"
-              : "translateX(-50%) translateY(20px)",
+              ? "none"
+              : "translateY(20px)",
           opacity: collapse === "pill" ? 1 : 0,
           transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
           pointerEvents: collapse === "pill" ? "auto" : "none",

@@ -179,6 +179,23 @@ export default function Home() {
         }
       } catch {}
 
+      // Fallback: check ProfileTab's individual rate keys
+      try {
+        const ptIdle = localStorage.getItem("pitgoal-rate-idle");
+        const ptTask = localStorage.getItem("pitgoal-rate-task");
+        const ptUrgent = localStorage.getItem("pitgoal-rate-urgent");
+        const ptRest = localStorage.getItem("pitgoal-rate-rest");
+        if (ptIdle || ptTask || ptUrgent || ptRest) {
+          setDrainRates(prev => ({
+            ...prev,
+            ...(ptIdle ? { idle: parseFloat(ptIdle) } : {}),
+            ...(ptTask ? { work: parseFloat(ptTask) } : {}),
+            ...(ptUrgent ? { urgent: parseFloat(ptUrgent) } : {}),
+            ...(ptRest ? { rest: parseFloat(ptRest) } : {}),
+          }));
+        }
+      } catch {}
+
       if (raw) {
         const d = JSON.parse(raw);
         const todayMY = getMYDate();
@@ -306,8 +323,13 @@ export default function Home() {
   useEffect(() => {
     if (isSleeping) return;
     const interval = setInterval(() => {
+      // Pause drain while tab is hidden to prevent massive catch-up drain
+      if (document.visibilityState === "hidden") return;
+
       const now = Date.now();
       const deltaMinutes = (now - lastEnergyTick.current) / 60000;
+      // Cap delta to prevent massive drain after backgrounding
+      const cappedDelta = Math.min(deltaMinutes, 0.5);
       lastEnergyTick.current = now;
       let rate: number;
       if (activeTask) {
@@ -322,7 +344,7 @@ export default function Home() {
       } else {
         rate = IDLE_RATE;
       }
-      setEnergy(prev => Math.max(0, Math.min(100, prev - rate * deltaMinutes)));
+      setEnergy(prev => Math.max(0, Math.min(100, prev - rate * cappedDelta)));
     }, 1000);
     return () => clearInterval(interval);
   }, [isSleeping, activeTask]);

@@ -148,7 +148,19 @@ export default function ProfileTab({ energy, streak, tasksDoneCount, resetAll }:
     localStorage.setItem("pitgoal-rate-urgent", urgentRate.toString());
     localStorage.setItem("pitgoal-rate-rest", restRate.toString());
     localStorage.setItem("pitgoal-rate-sleep", sleepRate.toString());
-    // TODO: call onEnergyRatesChange?.({ idle: idleRate, task: taskRate, urgent: urgentRate, rest: restRate, sleep: sleepRate }) when wired to page.tsx
+    // Sync to main settings key so page.tsx energy drain reads the correct rates
+    try {
+      const raw = localStorage.getItem("doit-v8-settings");
+      const existing = raw ? JSON.parse(raw) : {};
+      const updated = {
+        ...existing,
+        idle: idleRate,
+        work: taskRate,
+        urgent: urgentRate,
+        rest: restRate,
+      };
+      localStorage.setItem("doit-v8-settings", JSON.stringify(updated));
+    } catch {}
   }, [idleRate, taskRate, urgentRate, restRate, sleepRate]);
 
   // ── Handlers ──

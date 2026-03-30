@@ -240,7 +240,7 @@ export default function CreateTaskSheet({
 
       {/* Sheet */}
       <div onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} style={{
-        position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 201, maxWidth: 430, margin: "0 auto",
+        position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 201, maxWidth: 500, margin: "0 auto",
         background: "var(--card)", borderRadius: "24px 24px 0 0", border: "1px solid var(--border)", borderBottom: "none",
         padding: "0 0 env(safe-area-inset-bottom, 16px)", animation: "sheetUp 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
         maxHeight: "85vh", overflowY: "auto",

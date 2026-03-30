@@ -43,16 +43,16 @@ interface HistoryItem {
 
 /* ── Constants ── */
 const TAG_COLORS: Record<PitPost["tag"], string> = {
-  win: "#FFD000",
+  win: "var(--accent)",
   question: "#60A5FA",
   tip: "#34D399",
-  verify: "#F87171",
+  verify: "var(--danger)",
   discussion: "#A78BFA",
 };
 
 const MODE_COLORS: Record<string, string> = {
   TIP: "#34D399",
-  FLAG: "#F87171",
+  FLAG: "var(--danger)",
   ASK: "#60A5FA",
   IDEAS: "#A78BFA",
 };
@@ -192,7 +192,7 @@ const MOCK_HISTORY: HistoryItem[] = [
 
 /* ── Helpers ── */
 const AnonymousAvatar = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4a5568" strokeWidth="1.5" strokeLinecap="round">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--t4)" strokeWidth="1.5" strokeLinecap="round">
     <circle cx="12" cy="8" r="4" />
     <path d="M6 21v-1a6 6 0 0112 0v1" />
   </svg>
@@ -201,8 +201,8 @@ const AnonymousAvatar = () => (
 const PlatformIcon = ({ platform }: { platform: string }) => (
   <div style={{
     width: 16, height: 16, borderRadius: 4,
-    background: "#1e2530", display: "flex", alignItems: "center", justifyContent: "center",
-    fontSize: 9, color: "#7a8490", fontWeight: 700,
+    background: "var(--border)", display: "flex", alignItems: "center", justifyContent: "center",
+    fontSize: 9, color: "var(--t3)", fontWeight: 700,
   }}>
     {platform[0].toUpperCase()}
   </div>
@@ -212,14 +212,14 @@ const PlatformIcon = ({ platform }: { platform: string }) => (
 
 function SourceBar({ source, rocky }: { source: PitPost["source"]; rocky: PitPost["rocky"] }) {
   if (!source) return null;
-  const statusColor = rocky.status === "flagged" ? "#F87171" : "#34D399";
+  const statusColor = rocky.status === "flagged" ? "var(--danger)" : "#34D399";
   const statusLabel = rocky.status === "flagged" ? "FLAGGED" : rocky.status === "verified" ? "VERIFIED" : "ANALYZED";
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", fontSize: 10, color: "#7a8490" }}>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", fontSize: 10, color: "var(--t3)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
         <PlatformIcon platform={source.platform} />
         <span>shared from {PLATFORM_LABELS[source.platform]}</span>
-        <span style={{ color: "#3a4048" }}>&rarr;</span>
+        <span style={{ color: "var(--t5)" }}>&rarr;</span>
         <span style={{ color: statusColor }}>Rocky {rocky.status}</span>
       </div>
       <div style={{
@@ -237,20 +237,20 @@ function PhotoArea({ post }: { post: PitPost }) {
   if (post.tag === "win") {
     return (
       <div style={{
-        aspectRatio: "16/9", background: "linear-gradient(135deg, #0d1219, #1a1f2e)",
+        aspectRatio: "16/9", background: "linear-gradient(135deg, var(--bg), var(--card))",
         display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
         gap: 12, padding: 20,
       }}>
         <div style={{ fontSize: 40 }}>🏆</div>
-        <div style={{ color: "#FFD000", fontSize: 18, fontWeight: 700 }}>42-Day Streak!</div>
+        <div style={{ color: "var(--accent)", fontSize: 18, fontWeight: 700 }}>42-Day Streak!</div>
         <div style={{ display: "flex", gap: 8 }}>
           {[{ label: "STREAK", value: "42d" }, { label: "DONE", value: "126" }, { label: "AVG", value: "3/day" }].map((s) => (
             <div key={s.label} style={{
-              background: "#1e2530", borderRadius: 8, padding: "8px 14px", textAlign: "center",
-              border: "1px solid #2a3040",
+              background: "var(--border)", borderRadius: 8, padding: "8px 14px", textAlign: "center",
+              border: "1px solid var(--border2)",
             }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "#FFD000" }}>{s.value}</div>
-              <div style={{ fontSize: 8, color: "#4a5568", letterSpacing: 1, marginTop: 2 }}>{s.label}</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--accent)" }}>{s.value}</div>
+              <div style={{ fontSize: 8, color: "var(--t4)", letterSpacing: 1, marginTop: 2 }}>{s.label}</div>
             </div>
           ))}
         </div>
@@ -260,11 +260,11 @@ function PhotoArea({ post }: { post: PitPost }) {
   return (
     <div style={{
       aspectRatio: ratio,
-      background: "linear-gradient(135deg, #0d1219 0%, #141a24 100%)",
+      background: "linear-gradient(135deg, var(--bg) 0%, var(--card) 100%)",
       display: "flex", alignItems: "center", justifyContent: "center",
-      color: "#2a3040", fontSize: 12, maxHeight: 260, overflow: "hidden",
+      color: "var(--t5)", fontSize: 12, maxHeight: 260, overflow: "hidden",
     }}>
-      <div style={{ textAlign: "center", padding: 20, color: "#3a4048" }}>
+      <div style={{ textAlign: "center", padding: 20, color: "var(--t5)" }}>
         <div style={{ fontSize: 24, marginBottom: 6 }}>{post.source?.platform === "tiktok" ? "▶" : "📷"}</div>
         <div style={{ fontSize: 10 }}>{post.source?.handle || "content"}</div>
       </div>
@@ -274,7 +274,7 @@ function PhotoArea({ post }: { post: PitPost }) {
 
 function RockyBox({ rocky }: { rocky: PitPost["rocky"] }) {
   const isFlagged = rocky.status === "flagged";
-  const color = isFlagged ? "#F87171" : "#34D399";
+  const color = isFlagged ? "var(--danger)" : "#34D399";
   return (
     <div style={{
       margin: "0 12px 12px", padding: "10px 12px", borderRadius: 10,
@@ -290,9 +290,9 @@ function RockyBox({ rocky }: { rocky: PitPost["rocky"] }) {
           {isFlagged ? "!" : "\u2605"}
         </div>
         <span style={{ fontSize: 10, fontWeight: 700, color, letterSpacing: 0.5 }}>ROCKY</span>
-        <span style={{ fontSize: 10, color: "#7a8490", opacity: 0.47 }}>&middot; from Planet Erid</span>
+        <span style={{ fontSize: 10, color: "var(--t3)", opacity: 0.47 }}>&middot; from Planet Erid</span>
       </div>
-      <div style={{ fontSize: 11, color: "#7a8490", lineHeight: 1.55 }}>{rocky.summary}</div>
+      <div style={{ fontSize: 11, color: "var(--t3)", lineHeight: 1.55 }}>{rocky.summary}</div>
     </div>
   );
 }
@@ -304,7 +304,7 @@ function VoteButtons() {
         {[
           { label: "LEGIT", color: "#34D399" },
           { label: "BS", color: "#F87171" },
-          { label: "MEH", color: "#FFD000" },
+          { label: "MEH", color: "var(--accent)" },
         ].map((b) => (
           <button key={b.label} style={{
             flex: 1, padding: "8px 0", borderRadius: 8, border: "none", cursor: "pointer",
@@ -314,7 +314,7 @@ function VoteButtons() {
           </button>
         ))}
       </div>
-      <div style={{ textAlign: "center", fontSize: 9, color: "#4a5568", marginTop: 6 }}>+5 coins for correct vote</div>
+      <div style={{ textAlign: "center", fontSize: 9, color: "var(--t4)", marginTop: 6 }}>+5 coins for correct vote</div>
     </div>
   );
 }
@@ -327,23 +327,23 @@ function CardMeta({ post }: { post: PitPost }) {
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
         <div style={{
-          width: 20, height: 20, borderRadius: "50%", background: "#1e2530",
+          width: 20, height: 20, borderRadius: "50%", background: "var(--border)",
           display: "flex", alignItems: "center", justifyContent: "center",
         }}>
           <AnonymousAvatar />
         </div>
         <div style={{
           padding: "1px 6px", borderRadius: 6, fontSize: 8, fontWeight: 700, letterSpacing: 0.5,
-          background: "#FFD00020", color: "#FFD000",
+          background: "var(--accent-20)", color: "var(--accent)",
         }}>
           {post.rank}
         </div>
         {post.coins != null && (
-          <span style={{ color: "#FFD000", fontSize: 9 }}>● {post.coins}</span>
+          <span style={{ color: "var(--accent)", fontSize: 9 }}>● {post.coins}</span>
         )}
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#4a5568" }}>
-        <span style={{ color: "#FFD000" }}>▲ {post.upvotes}</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, color: "var(--t4)" }}>
+        <span style={{ color: "var(--accent)" }}>▲ {post.upvotes}</span>
         <span>💬 {post.comments}</span>
       </div>
     </div>
@@ -354,7 +354,7 @@ function PostCard({ post }: { post: PitPost }) {
   const tagColor = TAG_COLORS[post.tag];
   return (
     <div style={{
-      background: "#0d1219", borderRadius: 14, border: "1px solid #1e2530",
+      background: "var(--bg)", borderRadius: 14, border: "1px solid var(--border)",
       overflow: "hidden",
     }}>
       {/* Tag strip */}
@@ -377,7 +377,7 @@ function PostCard({ post }: { post: PitPost }) {
           {post.tag.toUpperCase()}
         </div>
         <div style={{
-          fontSize: 14, fontWeight: 600, color: "#e0e0e0", lineHeight: 1.5,
+          fontSize: 14, fontWeight: 600, color: "var(--t1)", lineHeight: 1.5,
         }}>
           {post.title}
         </div>
@@ -405,23 +405,23 @@ function TopicStack({ posts }: { posts: PitPost[] }) {
       {/* Shadow cards */}
       <div style={{
         position: "absolute", top: 12, left: 6, right: 6, bottom: -6,
-        background: "#0d1219", borderRadius: 14, border: "1px solid #1e2530", opacity: 0.5,
+        background: "var(--bg)", borderRadius: 14, border: "1px solid var(--border)", opacity: 0.5,
       }} />
       <div style={{
         position: "absolute", top: 6, left: 3, right: 3, bottom: -3,
-        background: "#0d1219", borderRadius: 14, border: "1px solid #1e2530", opacity: 0.7,
+        background: "var(--bg)", borderRadius: 14, border: "1px solid var(--border)", opacity: 0.7,
       }} />
 
       {/* Main card */}
       <div style={{
-        position: "relative", background: "#0d1219", borderRadius: 14,
-        border: "1px solid #1e2530", overflow: "hidden", zIndex: 1,
+        position: "relative", background: "var(--bg)", borderRadius: 14,
+        border: "1px solid var(--border)", overflow: "hidden", zIndex: 1,
       }}>
         {/* Stack badge */}
         <div style={{
           position: "absolute", top: 10, right: 10, zIndex: 2,
           padding: "3px 10px", borderRadius: 8,
-          background: "#FFD000", color: "#0a0a0a",
+          background: "var(--accent)", color: "var(--fill-title)",
           fontSize: 10, fontWeight: 700,
         }}>
           {posts.length} posts
@@ -432,7 +432,7 @@ function TopicStack({ posts }: { posts: PitPost[] }) {
         {/* Topic header */}
         <div style={{
           padding: "16px 12px", display: "flex", flexDirection: "column", gap: 8,
-          background: "linear-gradient(135deg, #0d1219, #141a24)",
+          background: "linear-gradient(135deg, var(--bg), var(--card))",
         }}>
           <div style={{
             display: "inline-block", padding: "2px 8px", borderRadius: 6,
@@ -441,14 +441,14 @@ function TopicStack({ posts }: { posts: PitPost[] }) {
           }}>
             TOPIC
           </div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: "#e0e0e0" }}>Polyphasic Sleep</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "#7a8490" }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: "var(--t1)" }}>Polyphasic Sleep</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--t3)" }}>
             <span>{posts.length} people are discussing this</span>
             <div style={{ display: "flex", marginLeft: 4 }}>
               {posts.slice(0, 3).map((_, i) => (
                 <div key={i} style={{
-                  width: 18, height: 18, borderRadius: "50%", background: "#1e2530",
-                  border: "2px solid #0d1219", marginLeft: i > 0 ? -6 : 0,
+                  width: 18, height: 18, borderRadius: "50%", background: "var(--border)",
+                  border: "2px solid var(--bg)", marginLeft: i > 0 ? -6 : 0,
                   display: "flex", alignItems: "center", justifyContent: "center",
                 }}>
                   <AnonymousAvatar />
@@ -487,9 +487,9 @@ function TopicStack({ posts }: { posts: PitPost[] }) {
         {/* Footer */}
         <div style={{
           padding: "10px 12px 14px", textAlign: "center",
-          background: "#FFD00008",
+          background: "var(--accent-dim)",
         }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: "#FFD000", cursor: "pointer" }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--accent)", cursor: "pointer" }}>
             View all {posts.length} posts &rarr;
           </span>
         </div>
@@ -523,9 +523,9 @@ function FeedTab() {
           const isActive = activeFilter === key;
           return (
             <button key={key} onClick={() => setActiveFilter(key)} style={{
-              padding: "6px 14px", borderRadius: 20, border: `1px solid ${isActive ? "#FFD000" : "#1e2530"}`,
-              background: isActive ? "#FFD00026" : "transparent",
-              color: isActive ? "#FFD000" : "#4a5568",
+              padding: "6px 14px", borderRadius: 20, border: `1px solid ${isActive ? "var(--accent)" : "var(--border)"}`,
+              background: isActive ? "var(--accent-20)" : "transparent",
+              color: isActive ? "var(--accent)" : "var(--t4)",
               fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap",
               letterSpacing: 0.3,
             }}>
@@ -556,21 +556,21 @@ function VerifyTab() {
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {MOCK_VERIFY_POSTS.map((vp) => (
         <div key={vp.id} style={{
-          background: "#0d1219", borderRadius: 14, border: "1px solid #1e2530",
+          background: "var(--bg)", borderRadius: 14, border: "1px solid var(--border)",
           overflow: "hidden", padding: 14,
         }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "#e0e0e0", lineHeight: 1.5, marginBottom: 6 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--t1)", lineHeight: 1.5, marginBottom: 6 }}>
             {vp.claim}
           </div>
-          <div style={{ fontSize: 10, color: "#4a5568", marginBottom: 10 }}>Source: {vp.source}</div>
+          <div style={{ fontSize: 10, color: "var(--t4)", marginBottom: 10 }}>Source: {vp.source}</div>
 
           {vp.status === "resolved" && vp.consensus != null ? (
             <div style={{ marginBottom: 10 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#7a8490", marginBottom: 4 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--t3)", marginBottom: 4 }}>
                 <span>Community consensus</span>
                 <span style={{ color: "#34D399", fontWeight: 700 }}>{vp.consensus}% LEGIT</span>
               </div>
-              <div style={{ height: 4, borderRadius: 2, background: "#1e2530", overflow: "hidden" }}>
+              <div style={{ height: 4, borderRadius: 2, background: "var(--border)", overflow: "hidden" }}>
                 <div style={{ height: "100%", width: `${vp.consensus}%`, background: "#34D399", borderRadius: 2 }} />
               </div>
             </div>
@@ -580,7 +580,7 @@ function VerifyTab() {
                 {[
                   { label: "LEGIT", color: "#34D399", count: vp.votes.legit },
                   { label: "BS", color: "#F87171", count: vp.votes.bs },
-                  { label: "MEH", color: "#FFD000", count: vp.votes.meh },
+                  { label: "MEH", color: "var(--accent)", count: vp.votes.meh },
                 ].map((b) => (
                   <button key={b.label} style={{
                     flex: 1, padding: "8px 0", borderRadius: 8, border: "none", cursor: "pointer",
@@ -591,19 +591,19 @@ function VerifyTab() {
                   </button>
                 ))}
               </div>
-              <div style={{ textAlign: "center", fontSize: 9, color: "#4a5568" }}>+5 coins for correct verification</div>
+              <div style={{ textAlign: "center", fontSize: 9, color: "var(--t4)" }}>+5 coins for correct verification</div>
             </div>
           )}
 
           <div style={{
             display: "inline-block", marginTop: 8, padding: "2px 8px", borderRadius: 6,
             fontSize: 9, fontWeight: 700, letterSpacing: 0.5,
-            color: vp.status === "resolved" ? "#34D399" : "#FFD000",
-            background: vp.status === "resolved" ? "#34D39915" : "#FFD00015",
+            color: vp.status === "resolved" ? "#34D399" : "var(--accent)",
+            background: vp.status === "resolved" ? "#34D39915" : "var(--accent-10)",
           }}>
             {vp.status === "resolved" ? "RESOLVED" : "PENDING"}
           </div>
-          <span style={{ fontSize: 9, color: "#4a5568", marginLeft: 8 }}>+{vp.reward} coins</span>
+          <span style={{ fontSize: 9, color: "var(--t4)", marginLeft: 8 }}>+{vp.reward} coins</span>
         </div>
       ))}
     </div>
@@ -616,11 +616,11 @@ function HistoryTab() {
   const historyFilters: Array<"all" | "posted" | "flagged" | "saved"> = ["all", "posted", "flagged", "saved"];
 
   const stats = [
-    { label: "POSTED", value: "24", color: "#FFD000" },
+    { label: "POSTED", value: "24", color: "var(--accent)" },
     { label: "FLAGGED", value: "7", color: "#F87171" },
     { label: "VERIFIED", value: "15", color: "#34D399" },
-    { label: "COINS", value: "340", color: "#FFD000", prefix: "\u25CF " },
-    { label: "UPVOTES", value: "1.2k", color: "#e0e0e0", prefix: "\u25B2 " },
+    { label: "COINS", value: "340", color: "var(--accent)", prefix: "\u25CF " },
+    { label: "UPVOTES", value: "1.2k", color: "var(--t1)", prefix: "\u25B2 " },
     { label: "COMMENTS", value: "89", color: "#60A5FA" },
   ];
 
@@ -636,39 +636,39 @@ function HistoryTab() {
         }}>
           ★
         </div>
-        <div style={{ fontSize: 16, fontWeight: 700, color: "#e0e0e0" }}>Your Rocky Log</div>
-        <div style={{ fontSize: 11, color: "#7a8490" }}>Everything you&apos;ve shared through Rocky</div>
+        <div style={{ fontSize: 16, fontWeight: 700, color: "var(--t1)" }}>Your Rocky Log</div>
+        <div style={{ fontSize: 11, color: "var(--t3)" }}>Everything you&apos;ve shared through Rocky</div>
       </div>
 
       {/* Stats grid */}
       <div style={{
         display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 1,
         borderRadius: 12, overflow: "hidden", marginBottom: 16,
-        background: "#1e2530",
+        background: "var(--border)",
       }}>
         {stats.map((s) => (
           <div key={s.label} style={{
-            background: "#0d1219", padding: "12px 8px", textAlign: "center",
+            background: "var(--bg)", padding: "12px 8px", textAlign: "center",
           }}>
             <div style={{ fontSize: 18, fontWeight: 700, color: s.color }}>
               {s.prefix && <span style={{ fontSize: 10 }}>{s.prefix}</span>}
               {s.value}
             </div>
-            <div style={{ fontSize: 8, color: "#4a5568", letterSpacing: 1, marginTop: 2 }}>{s.label}</div>
+            <div style={{ fontSize: 8, color: "var(--t4)", letterSpacing: 1, marginTop: 2 }}>{s.label}</div>
           </div>
         ))}
       </div>
 
       {/* Filter tabs */}
-      <div style={{ display: "flex", gap: 0, marginBottom: 16, borderBottom: "1px solid #1e2530" }}>
+      <div style={{ display: "flex", gap: 0, marginBottom: 16, borderBottom: "1px solid var(--border)" }}>
         {historyFilters.map((f) => {
           const isActive = historyFilter === f;
           return (
             <button key={f} onClick={() => setHistoryFilter(f)} style={{
               flex: 1, padding: "8px 0", border: "none", cursor: "pointer",
-              background: "transparent", color: isActive ? "#FFD000" : "#3a4048",
+              background: "transparent", color: isActive ? "var(--accent)" : "var(--t5)",
               fontSize: 11, fontWeight: 700, letterSpacing: 0.5,
-              borderBottom: isActive ? "2px solid #FFD000" : "2px solid transparent",
+              borderBottom: isActive ? "2px solid var(--accent)" : "2px solid transparent",
               textTransform: "uppercase",
             }}>
               {f}
@@ -683,7 +683,7 @@ function HistoryTab() {
       }}>
         {MOCK_HISTORY.map((item) => (
           <div key={item.id} style={{
-            aspectRatio: "1/1", background: "linear-gradient(135deg, #0d1219, #141a24)",
+            aspectRatio: "1/1", background: "linear-gradient(135deg, var(--bg), var(--card))",
             borderRadius: 8, position: "relative", overflow: "hidden", padding: 8,
             display: "flex", flexDirection: "column", justifyContent: "space-between",
             cursor: "pointer",
@@ -707,7 +707,7 @@ function HistoryTab() {
 
             {/* Preview */}
             <div style={{
-              fontSize: 9, color: "#7a8490", lineHeight: 1.3,
+              fontSize: 9, color: "var(--t3)", lineHeight: 1.3,
               overflow: "hidden", display: "-webkit-box",
               WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
             } as React.CSSProperties}>
@@ -715,7 +715,7 @@ function HistoryTab() {
             </div>
 
             {/* Engagement */}
-            <div style={{ display: "flex", gap: 6, fontSize: 8, color: "#4a5568" }}>
+            <div style={{ display: "flex", gap: 6, fontSize: 8, color: "var(--t4)" }}>
               <span>▲ {item.upvotes}</span>
               <span>💬 {item.comments}</span>
             </div>
@@ -733,7 +733,7 @@ export default function PitTab() {
 
   return (
     <div style={{
-      minHeight: "100dvh", background: "var(--bg, #080B11)",
+      minHeight: "100dvh", background: "var(--bg)",
       paddingBottom: 120,
     }}>
       {/* Header */}
@@ -741,10 +741,10 @@ export default function PitTab() {
         display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: "16px 16px 0",
       }}>
-        <div style={{ fontSize: 22, fontWeight: 800, color: "#e0e0e0", letterSpacing: -0.5 }}>Pit</div>
+        <div style={{ fontSize: 22, fontWeight: 800, color: "var(--t1)", letterSpacing: -0.5 }}>Pit</div>
         <button style={{
           padding: "6px 14px", borderRadius: 20, border: "none", cursor: "pointer",
-          background: "#FFD000", color: "#0a0a0a",
+          background: "var(--accent)", color: "var(--fill-title)",
           fontSize: 11, fontWeight: 700, letterSpacing: 0.3,
           display: "flex", alignItems: "center", gap: 4,
         }}>
@@ -755,16 +755,16 @@ export default function PitTab() {
       {/* Sub-tab bar */}
       <div style={{
         display: "flex", gap: 0, margin: "12px 16px 16px",
-        borderBottom: "1px solid #1e2530",
+        borderBottom: "1px solid var(--border)",
       }}>
         {subTabs.map((tab) => {
           const isActive = activeSubTab === tab;
           return (
             <button key={tab} onClick={() => setActiveSubTab(tab)} style={{
               flex: 1, padding: "10px 0", border: "none", cursor: "pointer",
-              background: "transparent", color: isActive ? "#FFD000" : "#3a4048",
+              background: "transparent", color: isActive ? "var(--accent)" : "var(--t5)",
               fontSize: 12, fontWeight: 700, letterSpacing: 1,
-              borderBottom: isActive ? "2px solid #FFD000" : "2px solid transparent",
+              borderBottom: isActive ? "2px solid var(--accent)" : "2px solid transparent",
               textTransform: "uppercase",
             }}>
               {tab}
