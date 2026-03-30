@@ -117,6 +117,8 @@ export default function ResizableLayout({
       {/* SideNav panel */}
       <div style={{
         width: sideWidth,
+        maxWidth: sideWidth,
+        minWidth: 0,
         flexShrink: 0,
         overflow: "hidden",
         transition: dragging === "side" ? "none" : "width 0.2s ease",
@@ -143,7 +145,7 @@ export default function ResizableLayout({
       {/* Content panel */}
       <div style={{
         flex: 1,
-        minWidth: 300,
+        minWidth: 0,
         overflow: "hidden",
         display: "flex",
         flexDirection: "column",
@@ -172,6 +174,8 @@ export default function ResizableLayout({
           {/* Timeline panel */}
           <div style={{
             width: timelineWidth,
+            maxWidth: timelineWidth,
+            minWidth: 0,
             flexShrink: 0,
             overflow: "hidden",
             transition: dragging === "timeline" ? "none" : "width 0.2s ease",

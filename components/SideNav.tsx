@@ -85,15 +85,13 @@ export default function SideNav({
 
   return (
     <div className="side-nav" style={{
-      width: collapsed ? 56 : 280,
+      width: "100%",
       height: "100dvh",
-      flexShrink: 0,
       background: "var(--bg)",
       borderRight: "1px solid var(--border)",
       display: "flex",
       flexDirection: "column",
       overflow: "hidden",
-      transition: "width 0.2s ease",
     }}>
       {/* Header */}
       <div style={{
