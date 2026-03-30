@@ -2231,15 +2231,15 @@ const getTypeLabel = (typeId: string): string => {
                 swipeStartX.current = null; swipeDelta.current = 0;
               }}
               style={{
-                background: "transparent", borderRadius: 20, margin: "0 auto", width: "calc(100% - 48px)", maxWidth: 320, flex: "none",
+                background: "rgba(28, 28, 30, 0.65)", backdropFilter: "blur(40px) saturate(180%)", WebkitBackdropFilter: "blur(40px) saturate(180%)", borderRadius: 20, margin: "0 auto", width: "calc(100% - 48px)", maxWidth: 320, flex: "none",
                 display: "flex", flexDirection: "column", position: "relative",
-                maxHeight: "85vh", overflowY: "auto", overflowX: "hidden", border: "1px solid var(--border)",
+                maxHeight: "85vh", overflowY: "auto", overflowX: "hidden", border: "1px solid rgba(255,255,255,0.12)",
                 WebkitOverflowScrolling: "touch", animation: "popupSlideUp 0.25s ease",
               }}
               className="no-scrollbar"
             >
               {/* Content area — no close button, click outside closes */}
-              <div style={{ padding: "0 24px 20px", display: "flex", flexDirection: "column" }}>
+              <div style={{ padding: "20px 24px 20px", display: "flex", flexDirection: "column" }}>
                 {statPopup === 0 && renderDonePopup()}
                 {statPopup === 1 && renderTrackedPopup()}
                 {statPopup === 2 && renderEnergyPopup()}
