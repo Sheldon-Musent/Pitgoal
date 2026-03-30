@@ -1832,7 +1832,7 @@ const getTypeLabel = (typeId: string): string => {
           return (
             <>
               {/* Top section with SVG */}
-              <div style={{ position: "relative", overflow: "hidden", minHeight: 110, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+              <div style={{ position: "relative", overflow: "hidden", minHeight: 160, paddingBottom: 12, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                 <div style={{ position: "relative", zIndex: 1 }}>
                   <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
                     <span style={{ fontSize: 34, fontWeight: 800, color: "#22c55e", lineHeight: 1 }}>{filteredDoneCount}</span>
@@ -1951,7 +1951,7 @@ const getTypeLabel = (typeId: string): string => {
           return (
             <>
               {/* Top section with stopwatch SVG */}
-              <div style={{ position: "relative", overflow: "hidden", minHeight: 110, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+              <div style={{ position: "relative", overflow: "hidden", minHeight: 160, paddingBottom: 12, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                 <div style={{ position: "relative", zIndex: 1 }}>
                   <div style={{ fontSize: 34, fontWeight: 800, color: "#facc15", lineHeight: 1 }}>{(filteredTrackedMin / 60).toFixed(1)}</div>
                   <div style={{ fontSize: 11, color: "var(--t5)", marginTop: 6 }}>{filteredSessionCount} sessions {filterLabel(statFilter)}</div>
@@ -2087,7 +2087,7 @@ const getTypeLabel = (typeId: string): string => {
           return (
             <>
               {/* Top section with lightning bolt SVG */}
-              <div style={{ position: "relative", overflow: "hidden", minHeight: 110, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+              <div style={{ position: "relative", overflow: "hidden", minHeight: 160, paddingBottom: 12, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                 <div style={{ position: "relative", zIndex: 1 }}>
                   <div style={{ display: "flex", alignItems: "baseline" }}>
                     <span style={{ fontSize: 34, fontWeight: 800, color: popupEnergyColor, lineHeight: 1 }}>{energyVal}</span>
@@ -2231,7 +2231,7 @@ const getTypeLabel = (typeId: string): string => {
                 swipeStartX.current = null; swipeDelta.current = 0;
               }}
               style={{
-                background: "rgba(28, 28, 30, 0.65)", backdropFilter: "blur(40px) saturate(180%)", WebkitBackdropFilter: "blur(40px) saturate(180%)", borderRadius: 20, margin: "0 auto", width: "calc(100% - 48px)", maxWidth: 320, flex: "none",
+                background: "rgba(28, 28, 30, 0.65)", backdropFilter: "blur(30px) saturate(180%)", WebkitBackdropFilter: "blur(30px) saturate(180%)", borderRadius: 20, margin: "0 auto", width: "calc(100% - 48px)", maxWidth: 320, flex: "none",
                 display: "flex", flexDirection: "column", position: "relative",
                 maxHeight: "85vh", overflowY: "auto", overflowX: "hidden", border: "1px solid rgba(255,255,255,0.12)",
                 WebkitOverflowScrolling: "touch", animation: "popupSlideUp 0.25s ease",
