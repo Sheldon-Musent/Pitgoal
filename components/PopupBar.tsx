@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
+import { DISPLAY, MONO, BODY } from "../lib/constants";
 
 // ── Types ──
 type PopupState = "working" | "resting" | "paused" | "grace" | "upcoming" | "idle";
@@ -34,11 +35,6 @@ interface PopupBarProps {
   onSkipOverdue: () => void;
   onStartUpcoming: () => void;
 }
-
-// ── Constants ──
-const DISPLAY = "'Sora', sans-serif";
-const MONO = "'IBM Plex Mono', monospace";
-const BODY = "'Plus Jakarta Sans', sans-serif";
 
 // Desktop bottom offset (no BottomNav on desktop)
 const BOTTOM_MOBILE = "calc(84px + env(safe-area-inset-bottom, 0px))";
@@ -105,7 +101,7 @@ export default function PopupBar({
     if (!isMainTab && collapse === "full") {
       setCollapse("medium");
     }
-  }, [isMainTab]);
+  }, [isMainTab, collapse]);
 
   // Don't render if idle
   if (popupState === "idle") return null;
@@ -401,6 +397,9 @@ export default function PopupBar({
                 key={a.label}
                 className="tap"
                 onClick={a.action}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") a.action(); }}
                 style={{
                   flexShrink: 0,
                   padding: "10px 22px",
@@ -411,7 +410,7 @@ export default function PopupBar({
                   cursor: "pointer",
                   transition: "all 0.2s",
                   background: a.primary ? "var(--accent)" : "transparent",
-                  color: a.primary ? "#fff" : "var(--t3)",
+                  color: a.primary ? "var(--fill-title, #0a0a0a)" : "var(--t3)",
                   border: a.primary
                     ? "1.5px solid var(--accent)"
                     : "1.5px solid var(--border2)",
@@ -573,7 +572,7 @@ export default function PopupBar({
           {/* Compact action buttons */}
           {isWorking && (
             <div style={{ display: "flex", gap: 6, marginTop: 12 }} onClick={(e) => e.stopPropagation()}>
-              <div className="tap" onClick={onDone} style={{ flex: 1, padding: "9px 0", borderRadius: 10, textAlign: "center", fontSize: 11, fontWeight: 600, background: "var(--accent)", color: "#fff", cursor: "pointer" }}>Done</div>
+              <div className="tap" onClick={onDone} style={{ flex: 1, padding: "9px 0", borderRadius: 10, textAlign: "center", fontSize: 11, fontWeight: 600, background: "var(--accent)", color: "var(--fill-title, #0a0a0a)", cursor: "pointer" }}>Done</div>
               <div className="tap" onClick={onPause} style={{ flex: 1, padding: "9px 0", borderRadius: 10, textAlign: "center", fontSize: 11, fontWeight: 600, background: "var(--card2)", color: "var(--t2)", cursor: "pointer" }}>Pause</div>
               <div className="tap" onClick={onSkip} style={{ flex: 1, padding: "9px 0", borderRadius: 10, textAlign: "center", fontSize: 11, fontWeight: 600, background: "var(--card2)", color: "var(--t2)", cursor: "pointer" }}>Skip</div>
               <div className="tap" onClick={onSwitch} style={{ flex: 1, padding: "9px 0", borderRadius: 10, textAlign: "center", fontSize: 11, fontWeight: 600, background: "var(--card2)", color: "var(--t2)", cursor: "pointer" }}>Switch</div>
@@ -581,19 +580,19 @@ export default function PopupBar({
           )}
           {isPaused && (
             <div style={{ display: "flex", gap: 6, marginTop: 12 }} onClick={(e) => e.stopPropagation()}>
-              <div className="tap" onClick={onResume} style={{ flex: 1, padding: "9px 0", borderRadius: 10, textAlign: "center", fontSize: 11, fontWeight: 600, background: "var(--accent)", color: "#fff", cursor: "pointer" }}>Resume</div>
+              <div className="tap" onClick={onResume} style={{ flex: 1, padding: "9px 0", borderRadius: 10, textAlign: "center", fontSize: 11, fontWeight: 600, background: "var(--accent)", color: "var(--fill-title, #0a0a0a)", cursor: "pointer" }}>Resume</div>
               <div className="tap" onClick={onDismiss} style={{ flex: 1, padding: "9px 0", borderRadius: 10, textAlign: "center", fontSize: 11, fontWeight: 600, background: "var(--card2)", color: "var(--t2)", cursor: "pointer" }}>Dismiss</div>
             </div>
           )}
           {isGrace && (
             <div style={{ display: "flex", gap: 6, marginTop: 12 }} onClick={(e) => e.stopPropagation()}>
-              <div className="tap" onClick={onStartOverdue} style={{ flex: 1, padding: "9px 0", borderRadius: 10, textAlign: "center", fontSize: 11, fontWeight: 600, background: "var(--accent)", color: "#fff", cursor: "pointer" }}>Start</div>
+              <div className="tap" onClick={onStartOverdue} style={{ flex: 1, padding: "9px 0", borderRadius: 10, textAlign: "center", fontSize: 11, fontWeight: 600, background: "var(--accent)", color: "var(--fill-title, #0a0a0a)", cursor: "pointer" }}>Start</div>
               <div className="tap" onClick={onSkipOverdue} style={{ flex: 1, padding: "9px 0", borderRadius: 10, textAlign: "center", fontSize: 11, fontWeight: 600, background: "var(--card2)", color: "var(--t2)", cursor: "pointer" }}>Skip</div>
             </div>
           )}
           {isUpcoming && (
             <div style={{ display: "flex", gap: 6, marginTop: 12 }} onClick={(e) => e.stopPropagation()}>
-              <div className="tap" onClick={onStartUpcoming} style={{ flex: 1, padding: "9px 0", borderRadius: 10, textAlign: "center", fontSize: 11, fontWeight: 600, background: "var(--accent)", color: "#fff", cursor: "pointer" }}>Start now</div>
+              <div className="tap" onClick={onStartUpcoming} style={{ flex: 1, padding: "9px 0", borderRadius: 10, textAlign: "center", fontSize: 11, fontWeight: 600, background: "var(--accent)", color: "var(--fill-title, #0a0a0a)", cursor: "pointer" }}>Start now</div>
             </div>
           )}
 

@@ -1,8 +1,6 @@
 "use client";
 import { useState } from "react";
-
-const MONO = "'IBM Plex Mono', monospace";
-const DISPLAY = "'Sora', sans-serif";
+import { DISPLAY, MONO } from "../lib/constants";
 
 interface FriendStatus {
   id: string;

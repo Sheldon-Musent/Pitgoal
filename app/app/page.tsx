@@ -308,6 +308,14 @@ export default function Home() {
   // ═══ TICK ═══
   useEffect(() => { const id = setInterval(() => setTick(t => t + 1), 1000); return () => clearInterval(id); }, []);
 
+  // ═══ CLEANUP TIMERS ON UNMOUNT ═══
+  useEffect(() => {
+    return () => {
+      if (suggestTimer.current) clearTimeout(suggestTimer.current);
+      if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    };
+  }, []);
+
   // ═══ DESKTOP DETECTION ═══
   useEffect(() => {
     const check = () => {
@@ -356,11 +364,23 @@ export default function Home() {
 
   // ═══ GRACE PERIOD AUTO-SKIP ═══
   useEffect(() => {
-    if (activeTask) return;
-    const now = nowMinutes(); const nowMs = Date.now(); let shifted = false; let u = [...tasks];
-    u = u.map(t => { if (t.status !== "pending") return t; const tt = getDisplayTimeMin(t); if ((now - tt) * 60 * 1000 >= GRACE_PERIOD_MS && tt < now) { shifted = true; return { ...t, status: "skipped" as const, skippedAt: nowMs }; } return t; });
-    if (shifted) { setTasks(u); save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom); }
-  }, [tick, tasks, activeTask, dayLog, energyUsed, energyCharged, customGroups, pausedTask, switchingFrom, save]);
+    if (!loaded) return;
+    const interval = setInterval(() => {
+      if (activeTask) return;
+      const now = nowMinutes(); const nowMs = Date.now();
+      setTasks(prevTasks => {
+        let shifted = false;
+        const u = prevTasks.map(t => {
+          if (t.status !== "pending") return t;
+          const tt = getDisplayTimeMin(t);
+          if ((now - tt) * 60 * 1000 >= GRACE_PERIOD_MS && tt < now) { shifted = true; return { ...t, status: "skipped" as const, skippedAt: nowMs }; }
+          return t;
+        });
+        return shifted ? u : prevTasks;
+      });
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [loaded, activeTask]);
 
   // ═══ NAV — expand on interaction, collapse after 1.5s on release ═══
   const expandNav = useCallback((startCollapse?: boolean) => {

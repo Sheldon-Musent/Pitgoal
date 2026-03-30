@@ -83,6 +83,7 @@
   --nav-inactive: #3a3a3a;
   --play-border: #2a2a2a;
   --play-icon: #444444;
+  --logo-filter: none;
 
   /* P22 Folk Art (Adobe Fonts) */
   --font-hero: "p22-folk-art-stitch", "Sora", sans-serif;
@@ -158,6 +159,7 @@
   --nav-inactive: #bbbbbb;
   --play-border: #D8D8D3;
   --play-icon: #aaaaaa;
+  --logo-filter: invert(1);
 }
 
 /* ── Base resets ── */

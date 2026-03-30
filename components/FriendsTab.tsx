@@ -1,5 +1,6 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
+import { MONO } from "../lib/constants";
 
 // TODO: Replace with Supabase real-time data
 const FRIENDS = [
@@ -87,6 +88,7 @@ export default function FriendsTab() {
   const [friendsData, setFriendsData] = useState(FRIENDS);
   const [myStoryOpen, setMyStoryOpen] = useState(false);
   const msgEndRef = useRef<HTMLDivElement>(null);
+  const storyIntervalRef = useRef<any>(null);
 
   useEffect(() => {
     setMessages(INITIAL_MESSAGES);
@@ -101,17 +103,19 @@ export default function FriendsTab() {
   // Story progress timer
   useEffect(() => {
     if (!storyViewing) { setStoryProgress(0); return; }
-    const interval = setInterval(() => {
+    storyIntervalRef.current = setInterval(() => {
       setStoryProgress(p => {
         if (p >= 100) {
-          clearInterval(interval);
+          clearInterval(storyIntervalRef.current);
           setStoryViewing(null);
           return 0;
         }
         return p + 2;
       });
     }, 100);
-    return () => clearInterval(interval);
+    return () => {
+      if (storyIntervalRef.current) clearInterval(storyIntervalRef.current);
+    };
   }, [storyViewing]);
 
   // Mark story as seen
@@ -166,12 +170,12 @@ export default function FriendsTab() {
     return true;
   });
 
-  const energyColor = (e: number) => e > 80 ? "#2ECDA7" : e > 50 ? "var(--accent)" : "var(--danger, #ef4444)";
+  const energyColor = (e: number) => e > 80 ? "#2ECDA7" : e > 50 ? "var(--accent)" : "var(--danger, #E24B4A)";
 
   // ─── STORY VIEWER ───
   if (storyViewing) {
     return (
-      <div style={{ position: "absolute", inset: 0, background: "var(--bg, #0a0a0a)", zIndex: 10, display: "flex", flexDirection: "column" }}>
+      <div style={{ position: "fixed", inset: 0, background: "var(--bg, #0a0a0a)", zIndex: 10, display: "flex", flexDirection: "column" }}>
         {/* Progress bar */}
         <div style={{ padding: "8px 12px 0" }}>
           <div style={{ height: 2, background: "rgba(255,255,255,0.15)", borderRadius: 1 }}>
@@ -186,7 +190,7 @@ export default function FriendsTab() {
           </div>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: "var(--t1)" }}>{storyViewing.name}</div>
-            <div style={{ fontSize: 10, color: "var(--t4)", fontFamily: "monospace" }}>{storyViewing.storyTime}</div>
+            <div style={{ fontSize: 10, color: "var(--t4)", fontFamily: MONO }}>{storyViewing.storyTime}</div>
           </div>
           <div onClick={() => setStoryViewing(null)} style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
@@ -200,7 +204,7 @@ export default function FriendsTab() {
               {storyViewing.storyText.includes("completed") ? "✓" : storyViewing.storyText.includes("streak") ? "⚡" : "●"}
             </div>
             <div style={{ fontSize: 18, fontWeight: 700, color: "var(--t1)", lineHeight: 1.4 }}>{storyViewing.storyText}</div>
-            <div style={{ fontSize: 12, color: "var(--t4)", fontFamily: "monospace", marginTop: 8 }}>{storyViewing.storyTime}</div>
+            <div style={{ fontSize: 12, color: "var(--t4)", fontFamily: MONO, marginTop: 8 }}>{storyViewing.storyTime}</div>
           </div>
         </div>
 
@@ -221,7 +225,7 @@ export default function FriendsTab() {
   // ─── MY STORY PROMPT ───
   if (myStoryOpen) {
     return (
-      <div style={{ position: "absolute", inset: 0, background: "var(--bg, #0a0a0a)", zIndex: 10, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div style={{ position: "fixed", inset: 0, background: "var(--bg, #0a0a0a)", zIndex: 10, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}>
         <div onClick={() => setMyStoryOpen(false)} style={{ position: "absolute", top: 16, right: 16, width: 36, height: 36, borderRadius: "50%", background: "rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
         </div>
@@ -254,7 +258,7 @@ export default function FriendsTab() {
           </div>
           <div style={{ textAlign: "center" }}>
             <div style={{ fontSize: 20, fontWeight: 700, color: "var(--t1)" }}>{activeChat.name}</div>
-            <div style={{ fontSize: 12, color: "var(--t4)", fontFamily: "monospace", marginTop: 4 }}>
+            <div style={{ fontSize: 12, color: "var(--t4)", fontFamily: MONO, marginTop: 4 }}>
               {activeChat.online ? `Online — ${activeChat.status}` : "Offline"}
             </div>
           </div>
@@ -268,7 +272,7 @@ export default function FriendsTab() {
             ].map(s => (
               <div key={s.label} style={{ flex: 1, background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "14px 8px", textAlign: "center" }}>
                 <div style={{ fontSize: 20, fontWeight: 700, color: s.color }}>{s.value}</div>
-                <div style={{ fontSize: 9, color: "var(--t4)", fontFamily: "monospace", marginTop: 4, letterSpacing: 1 }}>{s.label}</div>
+                <div style={{ fontSize: 9, color: "var(--t4)", fontFamily: MONO, marginTop: 4, letterSpacing: 1 }}>{s.label}</div>
               </div>
             ))}
           </div>
@@ -281,7 +285,7 @@ export default function FriendsTab() {
 
           {/* Shared collabs */}
           <div style={{ width: "100%", marginTop: 16 }}>
-            <div style={{ fontSize: 10, color: "var(--t5)", fontFamily: "monospace", letterSpacing: 1, marginBottom: 10 }}>SHARED COLLABS</div>
+            <div style={{ fontSize: 10, color: "var(--t5)", fontFamily: MONO, letterSpacing: 1, marginBottom: 10 }}>SHARED COLLABS</div>
             <div style={{ background: "var(--card)", border: "1px dashed var(--border)", borderRadius: 14, padding: 20, textAlign: "center" }}>
               <div style={{ fontSize: 13, color: "var(--t5)" }}>No shared collabs yet</div>
             </div>
@@ -313,7 +317,7 @@ export default function FriendsTab() {
             </div>
             <div>
               <div style={{ fontSize: 16, fontWeight: 600, color: "var(--t1)" }}>{activeChat.name}</div>
-              <div style={{ fontSize: 11, color: "var(--t4)", fontFamily: "monospace" }}>
+              <div style={{ fontSize: 11, color: "var(--t4)", fontFamily: MONO }}>
                 {activeChat.group
                   ? `${activeChat.members} members`
                   : activeChat.online
@@ -345,7 +349,7 @@ export default function FriendsTab() {
                     <div style={{ fontSize: 12, color: "var(--t3)", marginBottom: 8 }}>{msg.desc}</div>
                     <span style={{ display: "inline-block", padding: "6px 14px", background: "var(--accent)", color: "#0a0a0a", borderRadius: 50, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Accept collab</span>
                   </div>
-                  <div style={{ fontSize: 10, color: "var(--t5)", fontFamily: "monospace", marginTop: 3, textAlign: isMe ? "right" : "left" }}>{msg.time}</div>
+                  <div style={{ fontSize: 10, color: "var(--t5)", fontFamily: MONO, marginTop: 3, textAlign: isMe ? "right" : "left" }}>{msg.time}</div>
                 </div>
               );
             }
@@ -363,7 +367,7 @@ export default function FriendsTab() {
                 }}>
                   <div style={{ fontSize: 14, lineHeight: 1.45 }}>{msg.text}</div>
                 </div>
-                <div style={{ fontSize: 10, color: "var(--t5)", fontFamily: "monospace", marginTop: 3, textAlign: isMe ? "right" : "left" }}>{msg.time}</div>
+                <div style={{ fontSize: 10, color: "var(--t5)", fontFamily: MONO, marginTop: 3, textAlign: isMe ? "right" : "left" }}>{msg.time}</div>
               </div>
             );
           })}
@@ -483,11 +487,11 @@ export default function FriendsTab() {
                   {f.online && f.status && !f.group && (
                     <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
                       <span style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--accent)", display: "inline-block" }} />
-                      <span style={{ fontSize: 10, color: "var(--accent)", fontFamily: "monospace" }}>{f.status}</span>
+                      <span style={{ fontSize: 10, color: "var(--accent)", fontFamily: MONO }}>{f.status}</span>
                     </span>
                   )}
                   {f.group && (
-                    <span style={{ fontSize: 10, color: "var(--t4)", fontFamily: "monospace" }}>{f.members} members</span>
+                    <span style={{ fontSize: 10, color: "var(--t4)", fontFamily: MONO }}>{f.members} members</span>
                   )}
                 </div>
                 <div style={{ fontSize: 13, color: "var(--t4)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -497,7 +501,7 @@ export default function FriendsTab() {
 
               {/* Meta */}
               <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
-                <span style={{ fontSize: 11, color: "var(--t5)", fontFamily: "monospace" }}>{f.lastTime}</span>
+                <span style={{ fontSize: 11, color: "var(--t5)", fontFamily: MONO }}>{f.lastTime}</span>
                 {f.unread > 0 && (
                   <div style={{ minWidth: 20, height: 20, borderRadius: 10, background: "var(--accent)", color: "#0a0a0a", fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 6px" }}>
                     {f.unread}

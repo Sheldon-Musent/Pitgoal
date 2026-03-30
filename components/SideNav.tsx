@@ -102,11 +102,14 @@ export default function SideNav({
         flexShrink: 0,
       }}>
         {!collapsed && (
-          <img src="/Trademark-white.png" alt="Pitgoal" style={{ height: 16, opacity: 0.8 }} />
+          <img src="/Trademark-white.png" alt="Pitgoal" style={{ height: 16, opacity: 0.8, filter: "var(--logo-filter, none)" }} />
         )}
         <div
           className="tap"
           onClick={onToggleCollapse}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onToggleCollapse(); }}
           title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           style={{
             width: 22, height: 22, borderRadius: 6,
@@ -332,7 +335,7 @@ export default function SideNav({
 
       {/* New Task Button */}
       <div style={{ padding: collapsed ? "8px 8px 16px" : "8px 16px 16px", flexShrink: 0 }}>
-        <div className="tap" onClick={onAdd} style={{
+        <div className="tap" onClick={onAdd} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onAdd(); }} style={{
           width: "100%", padding: collapsed ? 0 : 11,
           height: collapsed ? 36 : "auto",
           borderRadius: collapsed ? "50%" : 10,

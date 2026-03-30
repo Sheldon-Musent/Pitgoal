@@ -23,7 +23,7 @@ const TABS: { id: BottomTab; icon: (active: boolean) => React.ReactNode }[] = [
     id: "main",
     icon: (a) => (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
-        stroke={a ? "#0a0a0a" : "var(--nav-inactive)"}
+        stroke={a ? "var(--fill-title, #0a0a0a)" : "var(--nav-inactive)"}
         strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
         <polyline points="9 22 9 12 15 12 15 22"/>
@@ -50,7 +50,7 @@ const TABS: { id: BottomTab; icon: (active: boolean) => React.ReactNode }[] = [
     id: "friends",
     icon: (a) => (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
-        stroke={a ? "#0a0a0a" : "var(--nav-inactive)"}
+        stroke={a ? "var(--fill-title, #0a0a0a)" : "var(--nav-inactive)"}
         strokeWidth="1.8" strokeLinecap="round">
         <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
         <circle cx="9" cy="7" r="4" />
@@ -63,7 +63,7 @@ const TABS: { id: BottomTab; icon: (active: boolean) => React.ReactNode }[] = [
     id: "profile",
     icon: (a) => (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
-        stroke={a ? "#0a0a0a" : "var(--nav-inactive)"}
+        stroke={a ? "var(--fill-title, #0a0a0a)" : "var(--nav-inactive)"}
         strokeWidth="1.8" strokeLinecap="round">
         <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
         <circle cx="12" cy="7" r="4" />
@@ -220,7 +220,7 @@ export default function BottomNav({ active, onChange, onAdd, expanded, onExpand 
             position: "absolute",
             top: 5,
             borderRadius: 50,
-            background: "#FFD000",
+            background: "var(--accent)",
             transition: "left 0.3s ease, width 0.3s ease",
             pointerEvents: "none",
             zIndex: 0,
@@ -257,7 +257,7 @@ export default function BottomNav({ active, onChange, onAdd, expanded, onExpand 
               <span style={{
                 fontSize: 11,
                 fontWeight: 600,
-                color: isActive ? "#0a0a0a" : "#666",
+                color: isActive ? "var(--fill-title, #0a0a0a)" : "var(--t4)",
                 lineHeight: 1,
                 overflow: "hidden",
                 whiteSpace: "nowrap",
@@ -277,11 +277,14 @@ export default function BottomNav({ active, onChange, onAdd, expanded, onExpand 
         <div
           className="tap"
           onClick={onAdd}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onAdd?.(); }}
           style={{
             width: expanded ? 36 : 50,
             height: expanded ? 36 : 50,
             borderRadius: "50%",
-            background: "#FFD000",
+            background: "var(--accent)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -293,7 +296,7 @@ export default function BottomNav({ active, onChange, onAdd, expanded, onExpand 
             transform: "translateZ(0)",
           }}
         >
-          <svg width={expanded ? "16" : "22"} height={expanded ? "16" : "22"} viewBox="0 0 24 24" fill="none" stroke="#0a0a0a" strokeWidth="2.5" strokeLinecap="round" style={{ transition: "width 0.3s ease, height 0.3s ease" }}>
+          <svg width={expanded ? "16" : "22"} height={expanded ? "16" : "22"} viewBox="0 0 24 24" fill="none" stroke="var(--fill-title, #0a0a0a)" strokeWidth="2.5" strokeLinecap="round" style={{ transition: "width 0.3s ease, height 0.3s ease" }}>
             <line x1="12" y1="5" x2="12" y2="19" />
             <line x1="5" y1="12" x2="19" y2="12" />
           </svg>

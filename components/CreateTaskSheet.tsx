@@ -1,9 +1,6 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
-
-const DISPLAY = "'Sora', sans-serif";
-const MONO = "'IBM Plex Mono', monospace";
-const BODY = "'Plus Jakarta Sans', sans-serif";
+import { DISPLAY, MONO, BODY } from "../lib/constants";
 
 const DEFAULT_TYPES: TaskType[] = [
   { id: "task", label: "TASK", color: "var(--accent)" },

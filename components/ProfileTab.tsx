@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import React from "react";
+import { MONO } from "../lib/constants";
 
 // ── Props ──
 interface Props {
@@ -56,7 +57,7 @@ function SettingsRow({ icon, iconBg, label, sub, right, danger, onClick }: {
           <div style={{ fontSize: 14, fontWeight: 500, color: danger ? "var(--danger, #E24B4A)" : "var(--t1, #ddd)" }}>
             {label}
           </div>
-          {sub && <div style={{ fontSize: 11, color: "var(--t4, #444)", fontFamily: "monospace", marginTop: 1 }}>{sub}</div>}
+          {sub && <div style={{ fontSize: 11, color: "var(--t4, #444)", fontFamily: MONO, marginTop: 1 }}>{sub}</div>}
         </div>
       </div>
       {right || (onClick && <span style={{ color: "var(--t5, #333)", fontSize: 14, flexShrink: 0, marginLeft: 8 }}>›</span>)}
@@ -73,7 +74,7 @@ function RateSlider({ label, value, min, max, step, color, unit, onChange }: {
     <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--border, #111)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
         <span style={{ fontSize: 13, color: "var(--t2, #aaa)" }}>{label}</span>
-        <span style={{ fontSize: 13, color, fontFamily: "monospace", fontWeight: 600 }}>
+        <span style={{ fontSize: 13, color, fontFamily: MONO, fontWeight: 600 }}>
           {value.toFixed(1)}{unit}
         </span>
       </div>
@@ -83,8 +84,8 @@ function RateSlider({ label, value, min, max, step, color, unit, onChange }: {
         style={{ width: "100%", accentColor: color, height: 6, cursor: "pointer" }}
       />
       <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
-        <span style={{ fontSize: 10, color: "var(--t5, #333)", fontFamily: "monospace" }}>{min}</span>
-        <span style={{ fontSize: 10, color: "var(--t5, #333)", fontFamily: "monospace" }}>{max}</span>
+        <span style={{ fontSize: 10, color: "var(--t5, #333)", fontFamily: MONO }}>{min}</span>
+        <span style={{ fontSize: 10, color: "var(--t5, #333)", fontFamily: MONO }}>{max}</span>
       </div>
     </div>
   );
@@ -256,7 +257,7 @@ export default function ProfileTab({ energy, streak, tasksDoneCount, resetAll }:
         >
           {userName}
         </div>
-        <div style={{ fontSize: 12, color: "var(--t4, #444)", fontFamily: "monospace" }}>
+        <div style={{ fontSize: 12, color: "var(--t4, #444)", fontFamily: MONO }}>
           @{userName.toLowerCase().replace(/\s+/g, "")}
         </div>
 
@@ -272,8 +273,8 @@ export default function ProfileTab({ energy, streak, tasksDoneCount, resetAll }:
               flex: 1, background: "var(--card, #161616)", border: "1px solid var(--border, #1e1e1e)",
               borderRadius: 12, padding: "12px 8px", textAlign: "center",
             }}>
-              <div style={{ fontSize: 20, fontWeight: 700, fontFamily: "monospace", color: s.color }}>{s.num}</div>
-              <div style={{ fontSize: 9, color: "var(--t5, #3a3a3a)", letterSpacing: 2, fontFamily: "monospace", marginTop: 2 }}>{s.label}</div>
+              <div style={{ fontSize: 20, fontWeight: 700, fontFamily: MONO, color: s.color }}>{s.num}</div>
+              <div style={{ fontSize: 9, color: "var(--t5, #3a3a3a)", letterSpacing: 2, fontFamily: MONO, marginTop: 2 }}>{s.label}</div>
             </div>
           ))}
         </div>
@@ -281,7 +282,7 @@ export default function ProfileTab({ energy, streak, tasksDoneCount, resetAll }:
       </div>
 
       {/* ── ENERGY SETTINGS ── */}
-      <div style={{ fontSize: 10, color: "var(--t5, #333)", letterSpacing: 2, fontFamily: "monospace", padding: "20px 20px 10px" }}>
+      <div style={{ fontSize: 10, color: "var(--t5, #333)", letterSpacing: 2, fontFamily: MONO, padding: "20px 20px 10px" }}>
         ENERGY SETTINGS
       </div>
       <div style={{ background: "var(--card, #161616)", border: "1px solid var(--border, #1e1e1e)", borderRadius: 16, margin: "0 16px 8px", overflow: "hidden" }}>
@@ -300,7 +301,7 @@ export default function ProfileTab({ energy, streak, tasksDoneCount, resetAll }:
       </div>
 
       {/* ── APPEARANCE ── */}
-      <div style={{ fontSize: 10, color: "var(--t5, #333)", letterSpacing: 2, fontFamily: "monospace", padding: "20px 20px 10px" }}>
+      <div style={{ fontSize: 10, color: "var(--t5, #333)", letterSpacing: 2, fontFamily: MONO, padding: "20px 20px 10px" }}>
         APPEARANCE
       </div>
       <div style={{ background: "var(--card, #161616)", border: "1px solid var(--border, #1e1e1e)", borderRadius: 16, margin: "0 16px 8px", overflow: "hidden" }}>
@@ -327,7 +328,7 @@ export default function ProfileTab({ energy, streak, tasksDoneCount, resetAll }:
       </div>
 
       {/* ── NOTIFICATIONS ── */}
-      <div style={{ fontSize: 10, color: "var(--t5, #333)", letterSpacing: 2, fontFamily: "monospace", padding: "20px 20px 10px" }}>
+      <div style={{ fontSize: 10, color: "var(--t5, #333)", letterSpacing: 2, fontFamily: MONO, padding: "20px 20px 10px" }}>
         NOTIFICATIONS
       </div>
       <div style={{ background: "var(--card, #161616)", border: "1px solid var(--border, #1e1e1e)", borderRadius: 16, margin: "0 16px 8px", overflow: "hidden" }}>
@@ -355,7 +356,7 @@ export default function ProfileTab({ energy, streak, tasksDoneCount, resetAll }:
       </div>
 
       {/* ── DATA ── */}
-      <div style={{ fontSize: 10, color: "var(--t5, #333)", letterSpacing: 2, fontFamily: "monospace", padding: "20px 20px 10px" }}>
+      <div style={{ fontSize: 10, color: "var(--t5, #333)", letterSpacing: 2, fontFamily: MONO, padding: "20px 20px 10px" }}>
         DATA
       </div>
       <div style={{ background: "var(--card, #161616)", border: "1px solid var(--border, #1e1e1e)", borderRadius: 16, margin: "0 16px 8px", overflow: "hidden" }}>
@@ -387,17 +388,17 @@ export default function ProfileTab({ energy, streak, tasksDoneCount, resetAll }:
       </div>
 
       {/* ── ABOUT ── */}
-      <div style={{ fontSize: 10, color: "var(--t5, #333)", letterSpacing: 2, fontFamily: "monospace", padding: "20px 20px 10px" }}>
+      <div style={{ fontSize: 10, color: "var(--t5, #333)", letterSpacing: 2, fontFamily: MONO, padding: "20px 20px 10px" }}>
         ABOUT
       </div>
       <div style={{ background: "var(--card, #161616)", border: "1px solid var(--border, #1e1e1e)", borderRadius: 16, margin: "0 16px 8px", overflow: "hidden" }}>
         <div style={{ display: "flex", justifyContent: "space-between", padding: "14px 18px", borderBottom: "1px solid var(--border, #111)" }}>
           <span style={{ fontSize: 14, color: "var(--t1, #ddd)", fontWeight: 500 }}>Version</span>
-          <span style={{ fontSize: 13, color: "var(--t4, #555)", fontFamily: "monospace" }}>v13.1</span>
+          <span style={{ fontSize: 13, color: "var(--t4, #555)", fontFamily: MONO }}>v13.1</span>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", padding: "14px 18px", borderBottom: "1px solid var(--border, #111)" }}>
           <span style={{ fontSize: 14, color: "var(--t1, #ddd)", fontWeight: 500 }}>Build</span>
-          <span style={{ fontSize: 13, color: "var(--t4, #555)", fontFamily: "monospace" }}>2026.03.27</span>
+          <span style={{ fontSize: 13, color: "var(--t4, #555)", fontFamily: MONO }}>2026.03.27</span>
         </div>
         <SettingsRow
           icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--t3, #888)" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>}
@@ -413,8 +414,8 @@ export default function ProfileTab({ energy, streak, tasksDoneCount, resetAll }:
 
       {/* Footer */}
       <div style={{ textAlign: "center", padding: "24px 0 40px" }}>
-        <div style={{ fontSize: 11, color: "var(--border, #222)", fontFamily: "monospace" }}>pitgoal.com</div>
-        <div style={{ fontSize: 10, color: "var(--border, #1a1a1a)", fontFamily: "monospace", marginTop: 4 }}>Made by July</div>
+        <div style={{ fontSize: 11, color: "var(--border, #222)", fontFamily: MONO }}>pitgoal.com</div>
+        <div style={{ fontSize: 10, color: "var(--border, #1a1a1a)", fontFamily: MONO, marginTop: 4 }}>Made by July</div>
       </div>
 
       {/* ── MODALS ── */}
