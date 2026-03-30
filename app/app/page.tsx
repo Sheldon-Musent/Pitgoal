@@ -2041,7 +2041,7 @@ const getTypeLabel = (typeId: string): string => {
               )}
 
               {/* Bottom: skip/cancel counts */}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 14 }}>
                 {filteredSkipCount > 0 ? (
                   <div style={{ fontSize: 9, fontWeight: 600, color: "var(--t5)", fontFamily: MONO, background: "var(--border)", padding: "3px 8px", borderRadius: 4 }}>{filteredSkipCount} SKIP</div>
                 ) : <div />}
@@ -2177,22 +2177,12 @@ const getTypeLabel = (typeId: string): string => {
                 </div>
               )}
 
-              {/* Bottom: total drained + idle drain */}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8 }}>
-                {totalDrained < 0 ? (
-                  <div style={{ fontSize: 9, fontWeight: 600, color: "rgba(239,68,68,0.5)", fontFamily: MONO, background: "rgba(239,68,68,0.06)", padding: "3px 8px", borderRadius: 4 }}>{totalDrained}% drained</div>
-                ) : <div />}
-                {totalIdleDrain < 0 ? (
-                  <div style={{ fontSize: 9, fontWeight: 600, color: "var(--t5)", fontFamily: MONO, background: "var(--border)", padding: "3px 8px", borderRadius: 4 }}>{totalIdleDrain}% idle</div>
-                ) : <div />}
-              </div>
-
               {/* Sleep button if not sleeping */}
               {!isSleeping && energyVal < 100 && (
                 <div
                   className="tap"
                   onClick={handleSleep}
-                  style={{ marginTop: 12, padding: 12, background: "var(--rest, #6b8a7a)", color: "#0a0a0a", borderRadius: 50, fontWeight: 700, fontSize: 13, fontFamily: MONO, textAlign: "center", cursor: "pointer" }}
+                  style={{ marginTop: 12, padding: 12, background: popupEnergyColor, color: "#0a0a0a", borderRadius: 50, fontWeight: 700, fontSize: 13, fontFamily: MONO, textAlign: "center", cursor: "pointer" }}
                 >Sleep now</div>
               )}
 
@@ -2204,6 +2194,19 @@ const getTypeLabel = (typeId: string): string => {
                   style={{ marginTop: 12, padding: 12, background: "var(--accent)", color: "#0a0a0a", borderRadius: 50, fontWeight: 700, fontSize: 13, fontFamily: MONO, textAlign: "center", cursor: "pointer" }}
                 >Wake up</div>
               )}
+
+              {/* Bottom badges: drained / charged / idle */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 14 }}>
+                {totalDrained < 0 ? (
+                  <div style={{ fontSize: 9, fontWeight: 600, color: "rgba(239,68,68,0.5)", fontFamily: MONO, background: "rgba(239,68,68,0.06)", padding: "3px 8px", borderRadius: 4 }}>{totalDrained}% drained</div>
+                ) : <div style={{ fontSize: 9, fontWeight: 600, color: "rgba(239,68,68,0.5)", fontFamily: MONO, background: "rgba(239,68,68,0.06)", padding: "3px 8px", borderRadius: 4 }}>-0% drained</div>}
+                {restoredToday > 0 ? (
+                  <div style={{ fontSize: 9, fontWeight: 600, color: "rgba(34,197,94,0.5)", fontFamily: MONO, background: "rgba(34,197,94,0.06)", padding: "3px 8px", borderRadius: 4 }}>+{restoredToday}% charged</div>
+                ) : <div style={{ fontSize: 9, fontWeight: 600, color: "rgba(34,197,94,0.5)", fontFamily: MONO, background: "rgba(34,197,94,0.06)", padding: "3px 8px", borderRadius: 4 }}>+0% charged</div>}
+                {totalIdleDrain < 0 ? (
+                  <div style={{ fontSize: 9, fontWeight: 600, color: "var(--t5)", fontFamily: MONO, background: "var(--border)", padding: "3px 8px", borderRadius: 4 }}>{totalIdleDrain}% idle</div>
+                ) : <div style={{ fontSize: 9, fontWeight: 600, color: "var(--t5)", fontFamily: MONO, background: "var(--border)", padding: "3px 8px", borderRadius: 4 }}>-0% idle</div>}
+              </div>
             </>
           );
         };
@@ -2228,7 +2231,7 @@ const getTypeLabel = (typeId: string): string => {
                 swipeStartX.current = null; swipeDelta.current = 0;
               }}
               style={{
-                background: "var(--card)", borderRadius: 20, margin: "0 12px", flex: "none",
+                background: "transparent", borderRadius: 20, margin: "0 auto", width: "calc(100% - 48px)", maxWidth: 320, flex: "none",
                 display: "flex", flexDirection: "column", position: "relative",
                 maxHeight: "85vh", overflowY: "auto", overflowX: "hidden", border: "1px solid var(--border)",
                 WebkitOverflowScrolling: "touch", animation: "popupSlideUp 0.25s ease",
@@ -2242,7 +2245,7 @@ const getTypeLabel = (typeId: string): string => {
                 {statPopup === 2 && renderEnergyPopup()}
 
                 {/* Dot indicators */}
-                <div style={{ paddingTop: 10 }}>
+                <div style={{ paddingTop: 18 }}>
                   <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
                     {[0, 1, 2].map((i) => (
                       <div key={i} onClick={() => { setStatPopup(i); setStatFilter("today"); }} style={{
