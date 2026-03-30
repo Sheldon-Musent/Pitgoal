@@ -27,7 +27,7 @@ import { DEFAULT_TYPES, DEFAULT_TAGS, DEFAULT_TYPE_IDS, DEFAULT_TAG_IDS } from "
 import SideNav from "../../components/SideNav";
 import DayTimeline from "../../components/DayTimeline";
 import ResizableLayout from "../../components/ResizableLayout";
-import StatCards from "../../components/StatCards";
+import StatCards, { waveValues } from "../../components/StatCards";
 
 // ── Energy system constants ──
 const IDLE_RATE = 0.5;
@@ -103,6 +103,8 @@ export default function Home() {
   const [showSkipped, setShowSkipped] = useState(false);
   const [statPopup, setStatPopup] = useState<number | null>(null);
   // 0 = done, 1 = tracked, 2 = energy, null = closed
+  const [statFilter, setStatFilter] = useState<"today" | "week" | "month" | "qtr" | "year">("today");
+  const [statSortNewest, setStatSortNewest] = useState(true);
   const [filterMode, setFilterMode] = useState<string>("all");
   const [deleteMode, setDeleteMode] = useState(false);
   const longPressTimer = useRef<any>(null);
@@ -1653,6 +1655,7 @@ const getTypeLabel = (typeId: string): string => {
 
         // Energy
         const energyVal = ePct;
+        const hrsToFull = SLEEP_RESTORE_PER_HOUR > 0 ? Math.round(((100 - ePct) / SLEEP_RESTORE_PER_HOUR) * 10) / 10 : 0;
         const restoredToday = Math.round((totalRecharge / eTotal) * 100);
 
         // Energy ring segments
@@ -1671,268 +1674,539 @@ const getTypeLabel = (typeId: string): string => {
         const urgentOffset = -(idleArc + workArc);
         const healthOffset = -(idleArc + workArc + urgentArc);
 
+        // ── Stat popup filter helpers ──
+        const STAT_FILTERS = ["today", "week", "month", "qtr", "year"] as const;
+        const STAT_FILTER_LABELS: Record<string, string> = { today: "TODAY", week: "WEEK", month: "MONTH", qtr: "QTR", year: "YEAR" };
+
+        const getFilterDateRange = (filter: string): { start: Date; end: Date } => {
+          const end = new Date();
+          const start = new Date();
+          switch (filter) {
+            case "week":
+              const dow = start.getDay();
+              start.setDate(start.getDate() - (dow === 0 ? 6 : dow - 1));
+              break;
+            case "month":
+              start.setDate(1);
+              break;
+            case "qtr":
+              start.setMonth(start.getMonth() - (start.getMonth() % 3), 1);
+              break;
+            case "year":
+              start.setMonth(0, 1);
+              break;
+            default: // today
+              break;
+          }
+          start.setHours(0, 0, 0, 0);
+          return { start, end };
+        };
+
+        const filterLabel = (f: string) => {
+          if (f === "today") return "today";
+          if (f === "week") return "this week";
+          if (f === "month") return "this month";
+          if (f === "qtr") return "this quarter";
+          return "this year";
+        };
+
+        // Filtered done tasks (today = live doneTasks, others = from history)
+        const getFilteredDoneTasks = () => {
+          if (statFilter === "today") return doneTasks;
+          // For other filters, combine today's done + history
+          const { start } = getFilterDateRange(statFilter);
+          const combined = [...doneTasks]; // today's
+          Object.entries(history).forEach(([k, v]) => {
+            const d = new Date(k);
+            if (d >= start && !isSameDay(d, new Date()) && v.done > 0) {
+              // History entries don't have full task objects, so we create placeholders
+              for (let i = 0; i < v.done; i++) {
+                combined.push({ id: `hist-${k}-${i}`, name: `Task from ${k}`, completedAt: d.getTime(), actual_duration: 0, duration: 0, type: "work" } as any);
+              }
+            }
+          });
+          return combined;
+        };
+
+        const getFilteredDoneCount = () => {
+          if (statFilter === "today") return doneCount;
+          const { start } = getFilterDateRange(statFilter);
+          let count = doneCount; // today
+          Object.entries(history).forEach(([k, v]) => {
+            const d = new Date(k);
+            if (d >= start && !isSameDay(d, new Date())) count += v.done;
+          });
+          return count;
+        };
+
+        const getFilteredTotalCount = () => {
+          if (statFilter === "today") return totalTaskCount;
+          const { start } = getFilterDateRange(statFilter);
+          let count = totalTaskCount;
+          Object.entries(history).forEach(([k, v]) => {
+            const d = new Date(k);
+            if (d >= start && !isSameDay(d, new Date())) count += v.tasks;
+          });
+          return count;
+        };
+
+        const getFilteredTrackedMin = () => {
+          if (statFilter === "today") return totalTracked;
+          const { start } = getFilterDateRange(statFilter);
+          let min = totalTracked;
+          Object.entries(history).forEach(([k, v]) => {
+            const d = new Date(k);
+            if (d >= start && !isSameDay(d, new Date())) min += v.totalMin;
+          });
+          return min;
+        };
+
+        const getFilteredSessionCount = () => {
+          if (statFilter === "today") return doneTasks.length;
+          const { start } = getFilterDateRange(statFilter);
+          let count = doneTasks.length;
+          Object.entries(history).forEach(([k, v]) => {
+            const d = new Date(k);
+            if (d >= start && !isSameDay(d, new Date())) count += v.done;
+          });
+          return count;
+        };
+
+        const getFilteredSkipCount = () => {
+          if (statFilter === "today") return skippedCount;
+          // For non-today, we only have today's skip data until Supabase history
+          return skippedCount;
+        };
+
+        const getFilteredCancelCount = () => {
+          // Cancelled tasks — count from today's tasks with status
+          const todayCancelled = tasks.filter(t => (t as any).status === "cancelled").length;
+          return todayCancelled;
+        };
+
+        const getDaysInFilter = () => {
+          const { start, end } = getFilterDateRange(statFilter);
+          return Math.max(1, Math.ceil((end.getTime() - start.getTime()) / 86400000));
+        };
+
+        const filteredDoneCount = getFilteredDoneCount();
+        const filteredTotalCount = getFilteredTotalCount();
+        const filteredCompletionPct = filteredTotalCount > 0 ? Math.round((filteredDoneCount / filteredTotalCount) * 100) : 0;
+        const filteredTrackedMin = getFilteredTrackedMin();
+        const filteredSessionCount = getFilteredSessionCount();
+        const filteredAvgPerDay = (filteredDoneCount / getDaysInFilter()).toFixed(1);
+        const filteredAvgHrsPerDay = (filteredTrackedMin / 60 / getDaysInFilter()).toFixed(1);
+        const filteredSkipCount = getFilteredSkipCount();
+        const filteredCancelCount = getFilteredCancelCount();
+
+        // Energy color for power bar
+        const popupEnergyColor = energyVal > 50 ? "#22c55e" : energyVal >= 20 ? "#facc15" : "#ef4444";
+
+        // ── Shared filter pills renderer ──
+        const renderFilterPills = (accentColor: string) => (
+          <div style={{ display: "flex", gap: 6, overflowX: "auto", padding: "14px 0 12px" }} className="no-scrollbar">
+            {STAT_FILTERS.map(f => (
+              <div
+                key={f}
+                className="tap"
+                onClick={() => setStatFilter(f)}
+                style={{
+                  flexShrink: 0, padding: "5px 12px", borderRadius: 20, cursor: "pointer",
+                  background: statFilter === f ? accentColor : "transparent",
+                  border: statFilter === f ? "none" : "1px solid var(--border)",
+                  color: statFilter === f ? "#060a12" : "var(--t5)",
+                  fontSize: 9, fontWeight: statFilter === f ? 700 : 600,
+                  letterSpacing: 1, fontFamily: MONO,
+                }}
+              >{STAT_FILTER_LABELS[f]}</div>
+            ))}
+          </div>
+        );
+
         // ── Render functions ──
 
-        const renderDonePopup = () => (
-          <>
-            <div style={pS.heroLabel}>COMPLETED</div>
-            <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
-              <span style={{ ...pS.heroNum, color: "var(--t1, #fff)" }}>{doneCount}</span>
-              <span style={{ fontSize: 18, color: "var(--t5, #333)", fontWeight: 500 }}>/ {totalTaskCount}</span>
-            </div>
-            <div style={pS.heroSub}>{completionPct}% completion rate</div>
+        const renderDonePopup = () => {
+          const filteredDone = getFilteredDoneTasks();
+          const sortedDone = statSortNewest ? [...filteredDone].reverse() : filteredDone;
 
-            <div style={pS.sep} />
-
-            <div style={pS.secTitle}>TODAY</div>
-            {doneTasks.length === 0 ? (
-              <div style={{ fontSize: 12, color: "var(--t5, #3a3a3a)", padding: "8px 0" }}>No tasks completed yet</div>
-            ) : (
-              doneTasks.slice(0, 5).map((task, i) => (
-                <div key={task.id} style={{
-                  display: "flex", alignItems: "center", gap: 10, padding: "8px 0",
-                  borderBottom: i < Math.min(doneTasks.length, 5) - 1 ? "1px solid var(--border, #111)" : "none",
-                }}>
-                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--accent)", flexShrink: 0 }} />
-                  <span style={{ fontSize: 12, color: "var(--t2, #aaa)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{task.name}</span>
-                  <span style={{ fontSize: 10, color: "var(--t5, #3a3a3a)", fontFamily: MONO, flexShrink: 0 }}>{fmtDur(task.actual_duration ?? task.duration)}</span>
-                </div>
-              ))
-            )}
-            {doneTasks.length > 5 && (
-              <div style={{ fontSize: 11, color: "var(--t5)", padding: "4px 0" }}>+{doneTasks.length - 5} more</div>
-            )}
-            {pendingCount > 0 && (
-              <div style={{ opacity: 0.3, fontSize: 11, color: "var(--t5)", padding: "7px 0" }}>{pendingCount} remaining...</div>
-            )}
-
-            <div style={pS.sep} />
-
-            <div style={pS.secTitle}>STREAK</div>
-            <div style={{ display: "flex", gap: 4 }}>
-              {weekDays.map((d, i) => (
-                <div key={i} style={{
-                  width: 28, height: 28, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 9, fontFamily: MONO, fontWeight: 600,
-                  background: d.hadActivity ? (d.isToday ? "rgba(255,208,0,0.25)" : "rgba(255,208,0,0.12)") : "var(--badge-bg, #111)",
-                  color: d.hadActivity ? "var(--accent)" : "var(--t5, #2a2a2a)",
-                  border: d.isToday && d.hadActivity ? "1px solid rgba(255,208,0,0.35)" : "1px solid transparent",
-                }}>{d.init}</div>
-              ))}
-            </div>
-            <div style={{ fontSize: 11, color: "var(--t5, #333)", marginTop: 8, fontFamily: MONO }}>{currentStreak} day streak</div>
-
-            <div style={pS.sep} />
-            <div style={pS.row}>
-              <span style={pS.rowLabel}>Best streak</span>
-              <span style={{ ...pS.rowVal, color: "var(--accent)" }}>{bestStreak > 0 ? `${bestStreak} days` : "\u2014"}</span>
-            </div>
-            <div style={pS.row}>
-              <span style={pS.rowLabel}>This month</span>
-              <span style={{ ...pS.rowVal, color: "var(--t3, #888)" }}>{monthDone} done</span>
-            </div>
-          </>
-        );
-
-        const renderTrackedPopup = () => (
-          <>
-            <div style={pS.heroLabel}>TRACKED</div>
-            <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-              <span style={{ ...pS.heroNum, color: "var(--accent)" }}>{(totalTracked / 60).toFixed(1)}</span>
-              <span style={{ fontSize: 16, color: "var(--t5, #333)", fontWeight: 500 }}>hrs</span>
-            </div>
-            <div style={pS.heroSub}>{totalTracked} min focused today</div>
-
-            <div style={pS.sep} />
-
-            <div style={pS.secTitle}>BY TYPE</div>
-            {allTypesList2.filter(t => (typeTimeMap[t.id] || 0) > 0).length === 0 ? (
-              <div style={{ fontSize: 12, color: "var(--t5)", padding: "8px 0" }}>No tracked time yet</div>
-            ) : (
-              allTypesList2.filter(t => (typeTimeMap[t.id] || 0) > 0).map(t => (
-                <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                  <span style={{ fontSize: 12, width: 50, flexShrink: 0, fontWeight: 600, color: typeColor(t.id) }}>{t.label}</span>
-                  <div style={{ flex: 1, height: 6, background: "var(--border, #1e1e1e)", borderRadius: 3 }}>
-                    <div style={{ height: "100%", borderRadius: 3, background: typeColor(t.id), width: `${((typeTimeMap[t.id] || 0) / maxTypeTime) * 100}%` }} />
+          return (
+            <>
+              {/* Top section with SVG */}
+              <div style={{ position: "relative", overflow: "hidden", minHeight: 110, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                <div style={{ position: "relative", zIndex: 1 }}>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
+                    <span style={{ fontSize: 34, fontWeight: 800, color: "#22c55e", lineHeight: 1 }}>{filteredDoneCount}</span>
+                    <span style={{ fontSize: 15, fontWeight: 400, color: "var(--t5)" }}>/ {filteredTotalCount}</span>
                   </div>
-                  <span style={{ fontSize: 12, color: "var(--t3, #666)", fontFamily: MONO, width: 40, textAlign: "right", flexShrink: 0 }}>{fmtDur(typeTimeMap[t.id] || 0)}</span>
+                  <div style={{ fontSize: 11, color: "var(--t5)", marginTop: 6 }}>{filteredCompletionPct}% completion rate</div>
+                  <div style={{ fontSize: 11, color: "var(--t5)", marginTop: 4 }}>{filteredAvgPerDay} avg / day</div>
                 </div>
-              ))
-            )}
-
-            <div style={pS.sep} />
-
-            <div style={pS.secTitle}>BY TAG</div>
-            {allTagsList2.filter(t => (tagTimeMap[t.id] || 0) > 0).length === 0 ? (
-              <div style={{ fontSize: 12, color: "var(--t5)", padding: "8px 0" }}>No tagged time yet</div>
-            ) : (
-              allTagsList2.filter(t => (tagTimeMap[t.id] || 0) > 0).map(t => (
-                <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                  <span style={{ fontSize: 12, width: 50, flexShrink: 0, fontWeight: 600, color: t.color }}>{t.label}</span>
-                  <div style={{ flex: 1, height: 6, background: "var(--border, #1e1e1e)", borderRadius: 3 }}>
-                    <div style={{ height: "100%", borderRadius: 3, background: t.color, width: `${((tagTimeMap[t.id] || 0) / maxTagTime) * 100}%` }} />
-                  </div>
-                  <span style={{ fontSize: 12, color: "var(--t3, #666)", fontFamily: MONO, width: 40, textAlign: "right", flexShrink: 0 }}>{fmtDur(tagTimeMap[t.id] || 0)}</span>
+                <div style={{ position: "relative", zIndex: 1, marginTop: 16 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.9)", lineHeight: 1 }}>TASKS</div>
+                  <div style={{ fontSize: 11, fontWeight: 400, fontStyle: "italic", color: "var(--t5)", lineHeight: 1, marginTop: 2 }}>completed {filterLabel(statFilter)}</div>
                 </div>
-              ))
-            )}
-
-            <div style={pS.sep} />
-            <div style={pS.row}>
-              <span style={pS.rowLabel}>This week</span>
-              <span style={{ ...pS.rowVal, color: "var(--accent)" }}>{(weekTrackedMin / 60).toFixed(1)} hrs</span>
-            </div>
-            <div style={pS.row}>
-              <span style={pS.rowLabel}>This month</span>
-              <span style={{ ...pS.rowVal, color: "var(--accent)" }}>{(monthTrackedMin / 60).toFixed(1)} hrs</span>
-            </div>
-            <div style={pS.row}>
-              <span style={pS.rowLabel}>Daily avg</span>
-              <span style={{ ...pS.rowVal, color: "var(--t3, #888)" }}>{(dailyAvgMin / 60).toFixed(1)} hrs</span>
-            </div>
-          </>
-        );
-
-        const renderEnergyPopup = () => (
-          <>
-            <div style={pS.heroLabel}>ENERGY</div>
-
-            <div style={{ textAlign: "center", margin: "0 0 8px" }}>
-              <svg width={180} height={180} viewBox="0 0 220 220">
-                <circle cx={110} cy={110} r={90} fill="none" stroke="var(--border, #1a1a1a)" strokeWidth={14} />
-                {idleDrainPct > 0 && (
-                  <circle cx={110} cy={110} r={90} fill="none" stroke="#555555" strokeWidth={14}
-                    strokeDasharray={`${idleArc} ${C - idleArc}`} strokeDashoffset={idleOffset}
-                    strokeLinecap="round" transform="rotate(-90 110 110)" />
-                )}
-                {workDrainPct > 0 && (
-                  <circle cx={110} cy={110} r={90} fill="none" stroke="#fb923c" strokeWidth={14}
-                    strokeDasharray={`${workArc} ${C - workArc}`} strokeDashoffset={workOffset}
-                    strokeLinecap="round" transform="rotate(-90 110 110)" />
-                )}
-                {urgentDrain > 0 && (
-                  <circle cx={110} cy={110} r={90} fill="none" stroke="#E24B4A" strokeWidth={14}
-                    strokeDasharray={`${urgentArc} ${C - urgentArc}`} strokeDashoffset={urgentOffset}
-                    strokeLinecap="round" transform="rotate(-90 110 110)" />
-                )}
-                <circle cx={110} cy={110} r={90} fill="none" stroke="var(--accent, #FFD000)" strokeWidth={14}
-                  strokeDasharray={`${healthArc} ${C - healthArc}`} strokeDashoffset={healthOffset}
-                  strokeLinecap="round" transform="rotate(-90 110 110)" />
-                <text x={110} y={104} textAnchor="middle" dominantBaseline="central"
-                  fill="var(--t1, #fff)" fontSize={64} fontWeight={700} fontFamily="monospace" letterSpacing={-3}>
-                  {energyVal}
-                </text>
-                <text x={110} y={140} textAnchor="middle" fill="var(--t5, #3a3a3a)" fontSize={12}
-                  fontFamily="monospace" letterSpacing={3}>
-                  PERCENT
-                </text>
-              </svg>
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "center", gap: 16, marginBottom: 4 }}>
-              {[
-                { color: "var(--accent, #FFD000)", label: "Health" },
-                { color: "#555", label: "Idle" },
-                { color: "#fb923c", label: "Work" },
-                { color: "#E24B4A", label: "Urgent" },
-              ].map(l => (
-                <div key={l.label} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: l.color }} />
-                  <span style={{ fontSize: 10, color: "var(--t3, #666)", fontFamily: MONO }}>{l.label}</span>
-                </div>
-              ))}
-            </div>
-
-            <div style={pS.sep} />
-
-            <div style={pS.secTitle}>WHAT DRAINS</div>
-            {[
-              {
-                icon: <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth={2} strokeLinecap="round"><circle cx={12} cy={12} r={10} /><polyline points="12 6 12 12 16 14" /></svg>,
-                bgColor: "rgba(85,85,85,0.15)", title: "Idle time", titleColor: "var(--t3, #888)",
-                sub: `-${drainRates.idle}/min`, subColor: "var(--t4, #555)",
-              },
-              {
-                icon: <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#fb923c" strokeWidth={2} strokeLinecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /></svg>,
-                bgColor: "rgba(251,146,60,0.12)", title: "Working", titleColor: "#fb923c",
-                sub: `-${drainRates.work}/min`, subColor: "rgba(251,146,60,0.5)",
-              },
-              {
-                icon: <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#E24B4A" strokeWidth={2} strokeLinecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /><line x1={12} y1={9} x2={12} y2={13} /><line x1={12} y1={17} x2={12.01} y2={17} /></svg>,
-                bgColor: "rgba(226,75,74,0.12)", title: "Urgent tasks", titleColor: "#E24B4A",
-                sub: `-${drainRates.urgent}/min`, subColor: "rgba(226,75,74,0.5)",
-              },
-            ].map((drain, i) => (
-              <div key={i} style={{
-                display: "flex", alignItems: "center", gap: 14,
-                padding: "14px 16px", background: "var(--badge-bg, #111)", borderRadius: 14, marginBottom: 8,
-              }}>
-                <div style={{ width: 40, height: 40, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, background: drain.bgColor }}>
-                  {drain.icon}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: drain.titleColor }}>{drain.title}</div>
-                  <div style={{ fontSize: 11, fontFamily: MONO, marginTop: 2, color: drain.subColor }}>{drain.sub}</div>
-                </div>
+                {/* Paper with checkmarks SVG */}
+                <svg viewBox="0 0 120 150" style={{ position: "absolute", right: -40, top: -30, bottom: -16, height: "calc(100% + 46px)", width: "auto" }}>
+                  <g transform="rotate(-7.8, 60, 75)">
+                    <path d="M20 8 L100 8 Q100 8 100 12 L100 142 Q100 146 96 146 L24 146 Q20 146 20 142 Z" fill="rgba(255,255,255,0.025)" />
+                    <rect x="40" y="36" width="16" height="16" rx="3" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1.5" />
+                    <rect x="62" y="42" width="26" height="3" rx="1.5" fill="rgba(255,255,255,0.04)" />
+                    <path d="M44 43 L47 47" fill="none" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="8" strokeDashoffset="8">
+                      <animate attributeName="stroke-dashoffset" values="8;8;0;0;0;0;0;0;0;0" dur="7s" repeatCount="indefinite" keyTimes="0;0.08;0.12;0.3;0.5;0.65;0.75;0.82;0.9;1" />
+                      <animate attributeName="opacity" values="0;1;1;1;1;1;1;0.6;0.2;0" dur="7s" repeatCount="indefinite" keyTimes="0;0.08;0.3;0.5;0.65;0.75;0.8;0.85;0.92;1" />
+                    </path>
+                    <path d="M47 47 L58 33" fill="none" stroke="#22c55e" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="20" strokeDashoffset="20">
+                      <animate attributeName="stroke-dashoffset" values="20;20;20;0;0;0;0;0;0;0" dur="7s" repeatCount="indefinite" keyTimes="0;0.12;0.13;0.18;0.3;0.5;0.65;0.75;0.9;1" />
+                      <animate attributeName="opacity" values="0;1;1;1;1;1;1;0.6;0.2;0" dur="7s" repeatCount="indefinite" keyTimes="0;0.08;0.3;0.5;0.65;0.75;0.8;0.85;0.92;1" />
+                    </path>
+                    <rect x="40" y="60" width="16" height="16" rx="3" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1.5" />
+                    <rect x="62" y="66" width="20" height="3" rx="1.5" fill="rgba(255,255,255,0.04)" />
+                    <path d="M44 67 L47 71" fill="none" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="8" strokeDashoffset="8">
+                      <animate attributeName="stroke-dashoffset" values="8;8;8;0;0;0;0;0;0;0" dur="7s" repeatCount="indefinite" keyTimes="0;0.22;0.24;0.28;0.4;0.5;0.65;0.75;0.9;1" />
+                      <animate attributeName="opacity" values="0;0;1;1;1;1;1;1;0.4;0" dur="7s" repeatCount="indefinite" keyTimes="0;0.22;0.28;0.5;0.65;0.75;0.8;0.85;0.92;1" />
+                    </path>
+                    <path d="M47 71 L58 57" fill="none" stroke="#22c55e" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="20" strokeDashoffset="20">
+                      <animate attributeName="stroke-dashoffset" values="20;20;20;20;0;0;0;0;0;0" dur="7s" repeatCount="indefinite" keyTimes="0;0.28;0.29;0.3;0.36;0.5;0.65;0.75;0.9;1" />
+                      <animate attributeName="opacity" values="0;0;1;1;1;1;1;1;0.4;0" dur="7s" repeatCount="indefinite" keyTimes="0;0.22;0.28;0.5;0.65;0.75;0.8;0.85;0.92;1" />
+                    </path>
+                    <rect x="40" y="84" width="16" height="16" rx="3" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1.5" />
+                    <rect x="62" y="90" width="30" height="3" rx="1.5" fill="rgba(255,255,255,0.04)" />
+                    <path d="M44 91 L47 95" fill="none" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="8" strokeDashoffset="8">
+                      <animate attributeName="stroke-dashoffset" values="8;8;8;8;0;0;0;0;0;0" dur="7s" repeatCount="indefinite" keyTimes="0;0.36;0.38;0.4;0.44;0.5;0.65;0.75;0.9;1" />
+                      <animate attributeName="opacity" values="0;0;0;1;1;1;1;1;0.6;0" dur="7s" repeatCount="indefinite" keyTimes="0;0.36;0.4;0.5;0.65;0.75;0.8;0.85;0.92;1" />
+                    </path>
+                    <path d="M47 95 L58 81" fill="none" stroke="#22c55e" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="20" strokeDashoffset="20">
+                      <animate attributeName="stroke-dashoffset" values="20;20;20;20;20;0;0;0;0;0" dur="7s" repeatCount="indefinite" keyTimes="0;0.4;0.42;0.44;0.46;0.52;0.65;0.75;0.9;1" />
+                      <animate attributeName="opacity" values="0;0;0;1;1;1;1;1;0.6;0" dur="7s" repeatCount="indefinite" keyTimes="0;0.36;0.4;0.5;0.65;0.75;0.8;0.85;0.92;1" />
+                    </path>
+                  </g>
+                </svg>
               </div>
-            ))}
 
-            <div style={pS.sep} />
+              <div style={{ height: 1, background: "var(--border)", margin: "0 -24px" }} />
 
-            <div style={pS.secTitle}>WHAT RESTORES</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid var(--border, #111)" }}>
-              <span style={{ fontSize: 16, fontWeight: 700, width: 24, textAlign: "center", color: "var(--rest, #6b8a7a)" }}>+</span>
-              <span style={{ fontSize: 13, color: "var(--t3, #666)", flex: 1 }}>Rest tasks</span>
-              <span style={{ ...pS.rowVal, color: "var(--rest, #6b8a7a)" }}>+{drainRates.rest}/min</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0" }}>
-              <span style={{ fontSize: 16, fontWeight: 700, width: 24, textAlign: "center", color: "var(--rest, #6b8a7a)" }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--rest, #6b8a7a)" strokeWidth="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
-              </span>
-              <span style={{ fontSize: 13, color: "var(--t3, #666)", flex: 1 }}>Sleep</span>
-              <span style={{ ...pS.rowVal, color: "var(--rest, #6b8a7a)" }}>+{SLEEP_RESTORE_PER_HOUR}%/hr</span>
-            </div>
+              {/* Filter pills */}
+              {renderFilterPills("#22c55e")}
 
-            {/* Sleep status */}
-            {isSleeping && sleepStartTime && (
-              <>
-                <div style={pS.sep} />
-                <div style={pS.secTitle}>SLEEP STATUS</div>
-                <div style={pS.row}>
-                  <span style={pS.rowLabel}>Currently</span>
-                  <span style={{ ...pS.rowVal, color: "var(--rest, #6b8a7a)" }}>Sleeping</span>
+              {/* Task list */}
+              {filteredDone.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "28px 16px", color: "var(--t5)", fontSize: 11, fontFamily: MONO }}>
+                  No tasks completed yet
                 </div>
-                <div style={pS.row}>
-                  <span style={pS.rowLabel}>Started</span>
-                  <span style={{ ...pS.rowVal, color: "var(--t3, #888)" }}>{new Date(sleepStartTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+              ) : (
+                <>
+                  {(statFilter === "year" || statFilter === "qtr") && (
+                    <div className="tap" onClick={() => setStatSortNewest(!statSortNewest)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, cursor: "pointer" }}>
+                      <span style={{ fontSize: 9, color: "var(--t5)", letterSpacing: 1, fontFamily: MONO }}>{statSortNewest ? "LATEST FIRST" : "OLDEST FIRST"}</span>
+                      <span style={{ fontSize: 9, color: "var(--t5)" }}>↕</span>
+                    </div>
+                  )}
+                  <div className="no-scrollbar" style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 180, overflowY: "auto" }}>
+                    {sortedDone.slice(0, 50).map((task, i) => (
+                      <div key={task.id || i} style={{
+                        display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10,
+                        background: "var(--badge-bg, rgba(255,255,255,0.025))", border: "1px solid var(--border)",
+                      }}>
+                        <div style={{ width: 18, height: 18, borderRadius: 5, background: "rgba(34,197,94,0.2)", border: "1.5px solid #22c55e", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          <span style={{ fontSize: 10, color: "#22c55e", fontWeight: 700 }}>✓</span>
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 11, color: "var(--t4)", textDecoration: "line-through", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{task.name}</div>
+                          <div style={{ fontSize: 9, color: "var(--t5)", marginTop: 2, fontFamily: MONO }}>
+                            {task.completedAt ? new Date(task.completedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " · " + new Date(task.completedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "—"}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </>
+          );
+        };
+
+        const renderTrackedPopup = () => {
+          // Build session list from done tasks with time info
+          const sessions = doneTasks.map(t => {
+            const dur = t.actual_duration ?? t.duration;
+            const endTime = t.completedAt || Date.now();
+            const startTime = endTime - dur * 60000;
+            return { ...t, startTime, endTime: endTime, trackedMin: dur, status: "done" as const };
+          });
+
+          // Add skipped tasks
+          const skippedTasks = tasks.filter(t => (t as any).status === "skipped" || (t as any).skipped);
+          skippedTasks.forEach(t => {
+            sessions.push({ ...t, startTime: 0, endTime: 0, trackedMin: 0, status: "skip" as const } as any);
+          });
+
+          // Add cancelled tasks
+          const cancelledTasks = tasks.filter(t => (t as any).status === "cancelled");
+          cancelledTasks.forEach(t => {
+            sessions.push({ ...t, startTime: 0, endTime: 0, trackedMin: 0, status: "cancel" as const } as any);
+          });
+
+          const sortedSessions = statSortNewest ? [...sessions].reverse() : sessions;
+
+          return (
+            <>
+              {/* Top section with stopwatch SVG */}
+              <div style={{ position: "relative", overflow: "hidden", minHeight: 110, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                <div style={{ position: "relative", zIndex: 1 }}>
+                  <div style={{ fontSize: 34, fontWeight: 800, color: "#facc15", lineHeight: 1 }}>{(filteredTrackedMin / 60).toFixed(1)}</div>
+                  <div style={{ fontSize: 11, color: "var(--t5)", marginTop: 6 }}>{filteredSessionCount} sessions {filterLabel(statFilter)}</div>
+                  <div style={{ fontSize: 11, color: "var(--t5)", marginTop: 4 }}>{filteredAvgHrsPerDay} avg / day</div>
                 </div>
-                <div style={pS.row}>
-                  <span style={pS.rowLabel}>Restored so far</span>
-                  <span style={{ ...pS.rowVal, color: "var(--rest, #6b8a7a)" }}>+{Math.round(Math.min(100, ((Date.now() - sleepStartTime) / 3600000) * SLEEP_RESTORE_PER_HOUR))}%</span>
+                <div style={{ position: "relative", zIndex: 1, marginTop: 16 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.9)", lineHeight: 1 }}>HRS</div>
+                  <div style={{ fontSize: 11, fontWeight: 400, fontStyle: "italic", color: "var(--t5)", lineHeight: 1, marginTop: 2 }}>tracked {filterLabel(statFilter)}</div>
                 </div>
+                {/* Stopwatch SVG — longer hands */}
+                <svg viewBox="0 0 120 140" style={{ position: "absolute", right: -49, top: -29, bottom: -29, height: "calc(100% + 58px)", width: "auto" }}>
+                  <g transform="rotate(-7.8, 60, 70)">
+                    <circle cx="60" cy="70" r="52" fill="rgba(255,255,255,0.025)" />
+                    <circle cx="60" cy="70" r="3" fill="#facc15" />
+                    <line x1="60" y1="70" x2="60" y2="44" stroke="#facc15" strokeWidth="2.5" strokeLinecap="round">
+                      <animateTransform attributeName="transform" type="rotate" from="0 60 70" to="360 60 70" dur="14s" repeatCount="indefinite" />
+                    </line>
+                    <line x1="60" y1="70" x2="60" y2="32" stroke="rgba(255,255,255,0.2)" strokeWidth="1" strokeLinecap="round">
+                      <animateTransform attributeName="transform" type="rotate" from="0 60 70" to="360 60 70" dur="3s" repeatCount="indefinite" />
+                    </line>
+                  </g>
+                </svg>
+              </div>
+
+              <div style={{ height: 1, background: "var(--border)", margin: "0 -24px" }} />
+
+              {/* Filter pills */}
+              {renderFilterPills("#facc15")}
+
+              {/* Session list */}
+              {sessions.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "28px 16px", color: "var(--t5)", fontSize: 11, fontFamily: MONO }}>
+                  No sessions tracked yet
+                </div>
+              ) : (
+                <>
+                  {(statFilter === "year" || statFilter === "qtr") && (
+                    <div className="tap" onClick={() => setStatSortNewest(!statSortNewest)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, cursor: "pointer" }}>
+                      <span style={{ fontSize: 9, color: "var(--t5)", letterSpacing: 1, fontFamily: MONO }}>{statSortNewest ? "LATEST FIRST" : "OLDEST FIRST"}</span>
+                      <span style={{ fontSize: 9, color: "var(--t5)" }}>↕</span>
+                    </div>
+                  )}
+                  <div className="no-scrollbar" style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 220, overflowY: "auto" }}>
+                    {sortedSessions.slice(0, 50).map((s: any, i: number) => {
+                      const isSkip = s.status === "skip";
+                      const isCancel = s.status === "cancel";
+                      const isRest = s.type === "rest";
+                      const barColor = isCancel ? "rgba(239,68,68,0.3)" : isSkip ? "rgba(255,255,255,0.1)" : isRest ? "var(--rest, #6b8a7a)" : "#facc15";
+                      const durColor = isRest ? "#6b8a7a" : "#facc15";
+
+                      return (
+                        <div key={s.id || i} style={{
+                          display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10,
+                          background: (isSkip || isCancel) ? "var(--badge-bg, rgba(255,255,255,0.015))" : "var(--badge-bg, rgba(255,255,255,0.025))",
+                          border: "1px solid var(--border)",
+                          opacity: (isSkip || isCancel) ? 0.5 : 1,
+                        }}>
+                          <div style={{ width: 4, height: 34, borderRadius: 2, background: barColor, flexShrink: 0 }} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{
+                              fontSize: 11, color: (isSkip || isCancel) ? "var(--t5)" : "var(--t4)",
+                              textDecoration: isCancel ? "line-through" : "none",
+                              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                            }}>{s.name}</div>
+                            <div style={{ fontSize: 9, color: "var(--t5)", marginTop: 3, fontFamily: MONO }}>
+                              {(isSkip || isCancel) ? (
+                                `${s.duration || 0}m planned`
+                              ) : s.startTime > 0 ? (
+                                `${new Date(s.startTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} → ${new Date(s.endTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
+                              ) : "—"}
+                            </div>
+                          </div>
+                          <div style={{ flexShrink: 0 }}>
+                            {isSkip ? (
+                              <div style={{ fontSize: 9, fontWeight: 600, color: "var(--t5)", letterSpacing: 1, fontFamily: MONO, background: "var(--border)", padding: "3px 8px", borderRadius: 4 }}>SKIP</div>
+                            ) : isCancel ? (
+                              <div style={{ fontSize: 9, fontWeight: 600, color: "rgba(239,68,68,0.4)", letterSpacing: 1, fontFamily: MONO, background: "rgba(239,68,68,0.06)", padding: "3px 8px", borderRadius: 4 }}>CANCEL</div>
+                            ) : (
+                              <div style={{ fontSize: 12, fontWeight: 700, color: durColor }}>{fmtDur(s.trackedMin)}</div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              {/* Bottom: skip/cancel counts */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8 }}>
+                {filteredSkipCount > 0 ? (
+                  <div style={{ fontSize: 9, fontWeight: 600, color: "var(--t5)", fontFamily: MONO, background: "var(--border)", padding: "3px 8px", borderRadius: 4 }}>{filteredSkipCount} SKIP</div>
+                ) : <div />}
+                {filteredCancelCount > 0 ? (
+                  <div style={{ fontSize: 9, fontWeight: 600, color: "rgba(239,68,68,0.4)", fontFamily: MONO, background: "rgba(239,68,68,0.06)", padding: "3px 8px", borderRadius: 4 }}>{filteredCancelCount} CANCEL</div>
+                ) : <div />}
+              </div>
+            </>
+          );
+        };
+
+        const renderEnergyPopup = () => {
+          // Build energy event log
+          const energyEvents: { type: "drain" | "charge" | "sleep" | "idle" | "rest"; name: string; detail: string; delta: number }[] = [];
+
+          // Work/urgent drains from done tasks
+          doneTasks.forEach(t => {
+            const dur = t.actual_duration ?? t.duration;
+            const rate = t.type === "rest" ? drainRates.rest : (t as any).urgent ? drainRates.urgent : drainRates.work;
+            const delta = t.type === "rest" ? Math.round(rate * dur) : -Math.round(rate * dur);
+            const startTime = (t.completedAt || Date.now()) - dur * 60000;
+            energyEvents.push({
+              type: t.type === "rest" ? "rest" : "drain",
+              name: t.name,
+              detail: `${new Date(startTime).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · ${dur}m ${t.type === "rest" ? "rest" : "active"}`,
+              delta,
+            });
+          });
+
+          // Idle drain
+          if (idleDrainPct > 0) {
+            energyEvents.push({ type: "idle", name: "Idle drain", detail: "Background energy loss", delta: -idleDrainPct });
+          }
+
+          // Sleep restore (if slept today)
+          if (restoredToday > 0) {
+            energyEvents.push({ type: "sleep", name: "Sleep", detail: "Overnight recharge", delta: restoredToday });
+          }
+
+          const totalDrained = energyEvents.filter(e => e.delta < 0 && e.type !== "idle").reduce((s, e) => s + e.delta, 0);
+          const totalIdleDrain = energyEvents.filter(e => e.type === "idle").reduce((s, e) => s + e.delta, 0);
+
+          return (
+            <>
+              {/* Top section with lightning bolt SVG */}
+              <div style={{ position: "relative", overflow: "hidden", minHeight: 110, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                <div style={{ position: "relative", zIndex: 1 }}>
+                  <div style={{ display: "flex", alignItems: "baseline" }}>
+                    <span style={{ fontSize: 34, fontWeight: 800, color: popupEnergyColor, lineHeight: 1 }}>{energyVal}</span>
+                    <span style={{ fontSize: 15, fontWeight: 700, color: popupEnergyColor }}>%</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--t5)", marginTop: 6 }}>
+                    {isSleeping ? "currently sleeping" : energyVal >= 100 ? "fully charged" : `${energyVal < 20 ? "critically low" : energyVal < 50 ? "getting low" : "healthy"}`}
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--t5)", marginTop: 4 }}>
+                    {restoredToday > 0 ? `+${restoredToday}% restored today` : "no recharge yet today"}
+                  </div>
+                </div>
+                <div style={{ position: "relative", zIndex: 1, marginTop: 16 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.9)", lineHeight: 1 }}>{hrsToFull} hrs</div>
+                  <div style={{ fontSize: 11, fontWeight: 400, fontStyle: "italic", color: "var(--t5)", lineHeight: 1, marginTop: 2 }}>to full charge</div>
+                </div>
+                {/* Lightning bolt SVG */}
+                <svg viewBox="0 0 130 180" style={{ position: "absolute", right: -46, top: -24, bottom: -24, height: "calc(100% + 48px)", width: "auto" }}>
+                  <defs>
+                    <clipPath id="popup-bolt-clip">
+                      <path d="M70 4 Q68 0 64 2 L20 78 Q15 85 24 85 L39 85 Q43 85 41 90 L30 174 Q28 182 36 176 L108 76 Q114 68 105 68 L82 68 Q78 68 80 62 L100 6 Q102 0 96 2 Z" />
+                    </clipPath>
+                  </defs>
+                  <g transform="rotate(-7.8, 65, 90)">
+                    <path d="M70 4 Q68 0 64 2 L20 78 Q15 85 24 85 L39 85 Q43 85 41 90 L30 174 Q28 182 36 176 L108 76 Q114 68 105 68 L82 68 Q78 68 80 62 L100 6 Q102 0 96 2 Z" fill="rgba(255,255,255,0.025)" />
+                    <g clipPath="url(#popup-bolt-clip)">
+                      <path fill={popupEnergyColor} opacity="0.35">
+                        <animate attributeName="d" dur="7s" repeatCount="indefinite"
+                          keyTimes="0;0.12;0.28;0.45;0.58;0.72;0.88;1"
+                          keySplines="0.4 0 0.6 1;0.2 0 0.8 1;0.5 0 0.3 1;0.3 0 0.7 1;0.6 0 0.4 1;0.2 0 0.9 1;0.4 0 0.6 1"
+                          calcMode="spline"
+                          values={waveValues(ePct, "back")} />
+                      </path>
+                      <path fill={popupEnergyColor} opacity="1">
+                        <animate attributeName="d" dur="5.5s" repeatCount="indefinite"
+                          keyTimes="0;0.15;0.3;0.42;0.6;0.75;0.9;1"
+                          keySplines="0.3 0 0.7 1;0.5 0 0.3 1;0.2 0 0.8 1;0.6 0 0.4 1;0.3 0 0.8 1;0.5 0 0.5 1;0.4 0 0.6 1"
+                          calcMode="spline"
+                          values={waveValues(ePct, "front")} />
+                      </path>
+                    </g>
+                  </g>
+                </svg>
+              </div>
+
+              <div style={{ height: 1, background: "var(--border)", margin: "0 -24px" }} />
+
+              {/* Filter pills */}
+              {renderFilterPills(popupEnergyColor)}
+
+              {/* Energy event log */}
+              {energyEvents.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "28px 16px", color: "var(--t5)", fontSize: 11, fontFamily: MONO }}>
+                  No energy events yet
+                </div>
+              ) : (
+                <div className="no-scrollbar" style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 220, overflowY: "auto" }}>
+                  {energyEvents.map((ev, i) => {
+                    const isCharge = ev.delta > 0;
+                    const iconColor = ev.type === "idle" ? "rgba(255,255,255,0.25)" : ev.type === "rest" ? "#6b8a7a" : isCharge ? "#22c55e" : "#ef4444";
+                    const iconBg = ev.type === "idle" ? "rgba(255,255,255,0.03)" : ev.type === "rest" ? "rgba(107,138,122,0.15)" : isCharge ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)";
+                    const iconBorder = ev.type === "idle" ? "rgba(255,255,255,0.08)" : ev.type === "rest" ? "rgba(107,138,122,0.3)" : isCharge ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)";
+                    const valColor = ev.type === "idle" ? "var(--t5)" : ev.type === "rest" ? "#6b8a7a" : isCharge ? "#22c55e" : "#ef4444";
+
+                    return (
+                      <div key={i} style={{
+                        display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10,
+                        background: "var(--badge-bg, rgba(255,255,255,0.025))", border: "1px solid var(--border)",
+                      }}>
+                        <div style={{
+                          width: 18, height: 18, borderRadius: 5,
+                          background: iconBg, border: `1.5px solid ${iconBorder}`,
+                          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                        }}>
+                          <span style={{ fontSize: 11, color: iconColor }}>{isCharge ? "↑" : "↓"}</span>
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 11, color: "var(--t4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.name}</div>
+                          <div style={{ fontSize: 9, color: "var(--t5)", marginTop: 3, fontFamily: MONO }}>{ev.detail}</div>
+                        </div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: valColor, flexShrink: 0 }}>
+                          {ev.delta > 0 ? "+" : ""}{ev.delta}%
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Bottom: total drained + idle drain */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8 }}>
+                {totalDrained < 0 ? (
+                  <div style={{ fontSize: 9, fontWeight: 600, color: "rgba(239,68,68,0.5)", fontFamily: MONO, background: "rgba(239,68,68,0.06)", padding: "3px 8px", borderRadius: 4 }}>{totalDrained}% drained</div>
+                ) : <div />}
+                {totalIdleDrain < 0 ? (
+                  <div style={{ fontSize: 9, fontWeight: 600, color: "var(--t5)", fontFamily: MONO, background: "var(--border)", padding: "3px 8px", borderRadius: 4 }}>{totalIdleDrain}% idle</div>
+                ) : <div />}
+              </div>
+
+              {/* Sleep button if not sleeping */}
+              {!isSleeping && energyVal < 100 && (
                 <div
+                  className="tap"
+                  onClick={handleSleep}
+                  style={{ marginTop: 12, padding: 12, background: "var(--rest, #6b8a7a)", color: "#0a0a0a", borderRadius: 50, fontWeight: 700, fontSize: 13, fontFamily: MONO, textAlign: "center", cursor: "pointer" }}
+                >Sleep now</div>
+              )}
+
+              {/* Wake button if sleeping */}
+              {isSleeping && (
+                <div
+                  className="tap"
                   onClick={handleWake}
                   style={{ marginTop: 12, padding: 12, background: "var(--accent)", color: "#0a0a0a", borderRadius: 50, fontWeight: 700, fontSize: 13, fontFamily: MONO, textAlign: "center", cursor: "pointer" }}
                 >Wake up</div>
-              </>
-            )}
-
-            <div style={pS.sep} />
-
-            <div style={pS.row}>
-              <span style={pS.rowLabel}>Today&apos;s skips</span>
-              <span style={{ ...pS.rowVal, color: skippedCount > 0 ? "var(--danger, #E24B4A)" : "var(--t5)" }}>{skippedCount}</span>
-            </div>
-            <div style={pS.row}>
-              <span style={pS.rowLabel}>Restored today</span>
-              <span style={{ ...pS.rowVal, color: "var(--rest, #6b8a7a)" }}>+{restoredToday}%</span>
-            </div>
-            <div style={pS.row}>
-              <span style={pS.rowLabel}>Lost today</span>
-              <span style={{ ...pS.rowVal, color: "var(--danger, #E24B4A)" }}>-{totalLost}%</span>
-            </div>
-          </>
-        );
+              )}
+            </>
+          );
+        };
 
         return (
           <div
@@ -1959,43 +2233,25 @@ const getTypeLabel = (typeId: string): string => {
                 maxHeight: "85vh", overflowY: "auto", overflowX: "hidden", border: "1px solid var(--border)",
                 WebkitOverflowScrolling: "touch", animation: "popupSlideUp 0.25s ease",
               }}
+              className="no-scrollbar"
             >
-              {/* Close button */}
-              <div
-                onClick={() => setStatPopup(null)}
-                style={{
-                  position: "sticky", top: 16, marginLeft: "auto", marginRight: 16,
-                  width: 32, height: 32, borderRadius: "50%", background: "var(--badge-bg, #222)",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  cursor: "pointer", zIndex: 2, flexShrink: 0,
-                }}
-              >
-                <span style={{ fontSize: 15, color: "var(--t4)", lineHeight: 1 }}>✕</span>
-              </div>
-
-              {/* Content area */}
-              <div style={{ padding: "0 24px 20px", display: "flex", flexDirection: "column", marginTop: -20 }}>
+              {/* Content area — no close button, click outside closes */}
+              <div style={{ padding: "0 24px 20px", display: "flex", flexDirection: "column" }}>
                 {statPopup === 0 && renderDonePopup()}
                 {statPopup === 1 && renderTrackedPopup()}
                 {statPopup === 2 && renderEnergyPopup()}
 
-                {/* Dot indicators + swipe hint */}
-                <div style={{ marginTop: "auto", paddingTop: 10 }}>
-                  <div style={{ display: "flex", gap: 6, justifyContent: "center", paddingBottom: 8 }}>
+                {/* Dot indicators */}
+                <div style={{ paddingTop: 10 }}>
+                  <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
                     {[0, 1, 2].map((i) => (
-                      <div key={i} onClick={() => setStatPopup(i)} style={{
+                      <div key={i} onClick={() => { setStatPopup(i); setStatFilter("today"); }} style={{
                         width: statPopup === i ? 20 : 6, height: 6,
                         borderRadius: statPopup === i ? 3 : "50%",
                         background: statPopup === i ? "var(--accent)" : "var(--play-border, #2a2a2a)",
                         cursor: "pointer", transition: "all 0.2s ease",
                       }} />
                     ))}
-                  </div>
-                  <div style={{
-                    fontSize: 11, color: "var(--t5, #2a2a2a)", textAlign: "center",
-                    fontFamily: MONO, letterSpacing: 1, paddingBottom: 8,
-                  }}>
-                    swipe for more
                   </div>
                 </div>
               </div>

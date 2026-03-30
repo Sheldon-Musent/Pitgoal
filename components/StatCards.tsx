@@ -118,10 +118,10 @@ export default function StatCards({ energy, tasksDone, hoursTracked, sleepRestor
           <g transform="rotate(-7.8, 60, 70)">
             <circle cx="60" cy="70" r="48" fill="rgba(255,255,255,0.025)" />
             <circle cx="60" cy="70" r="3" fill="#facc15" />
-            <line x1="60" y1="70" x2="60" y2="54" stroke="#facc15" strokeWidth="2.5" strokeLinecap="round">
+            <line x1="60" y1="70" x2="60" y2="44" stroke="#facc15" strokeWidth="2.5" strokeLinecap="round">
               <animateTransform attributeName="transform" type="rotate" from="0 60 70" to="360 60 70" dur="14s" repeatCount="indefinite" />
             </line>
-            <line x1="60" y1="70" x2="60" y2="40" stroke="rgba(255,255,255,0.2)" strokeWidth="1" strokeLinecap="round">
+            <line x1="60" y1="70" x2="60" y2="32" stroke="rgba(255,255,255,0.2)" strokeWidth="1" strokeLinecap="round">
               <animateTransform attributeName="transform" type="rotate" from="0 60 70" to="360 60 70" dur="3s" repeatCount="indefinite" />
             </line>
           </g>
@@ -207,7 +207,7 @@ export default function StatCards({ energy, tasksDone, hoursTracked, sleepRestor
 }
 
 /** Shift wave Y coords based on energy %. Base values are for 72% energy. */
-function waveValues(ePct: number, layer: "back" | "front"): string {
+export function waveValues(ePct: number, layer: "back" | "front"): string {
   const shift = (72 - ePct) * 1.76;
 
   if (layer === "back") {
