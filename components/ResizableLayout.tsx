@@ -13,7 +13,7 @@ const SIDE_MIN = 56;
 const SIDE_MAX = 360;
 const SIDE_DEFAULT = 280;
 const SIDE_COLLAPSED = 56;
-const SIDE_SNAP_THRESHOLD = 120;
+const SIDE_SNAP_THRESHOLD = 180;
 const TIMELINE_MIN = 200;
 const TIMELINE_DEFAULT = 380;
 
@@ -70,7 +70,7 @@ export default function ResizableLayout({
         if (newWidth < SIDE_SNAP_THRESHOLD) {
           newWidth = SIDE_COLLAPSED;
         } else {
-          newWidth = Math.max(SIDE_MIN, Math.min(SIDE_MAX, newWidth));
+          newWidth = Math.max(SIDE_DEFAULT, Math.min(SIDE_MAX, newWidth));
         }
         setSideWidth(newWidth);
       }
@@ -84,12 +84,14 @@ export default function ResizableLayout({
 
     const handleMouseUp = () => {
       setDragging(null);
+      // Snap to nearest valid width on release
       setSideWidth(sw => {
+        const snapped = sw < SIDE_SNAP_THRESHOLD ? SIDE_COLLAPSED : SIDE_DEFAULT;
         setTimelineWidth(tw => {
-          saveWidths(sw, tw);
+          saveWidths(snapped, tw);
           return tw;
         });
-        return sw;
+        return snapped;
       });
     };
 
@@ -145,7 +147,7 @@ export default function ResizableLayout({
       {/* Content panel */}
       <div style={{
         flex: 1,
-        minWidth: 0,
+        minWidth: 280,
         overflow: "hidden",
         display: "flex",
         flexDirection: "column",

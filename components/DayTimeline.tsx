@@ -60,6 +60,7 @@ export default function DayTimeline({
   const [viewMode, setViewMode] = useState<ViewMode>("day");
   const [viewDate, setViewDate] = useState(new Date());
   const [showViewPicker, setShowViewPicker] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
   const now = new Date();
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
@@ -255,7 +256,7 @@ export default function DayTimeline({
               const isToday = isSameDay(day, now);
               return (
                 <div key={di}
-                  onClick={() => { setViewDate(new Date(day)); setViewMode("day"); }}
+                  onClick={() => setSelectedDate(new Date(day))}
                   style={{
                     padding: "4px 6px", cursor: "pointer",
                     borderRight: di < 6 ? "1px solid var(--border)" : "none",
@@ -290,6 +291,42 @@ export default function DayTimeline({
             })}
           </div>
         ))}
+        {/* Month summary */}
+        <div style={{
+          marginTop: 16,
+          padding: "16px 0",
+          borderTop: "1px solid var(--border)",
+        }}>
+          <div style={{ fontSize: 10, color: "var(--t5)", letterSpacing: 2, marginBottom: 10, fontWeight: 600 }}>
+            {MONTHS_FULL[viewDate.getMonth()].toUpperCase()} SUMMARY
+          </div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <div style={{
+              flex: 1, padding: 10, borderRadius: 10,
+              background: "var(--card)", border: "1px solid var(--border)",
+              textAlign: "center",
+            }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: "var(--t1)" }}>—</div>
+              <div style={{ fontSize: 8, color: "var(--t5)", letterSpacing: 1.5, marginTop: 4 }}>TASKS</div>
+            </div>
+            <div style={{
+              flex: 1, padding: 10, borderRadius: 10,
+              background: "var(--card)", border: "1px solid var(--border)",
+              textAlign: "center",
+            }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: "var(--accent)" }}>—</div>
+              <div style={{ fontSize: 8, color: "var(--t5)", letterSpacing: 1.5, marginTop: 4 }}>HOURS</div>
+            </div>
+            <div style={{
+              flex: 1, padding: 10, borderRadius: 10,
+              background: "var(--card)", border: "1px solid var(--border)",
+              textAlign: "center",
+            }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: "var(--t1)" }}>—</div>
+              <div style={{ fontSize: 8, color: "var(--t5)", letterSpacing: 1.5, marginTop: 4 }}>STREAK</div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   };
@@ -324,8 +361,11 @@ export default function DayTimeline({
                       if (!day) return <div key={di} />;
                       const isToday = isSameDay(day, now);
                       return (
-                        <div key={di} style={{
+                        <div key={di}
+                          onClick={(e) => { e.stopPropagation(); if (day) setSelectedDate(new Date(day)); }}
+                          style={{
                           fontSize: 9, textAlign: "center", padding: "2px 0",
+                          cursor: day ? "pointer" : "default",
                           color: isToday ? "#0a0a0a" : "var(--t5)",
                           fontWeight: isToday ? 700 : 400,
                           background: isToday ? "var(--accent)" : "transparent",
@@ -342,6 +382,45 @@ export default function DayTimeline({
               </div>
             );
           })}
+        </div>
+        {/* Year summary */}
+        <div style={{
+          marginTop: 24,
+          padding: "16px 8px",
+          borderTop: "1px solid var(--border)",
+        }}>
+          <div style={{ fontSize: 10, color: "var(--t5)", letterSpacing: 2, marginBottom: 12, fontWeight: 600 }}>
+            {viewDate.getFullYear()} SUMMARY
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+            <div style={{
+              padding: 12, borderRadius: 10,
+              background: "var(--card)", border: "1px solid var(--border)",
+              textAlign: "center",
+            }}>
+              <div style={{ fontSize: 20, fontWeight: 700, color: "var(--t1)" }}>—</div>
+              <div style={{ fontSize: 8, color: "var(--t5)", letterSpacing: 1.5, marginTop: 4 }}>TASKS DONE</div>
+            </div>
+            <div style={{
+              padding: 12, borderRadius: 10,
+              background: "var(--card)", border: "1px solid var(--border)",
+              textAlign: "center",
+            }}>
+              <div style={{ fontSize: 20, fontWeight: 700, color: "var(--accent)" }}>—</div>
+              <div style={{ fontSize: 8, color: "var(--t5)", letterSpacing: 1.5, marginTop: 4 }}>HOURS TRACKED</div>
+            </div>
+            <div style={{
+              padding: 12, borderRadius: 10,
+              background: "var(--card)", border: "1px solid var(--border)",
+              textAlign: "center",
+            }}>
+              <div style={{ fontSize: 20, fontWeight: 700, color: "var(--t1)" }}>—</div>
+              <div style={{ fontSize: 8, color: "var(--t5)", letterSpacing: 1.5, marginTop: 4 }}>BEST STREAK</div>
+            </div>
+          </div>
+          <div style={{ fontSize: 10, color: "var(--t5)", marginTop: 12, textAlign: "center" }}>
+            Stats populate once Supabase history syncs
+          </div>
         </div>
       </div>
     );
@@ -390,6 +469,134 @@ export default function DayTimeline({
       )}
     </div>
   );
+
+  const renderDatePopup = () => {
+    if (!selectedDate) return null;
+    const isToday = isSameDay(selectedDate, now);
+    const dayTasks = isToday ? taskBlocks : [];
+
+    return (
+      <>
+        {/* Backdrop */}
+        <div
+          onClick={() => setSelectedDate(null)}
+          style={{
+            position: "fixed", inset: 0, zIndex: 200,
+            background: "rgba(0,0,0,0.4)",
+          }}
+        />
+        {/* Popup */}
+        <div style={{
+          position: "fixed",
+          top: "50%", left: "50%",
+          transform: "translate(-50%, -50%)",
+          zIndex: 201,
+          background: "var(--card)",
+          border: "1px solid var(--border)",
+          borderRadius: 16,
+          padding: 20,
+          width: 320,
+          maxWidth: "90vw",
+          maxHeight: "70vh",
+          overflowY: "auto",
+        }}>
+          {/* Close */}
+          <div
+            onClick={() => setSelectedDate(null)}
+            style={{
+              position: "absolute", top: 12, right: 12,
+              width: 28, height: 28, borderRadius: "50%",
+              background: "var(--border)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: "pointer",
+            }}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--t4)" strokeWidth="2" strokeLinecap="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </div>
+
+          {/* Header */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 11, color: "var(--t5)", letterSpacing: 2, fontWeight: 500 }}>
+              {selectedDate.toLocaleDateString("en-US", { weekday: "long" }).toUpperCase()}
+            </div>
+            <div style={{ fontSize: 32, fontWeight: 700, color: isToday ? "var(--accent)" : "var(--t1)", lineHeight: 1.2 }}>
+              {selectedDate.getDate()}
+            </div>
+            <div style={{ fontSize: 12, color: "var(--t4)" }}>
+              {selectedDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+            </div>
+          </div>
+
+          {/* Tasks for this day */}
+          {dayTasks.length > 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {dayTasks.map((t) => (
+                <div key={t.id} style={{
+                  display: "flex", alignItems: "center", gap: 10,
+                  padding: "10px 12px", borderRadius: 10,
+                  background: "var(--bg)",
+                  border: "1px solid var(--border)",
+                  opacity: t.isDone ? 0.4 : 1,
+                }}>
+                  <div style={{
+                    width: 4, minHeight: 24, borderRadius: 2,
+                    background: t.isRest ? "var(--rest, #6b8a7a)" : "var(--accent)",
+                    flexShrink: 0, alignSelf: "stretch",
+                  }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{
+                      fontSize: 13, fontWeight: 500, color: "var(--t1)",
+                      textDecoration: t.isDone ? "line-through" : "none",
+                    }}>{t.name}</div>
+                    <div style={{ fontSize: 11, color: "var(--t5)", marginTop: 2 }}>
+                      {getDisplayTime(t)} · {t.duration}min
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{
+              textAlign: "center", padding: "24px 0",
+              color: "var(--t5)", fontSize: 13,
+            }}>
+              {isToday ? "No tasks scheduled today" : "No events scheduled on this day."}
+            </div>
+          )}
+
+          {/* Quick actions */}
+          <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
+            <div
+              onClick={() => { setViewDate(new Date(selectedDate)); setViewMode("day"); setSelectedDate(null); }}
+              className="tap"
+              style={{
+                flex: 1, padding: 10, borderRadius: 8,
+                background: "var(--accent)", textAlign: "center",
+                fontSize: 12, fontWeight: 600, color: "#0a0a0a",
+                cursor: "pointer",
+              }}
+            >
+              View day
+            </div>
+            <div
+              onClick={() => setSelectedDate(null)}
+              className="tap"
+              style={{
+                flex: 1, padding: 10, borderRadius: 8,
+                border: "1px solid var(--border)", textAlign: "center",
+                fontSize: 12, fontWeight: 500, color: "var(--t4)",
+                cursor: "pointer",
+              }}
+            >
+              Close
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  };
 
   return (
     <div className="day-timeline" style={{
@@ -492,6 +699,7 @@ export default function DayTimeline({
       {viewMode === "month" && renderMonth()}
       {viewMode === "year" && renderYear()}
       {viewMode === "schedule" && renderSchedule()}
+      {renderDatePopup()}
     </div>
   );
 }
