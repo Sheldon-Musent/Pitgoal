@@ -848,7 +848,8 @@ const getTypeLabel = (typeId: string): string => {
     if (!container) return;
     const cell = container.querySelector(`[data-didx="${idx}"]`) as HTMLElement;
     if (!cell) return;
-    cell.scrollIntoView({ inline: "center", block: "nearest", behavior: smooth ? "smooth" : "auto" });
+    const scrollTarget = cell.offsetLeft - container.offsetWidth / 2 + cell.offsetWidth / 2;
+    container.scrollTo({ left: Math.max(0, scrollTarget), behavior: smooth ? "smooth" : "auto" });
   }, [allDates, selectedDate]);
 
   // On mount: scroll to today instantly
@@ -997,13 +998,27 @@ const getTypeLabel = (typeId: string): string => {
                       onClick={() => {
                         const now = Date.now();
                         if (now - lastDateTapRef.current < 300) {
+                          // Clear any pending snap timer from the first tap
+                          if (dateSnapTimer.current) {
+                            clearTimeout(dateSnapTimer.current);
+                            dateSnapTimer.current = null;
+                          }
                           const todayDate = new Date();
+                          todayDate.setHours(0, 0, 0, 0);
                           setSelectedDate(todayDate);
                           setViewMonth(todayDate.getMonth());
                           setViewYear(todayDate.getFullYear());
                           lastDateTapRef.current = 0;
-                          // Snap to center immediately on double-tap
-                          setTimeout(() => scrollDateToCenter(true), 50);
+                          // Scroll to today cell directly
+                          setTimeout(() => {
+                            const ctr = dateStripScrollRef.current;
+                            const todayIdx = allDates.findIndex(dd => isSameDay(dd, todayDate));
+                            const cell = ctr?.querySelector(`[data-didx="${todayIdx}"]`) as HTMLElement;
+                            if (cell && ctr) {
+                              const target = cell.offsetLeft - ctr.offsetWidth / 2 + cell.offsetWidth / 2;
+                              ctr.scrollTo({ left: Math.max(0, target), behavior: "smooth" });
+                            }
+                          }, 50);
                           return;
                         }
                         lastDateTapRef.current = now;
@@ -1013,8 +1028,12 @@ const getTypeLabel = (typeId: string): string => {
                         // Delayed snap: highlight instantly, scroll to center after 0.5s
                         if (dateSnapTimer.current) clearTimeout(dateSnapTimer.current);
                         dateSnapTimer.current = setTimeout(() => {
-                          const cell = dateStripScrollRef.current?.querySelector(`[data-didx="${idx}"]`) as HTMLElement;
-                          if (cell) cell.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+                          const ctr = dateStripScrollRef.current;
+                          const cell = ctr?.querySelector(`[data-didx="${idx}"]`) as HTMLElement;
+                          if (cell && ctr) {
+                            const target = cell.offsetLeft - ctr.offsetWidth / 2 + cell.offsetWidth / 2;
+                            ctr.scrollTo({ left: Math.max(0, target), behavior: "smooth" });
+                          }
                         }, 500);
                       }}
                       style={{
