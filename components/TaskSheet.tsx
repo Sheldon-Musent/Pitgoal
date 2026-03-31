@@ -203,9 +203,21 @@ export default function TaskSheet({ children, marLabelRef, navHeight = 72, isDes
           }} />
         </div>
         {/* Task content */}
-        <div ref={contentRef}>
+        <div ref={contentRef} style={{ padding: "0 6px" }}>
           {children}
         </div>
+        {/* Bottom fade gradient — inside sheet, fixed to bottom */}
+        <div style={{
+          position: "sticky",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: 80,
+          background: "linear-gradient(to bottom, transparent, #0a0a0a)",
+          pointerEvents: "none",
+          marginTop: -80,
+          zIndex: 2,
+        }} />
       </div>
     </>
   );
