@@ -846,33 +846,20 @@ const getTypeLabel = (typeId: string): string => {
     const container = dateStripScrollRef.current;
     if (!container) return;
 
-    let attempts = 0;
-    const tryScroll = () => {
-      attempts++;
-      const items = container.children;
-      if (!items || items.length === 0) {
-        if (attempts < 20) setTimeout(tryScroll, 50);
-        return;
-      }
-      const centerIndex = allDates.findIndex(d => isSameDay(d, selectedDate));
-      if (centerIndex < 0 || !items[centerIndex]) {
-        if (attempts < 20) setTimeout(tryScroll, 50);
-        return;
-      }
-      const child = items[centerIndex] as HTMLElement;
-      const containerWidth = container.offsetWidth;
-      if (containerWidth === 0) {
-        if (attempts < 20) setTimeout(tryScroll, 50);
-        return;
-      }
-      const scrollTarget = child.offsetLeft - containerWidth / 2 + child.offsetWidth / 2;
-      container.scrollTo({
-        left: Math.max(0, scrollTarget),
+    const cellId = `dscell-${selectedDate.getFullYear()}-${selectedDate.getMonth()}-${selectedDate.getDate()}`;
+    const doScroll = () => {
+      const el = document.getElementById(cellId);
+      if (!el) return;
+      el.scrollIntoView({
+        inline: "center",
+        block: "nearest",
         behavior: dateStripInitialScroll.current ? "smooth" : "auto",
       });
       dateStripInitialScroll.current = true;
     };
-    setTimeout(tryScroll, 50);
+    // Try immediately, then retry after layout
+    doScroll();
+    setTimeout(doScroll, 150);
   }, [selectedDate, allDates, loaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Edge dim: fade dates at edges of visible scroll area
@@ -880,7 +867,10 @@ const getTypeLabel = (typeId: string): string => {
     const container = dateStripScrollRef.current;
     if (!container) return;
 
+    let rafId = 0;
     const updateEdgeDim = () => {
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
       const items = container.children;
       const rect = container.getBoundingClientRect();
       const fadeZone = 50; // px from edge where dimming starts
@@ -901,11 +891,12 @@ const getTypeLabel = (typeId: string): string => {
           item.style.opacity = "1";
         }
       }
+      });
     };
 
     updateEdgeDim();
     container.addEventListener("scroll", updateEdgeDim, { passive: true });
-    return () => container.removeEventListener("scroll", updateEdgeDim);
+    return () => { container.removeEventListener("scroll", updateEdgeDim); cancelAnimationFrame(rafId); };
   }, [allDates]);
 
   const handleTabChange = (tab: BottomTab) => setBottomTab(tab);
@@ -1025,7 +1016,7 @@ const getTypeLabel = (typeId: string): string => {
                 const isT = isSameDay(d, today);
                 const isSel = isSameDay(d, selectedDate);
                 return (
-                  <div key={d.getTime()} onClick={() => {
+                  <div id={`dscell-${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`} key={d.getTime()} onClick={() => {
                     const now = Date.now();
                     if (now - lastDateTapRef.current < 300) {
                       const todayDate = new Date();
