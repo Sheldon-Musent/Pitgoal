@@ -312,5 +312,47 @@ input[type="number"] {
   }
 }
 
+/* Draggable task sheet — mobile only */
+@media (max-width: 767px) {
+  .task-sheet-mobile {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    will-change: top, left, right, border-radius;
+    z-index: 10;
+    border-bottom: none;
+  }
+
+  .task-sheet-mobile .task-sheet-handle {
+    display: flex;
+    justify-content: center;
+    padding: 10px 0 6px;
+    cursor: grab;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+}
+
+@media (min-width: 768px) {
+  .task-sheet-mobile {
+    /* Desktop: no sheet behavior */
+    position: static !important;
+    left: auto !important;
+    right: auto !important;
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
+  }
+
+  .task-sheet-handle {
+    display: none !important;
+  }
+}
+
 /* Date strip needs manual scroll control — override smooth */
 .no-scrollbar { scroll-behavior: auto; }

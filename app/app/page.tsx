@@ -28,6 +28,7 @@ import SideNav from "../../components/SideNav";
 import DayTimeline from "../../components/DayTimeline";
 import ResizableLayout from "../../components/ResizableLayout";
 import StatCards, { waveValues, getChargingColor } from "../../components/StatCards";
+import TaskSheet from "../../components/TaskSheet";
 
 // ── Energy system constants ──
 const IDLE_RATE = 0.5;
@@ -154,6 +155,7 @@ export default function Home() {
   const swipeCurrentX = useRef<number>(0);
   const swipeDelta = useRef<number>(0);
   const monthScrollRef = useRef<HTMLDivElement>(null);
+  const marLabelRef = useRef<HTMLDivElement>(null);
   const suggestTimer = useRef<any>(null);
   const today = useMemo(() => new Date(), []);
 
@@ -1113,7 +1115,7 @@ const getTypeLabel = (typeId: string): string => {
               </div>
             </div>
             {/* Month label */}
-            <div className="tap" onClick={() => setMonthPickerOpen(!monthPickerOpen)} style={{ textAlign: "center", marginTop: 8, cursor: "pointer" }}>
+            <div ref={marLabelRef} className="tap" onClick={() => setMonthPickerOpen(!monthPickerOpen)} style={{ textAlign: "center", marginTop: 8, cursor: "pointer" }}>
               <span style={{ fontSize: 10, color: "var(--t5)", fontFamily: MONO, letterSpacing: 1, fontWeight: 600 }}>{MONTHS_SHORT[selectedDate.getMonth()]} {selectedDate.getFullYear()} ▾</span>
             </div>
             {/* Month picker overlay — centered fixed modal */}
@@ -1143,6 +1145,7 @@ const getTypeLabel = (typeId: string): string => {
             )}
           </div>
 
+          <TaskSheet marLabelRef={marLabelRef} navHeight={72} isDesktop={isDesktop}>
           {/* ═══ FILTER BAR — DATE + custom tags ═══ */}
           <div
             className="no-scrollbar"
@@ -1678,6 +1681,7 @@ const getTypeLabel = (typeId: string): string => {
               )}
             </>
           )}
+          </TaskSheet>
         </div>
       )}
 
