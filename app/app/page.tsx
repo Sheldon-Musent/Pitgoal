@@ -972,7 +972,7 @@ const getTypeLabel = (typeId: string): string => {
 
   const appContent = (
     <div className="app-content" style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", maxWidth: isDesktop ? "none" : 430, margin: isDesktop ? 0 : "0 auto", width: isDesktop ? "auto" : "100%" }}>
-    <div className="scroll-content" style={{ flex: 1, overflowY: "auto", overflowX: "hidden", WebkitOverflowScrolling: "touch" as any, paddingBottom: hasActivePopup ? 200 : 100, paddingTop: "env(safe-area-inset-top, 0px)", position: "relative", minHeight: 0 }}>
+    <div className="scroll-content" style={{ flex: 1, overflowY: (bottomTab === "main" && !isDesktop) ? "hidden" : "auto", overflowX: "hidden", WebkitOverflowScrolling: "touch" as any, paddingBottom: hasActivePopup ? 200 : 100, paddingTop: "env(safe-area-inset-top, 0px)", position: "relative", minHeight: 0 }}>
 
       {/* ── MAIN TAB ── */}
       {bottomTab === "main" && (
