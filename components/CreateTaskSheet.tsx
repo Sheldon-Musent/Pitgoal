@@ -71,15 +71,14 @@ export default function CreateTaskSheet({
   const [selectedType, setSelectedType] = useState("task");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [time, setTime] = useState("");
-  const [duration, setDuration] = useState("");
+  const [durationHrs, setDurationHrs] = useState("0");
+  const [durationMin, setDurationMin] = useState("60");
   const [addPopup, setAddPopup] = useState<"type" | "tag" | null>(null);
   const [newLabel, setNewLabel] = useState("");
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const popupInputRef = useRef<HTMLInputElement>(null);
-  const touchStartY = useRef(0);
-  const touchDelta = useRef(0);
 
   const allTypes = [...DEFAULT_TYPES, ...customTypes];
   const allTags = [...DEFAULT_TAGS, ...customTags];
@@ -88,7 +87,7 @@ export default function CreateTaskSheet({
     if (open) {
       setTimeout(() => inputRef.current?.focus(), 100);
       setName(""); setDesc(""); setSelectedType("task"); setSelectedTags([]);
-      setTime(""); setDuration(""); setAddPopup(null); setNewLabel(""); setConfirmDeleteId(null);
+      setTime(""); setDurationHrs("0"); setDurationMin("60"); setAddPopup(null); setNewLabel(""); setConfirmDeleteId(null);
     }
   }, [open]);
 
@@ -148,7 +147,13 @@ export default function CreateTaskSheet({
     onInputChange(val);
     const { parsedTime, parsedDur, parsedTags } = parseInline(val);
     if (parsedTime && !time) setTime(parsedTime);
-    if (parsedDur && !duration) setDuration(parsedDur);
+    if (parsedDur && !(durationHrs !== "0" || durationMin !== "60")) {
+      const mins = parseInt(parsedDur);
+      if (!isNaN(mins)) {
+        setDurationHrs(String(Math.floor(mins / 60)));
+        setDurationMin(String(mins % 60));
+      }
+    }
     if (parsedTags.length > 0) setSelectedTags((prev) => [...new Set([...prev, ...parsedTags])]);
   };
 
@@ -163,19 +168,23 @@ export default function CreateTaskSheet({
     const now = new Date();
     const fallbackTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
     const [h, m] = (time || fallbackTime).split(":").map(Number);
+    const totalMinutes = (parseInt(durationHrs || "0", 10) * 60) + parseInt(durationMin || "0", 10);
     onCreateTask({
       name: taskName, type: selectedType, tags: selectedTags, desc: desc.trim(),
       time: time || fallbackTime,
       timeMin: (h || 0) * 60 + (m || 0),
-      duration: parseInt(duration) || 60,
+      duration: totalMinutes || 60,
     });
     setName(""); setDesc(""); setSelectedType("task"); setSelectedTags([]);
-    setTime(""); setDuration(""); onClose();
+    setTime(""); setDurationHrs("0"); setDurationMin("60"); onClose();
   };
 
   const handlePickSuggestion = (s: any) => {
     setName(s.name);
-    if (s.duration) setDuration(String(s.duration));
+    if (s.duration) {
+      setDurationHrs(String(Math.floor(s.duration / 60)));
+      setDurationMin(String(s.duration % 60));
+    }
     if (s.type) setSelectedType(s.type);
     onInputChange("");
   };
@@ -214,9 +223,29 @@ export default function CreateTaskSheet({
     }
   };
 
-  const onTouchStart = (e: React.TouchEvent) => { touchStartY.current = e.touches[0].clientY; };
-  const onTouchMove = (e: React.TouchEvent) => { touchDelta.current = e.touches[0].clientY - touchStartY.current; };
-  const onTouchEnd = () => { if (touchDelta.current > 80) onClose(); touchDelta.current = 0; };
+  const handleDurationHrsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value.replace(/\D/g, "");
+    setDurationHrs(val);
+  };
+
+  const handleDurationMinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value.replace(/\D/g, "");
+    if (val.length === 4) {
+      const hrs = parseInt(val.slice(0, 2), 10);
+      const mins = parseInt(val.slice(2, 4), 10);
+      setDurationHrs(String(hrs));
+      setDurationMin(String(mins));
+      return;
+    }
+    if (val.length === 3) {
+      const hrs = parseInt(val.slice(0, 1), 10);
+      const mins = parseInt(val.slice(1, 3), 10);
+      setDurationHrs(String(hrs));
+      setDurationMin(String(mins));
+      return;
+    }
+    setDurationMin(val);
+  };
 
   const fmtDur = (m: number) => m >= 60 ? (m % 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${Math.floor(m / 60)}h`) : `${m}m`;
 
@@ -230,24 +259,36 @@ export default function CreateTaskSheet({
   const defaultIds = addPopup === "type" ? DEFAULT_TYPE_IDS : DEFAULT_TAG_IDS;
   const isRound = addPopup === "type";
 
+  const sectionLabelStyle: React.CSSProperties = {
+    fontSize: 10,
+    fontWeight: 600,
+    letterSpacing: 2,
+    color: "var(--t5)",
+    marginBottom: 10,
+    textTransform: "uppercase",
+    fontFamily: MONO,
+  };
+
   return (
     <>
       {/* Overlay */}
       <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 200, animation: "fadeIn 0.2s ease" }} />
 
-      {/* Sheet */}
-      <div onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} style={{
-        position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 201, maxWidth: 500, margin: "0 auto",
-        background: "var(--card)", borderRadius: "24px 24px 0 0", border: "1px solid var(--border)", borderBottom: "none",
-        padding: "0 0 env(safe-area-inset-bottom, 16px)", animation: "sheetUp 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-        maxHeight: "85vh", overflowY: "auto",
-      }}>
-        <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 6px" }}>
-          <div style={{ width: 36, height: 4, borderRadius: 2, background: "var(--border2)" }} />
-        </div>
-
-        <div style={{ padding: "0 20px 20px" }}>
-          <div style={{ fontSize: 16, fontWeight: 700, color: "var(--t1)", fontFamily: DISPLAY, marginBottom: 16 }}>New task</div>
+      {/* Popup container */}
+      <div style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 201 }}>
+        <div className="create-popup" style={{
+          width: 320, maxHeight: "80vh", overflowY: "auto",
+          scrollbarWidth: "none", msOverflowStyle: "none" as any, WebkitOverflowScrolling: "touch" as any,
+          background: "rgba(28,28,30,0.65)",
+          backdropFilter: "blur(30px) saturate(180%)",
+          WebkitBackdropFilter: "blur(30px) saturate(180%)",
+          border: "1px solid rgba(255,255,255,0.12)",
+          borderRadius: 20,
+          padding: "24px 20px 20px",
+          animation: "popInCenter 0.2s ease",
+        }}>
+          {/* ── Title ── */}
+          <div style={sectionLabelStyle}>NEW TASK</div>
 
           {/* ── Name input + attached suggestions ── */}
           <div style={{ marginBottom: 14 }}>
@@ -259,16 +300,16 @@ export default function CreateTaskSheet({
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                 <input ref={inputRef} value={name}
-                  maxLength={60}
+                  maxLength={50}
                   onChange={(e) => handleNameChange(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleCreate()}
                   placeholder="Task name..."
                   style={{ flex: 1, background: "none", border: "none", color: "var(--t1)", fontSize: 15, fontFamily: BODY, outline: "none" }}
                 />
-                {name.length >= 45 && (
-                  <span style={{ fontSize: 9, color: "var(--t5)", fontFamily: MONO, flexShrink: 0 }}>{name.length}/60</span>
-                )}
               </div>
+            </div>
+            <div style={{ fontSize: 9, color: "var(--t5)", textAlign: "right", marginTop: 4, opacity: 0.5 }}>
+              {name.length} / 50
             </div>
             {hasSuggestions && (
               <div style={{
@@ -300,8 +341,9 @@ export default function CreateTaskSheet({
 
           {/* ── Description ── */}
           <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 10, color: "var(--t5)", fontFamily: MONO, letterSpacing: 1, marginBottom: 8 }}>DESCRIPTION</div>
+            <div style={sectionLabelStyle}>DESCRIPTION</div>
             <textarea value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Task details / notes (optional)..."
+              maxLength={120}
               rows={2}
               style={{
                 width: "100%", background: "var(--bg)", borderRadius: 12, border: "1px solid var(--border2)",
@@ -309,11 +351,14 @@ export default function CreateTaskSheet({
                 resize: "vertical", minHeight: 56, lineHeight: 1.5,
               }}
             />
+            <div style={{ fontSize: 9, color: "var(--t5)", textAlign: "right", marginTop: 4, opacity: 0.5 }}>
+              {desc.length} / 120
+            </div>
           </div>
 
           {/* ── TYPE ── */}
           <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 10, color: "var(--t5)", fontFamily: MONO, letterSpacing: 1, marginBottom: 8 }}>TYPE</div>
+            <div style={sectionLabelStyle}>TYPE</div>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
               {allTypes.map((t) => {
                 const sel = selectedType === t.id;
@@ -339,66 +384,96 @@ export default function CreateTaskSheet({
           </div>
 
           {/* ── TAGS ── */}
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 10, color: "var(--t5)", fontFamily: MONO, letterSpacing: 1, marginBottom: 8 }}>TAGS</div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+          <div style={{ marginBottom: 0 }}>
+            <div style={sectionLabelStyle}>TAGS</div>
+            <div className="tag-scroll" style={{
+              display: "flex", gap: 6, overflowX: "auto", scrollbarWidth: "none",
+              msOverflowStyle: "none" as any, paddingBottom: 4, WebkitOverflowScrolling: "touch" as any,
+            }}>
               {allTags.map((t) => {
                 const sel = selectedTags.includes(t.id);
                 return (
-                  <div key={t.id} className="tap pill-no-select" onClick={() => toggleTag(t.id)} style={{
-                    padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600, fontFamily: MONO,
-                    cursor: "pointer", transition: "all 0.15s",
-                    background: sel ? `${t.color}22` : "transparent",
-                    color: sel ? t.color : "var(--t5)",
-                    border: `1.5px solid ${sel ? `${t.color}55` : "var(--border2)"}`,
-                  }}>{t.label}</div>
+                  <button key={t.id} onClick={() => toggleTag(t.id)} style={{
+                    flexShrink: 0, padding: "5px 12px", fontSize: 10, borderRadius: 16,
+                    fontWeight: 600, letterSpacing: 1, cursor: "pointer",
+                    border: `1px solid ${sel ? "var(--accent-40, rgba(250,204,21,0.5))" : "var(--border)"}`,
+                    background: sel ? "rgba(250,204,21,0.08)" : "rgba(255,255,255,0.04)",
+                    color: sel ? "var(--accent, #facc15)" : "var(--t5)",
+                    whiteSpace: "nowrap", fontFamily: "inherit", textTransform: "uppercase",
+                  }}>{t.label}</button>
                 );
               })}
-              <div className="tap" onClick={() => setAddPopup("tag")} style={{
-                width: 30, height: 30, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center",
-                border: "1px dashed var(--border2)", cursor: "pointer",
+              <button onClick={() => setAddPopup("tag")} style={{
+                flexShrink: 0, padding: "5px 8px", borderRadius: 16,
+                border: "1px solid var(--border)", background: "rgba(255,255,255,0.04)",
+                cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
               }}>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--t5)" strokeWidth="2.5" strokeLinecap="round">
                   <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
                 </svg>
-              </div>
+              </button>
+            </div>
+            <div style={{ fontSize: 9, color: "var(--t5)", opacity: 0.4, marginTop: 4, marginBottom: 14 }}>
+              swipe for more · {allTags.length} tags
             </div>
           </div>
 
+          {/* ── Divider ── */}
+          <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "16px 0" }} />
+
           {/* ── TIME + DURATION ── */}
           <div style={{ marginBottom: 18 }}>
-            <div style={{ fontSize: 10, color: "var(--t5)", fontFamily: MONO, letterSpacing: 1, marginBottom: 8 }}>TIME + DURATION</div>
+            <div style={sectionLabelStyle}>TIME + DURATION</div>
             <div style={{ display: "flex", gap: 8 }}>
+              {/* TIME */}
               <div style={{ flex: 1, background: "var(--bg)", borderRadius: 12, border: "1px solid var(--border2)", padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <span style={{ fontSize: 11, color: "var(--t5)", fontFamily: MONO }}>TIME</span>
                 <input type="time" value={time} onChange={(e) => setTime(e.target.value)}
                   style={{ background: "none", border: "none", color: "var(--accent)", fontSize: 14, fontWeight: 600, fontFamily: MONO, outline: "none", width: 80, textAlign: "right" }} />
               </div>
-              <div style={{ flex: 1, background: "var(--bg)", borderRadius: 12, border: "1px solid var(--border2)", padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span style={{ fontSize: 11, color: "var(--t5)", fontFamily: MONO }}>MIN</span>
-                <input type="number" value={duration} onChange={(e) => setDuration(e.target.value)} placeholder="60"
-                  style={{ background: "none", border: "none", color: "var(--accent)", fontSize: 14, fontWeight: 600, fontFamily: MONO, outline: "none", width: 60, textAlign: "right" }} />
+              {/* HRS */}
+              <div style={{
+                display: "flex", alignItems: "center", gap: 4,
+                background: "var(--bg, rgba(255,255,255,0.04))", border: "1px solid var(--border)",
+                borderRadius: 12, padding: "10px 12px", minWidth: 62, justifyContent: "center",
+              }}>
+                <span style={{ fontSize: 10, color: "var(--t5)", fontWeight: 600, letterSpacing: 1, fontFamily: MONO }}>HRS</span>
+                <input value={durationHrs} onChange={handleDurationHrsChange} inputMode="numeric"
+                  style={{ width: 24, background: "none", border: "none", color: "var(--t1)", fontSize: 15, fontWeight: 600, textAlign: "center", fontFamily: "inherit", outline: "none" }}
+                />
+              </div>
+              {/* MIN */}
+              <div style={{
+                display: "flex", alignItems: "center", gap: 4,
+                background: "var(--bg, rgba(255,255,255,0.04))", border: "1px solid var(--border)",
+                borderRadius: 12, padding: "10px 12px", minWidth: 62, justifyContent: "center",
+              }}>
+                <span style={{ fontSize: 10, color: "var(--t5)", fontWeight: 600, letterSpacing: 1, fontFamily: MONO }}>MIN</span>
+                <input value={durationMin} onChange={handleDurationMinChange} inputMode="numeric"
+                  style={{ width: 28, background: "none", border: "none", color: "var(--t1)", fontSize: 15, fontWeight: 600, textAlign: "center", fontFamily: "inherit", outline: "none" }}
+                />
               </div>
             </div>
-            <div style={{ fontSize: 10, color: "var(--t6)", fontFamily: MONO, marginTop: 6 }}>
-              or type inline: &quot;study C 2pm 1.5h&quot; still works
+            <div style={{ fontSize: 9, color: "var(--t5)", opacity: 0.4, marginTop: 6, marginBottom: 20 }}>
+              type 0130 → 1h 30m · or inline &quot;study @ 2pm 1.5h&quot;
             </div>
           </div>
 
           {/* ── Buttons ── */}
-          <div style={{ display: "flex", gap: 8 }}>
-            <div className="tap" onClick={handleCreate} style={{
-              flex: 1, background: "var(--accent)", borderRadius: 14, padding: 14, textAlign: "center",
-              fontSize: 14, fontWeight: 700, color: "var(--fill-title)", fontFamily: DISPLAY, cursor: "pointer",
-            }}>Create task</div>
-            <div className="tap" onClick={onClose} style={{
-              width: 50, background: "var(--card2)", borderRadius: 14, border: "1px solid var(--border)",
-              display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            <button onClick={handleCreate} style={{
+              flex: 1, background: "var(--accent, #facc15)", borderRadius: 14, padding: 14, textAlign: "center",
+              fontSize: 15, fontWeight: 700, color: "#0a0a0a", border: "none", cursor: "pointer", fontFamily: "inherit",
+            }}>Create task</button>
+            <button onClick={onClose} style={{
+              width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center",
+              borderRadius: "50%", background: "rgba(255,255,255,0.06)", border: "none", cursor: "pointer",
             }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--t4)" strokeWidth="2" strokeLinecap="round">
-                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <line x1="3" y1="3" x2="11" y2="11" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" strokeLinecap="round"/>
+                <line x1="11" y1="3" x2="3" y2="11" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" strokeLinecap="round"/>
               </svg>
-            </div>
+            </button>
           </div>
         </div>
       </div>
@@ -410,102 +485,109 @@ export default function CreateTaskSheet({
             position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 300, animation: "fadeIn 0.15s ease",
           }} />
           <div style={{
-            position: "fixed", bottom: "25%", left: "50%", transform: "translateX(-50%)",
-            width: "calc(100% - 48px)", maxWidth: 380, zIndex: 301,
-            background: "var(--card)", borderRadius: 20, border: "1px solid var(--border)",
-            padding: "24px 20px", animation: "popIn 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+            position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 301,
           }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: "var(--t1)", fontFamily: DISPLAY, marginBottom: 16 }}>
-              Add custom {addPopup}
-            </div>
-
-            {/* Input */}
             <div style={{
-              background: "var(--bg)", borderRadius: 12,
-              border: `1px solid ${addPopup === "type" ? "var(--accent-30)" : "var(--pink-30)"}`,
-              padding: "14px 16px", marginBottom: 16,
+              width: "calc(100% - 48px)", maxWidth: 380,
+              background: "rgba(28,28,30,0.65)",
+              backdropFilter: "blur(30px) saturate(180%)",
+              WebkitBackdropFilter: "blur(30px) saturate(180%)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              borderRadius: 20,
+              padding: "24px 20px", animation: "popInCenter 0.2s ease",
             }}>
-              <input ref={popupInputRef} value={newLabel}
-                onChange={(e) => setNewLabel(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") confirmAddPopup(); if (e.key === "Escape") { setAddPopup(null); setNewLabel(""); } }}
-                placeholder={`${addPopup === "type" ? "Type" : "Tag"} name...`}
-                style={{ width: "100%", background: "none", border: "none", color: "var(--t1)", fontSize: 16, fontFamily: MONO, outline: "none", textTransform: "uppercase", letterSpacing: 1 }}
-              />
-            </div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--t1)", fontFamily: DISPLAY, marginBottom: 16 }}>
+                Add custom {addPopup}
+              </div>
 
-            {/* Existing items with delete on custom */}
-            <div style={{ fontSize: 10, color: "var(--t5)", fontFamily: MONO, letterSpacing: 1, marginBottom: 10 }}>
-              {newLabel.trim() ? "PREVIEW" : "EXISTING"}
-            </div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: 20 }}>
-              {popupItems.map((t) => {
-                const isCustom = !defaultIds.has(t.id);
-                const isConfirming = confirmDeleteId === t.id;
-                return (
-                  <div key={t.id} style={{ position: "relative", display: "flex", alignItems: "center" }}>
-                    <div style={{
-                      padding: isRound ? "7px 16px" : "6px 12px",
-                      paddingRight: isCustom ? (isRound ? 28 : 24) : undefined,
-                      borderRadius: isRound ? 100 : 8,
-                      fontFamily: MONO, fontSize: 11, fontWeight: isCustom ? 700 : 600,
-                      letterSpacing: isRound ? 1 : 0,
-                      background: isCustom ? `${t.color}22` : "transparent",
-                      color: isCustom ? t.color : "var(--t5)",
-                      border: isCustom ? `1.5px solid ${t.color}55` : "1px solid var(--border2)",
-                      display: "flex", alignItems: "center", gap: 6,
-                    }}>
-                      {t.label}
-                      {isCustom && (
-                        <div className="tap" onClick={(e) => { e.stopPropagation(); handleDeleteInPopup(t.id); }}
-                          style={{
-                            width: 16, height: 16, borderRadius: "50%",
-                            background: isConfirming ? "var(--danger)" : "var(--danger-10)",
-                            display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
-                            transition: "all 0.15s",
-                          }}>
-                          <svg width="8" height="8" viewBox="0 0 24 24" fill="none"
-                            stroke={isConfirming ? "#fff" : "var(--danger)"} strokeWidth="3" strokeLinecap="round">
-                            <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-                          </svg>
-                        </div>
+              {/* Input */}
+              <div style={{
+                background: "var(--bg)", borderRadius: 12,
+                border: `1px solid ${addPopup === "type" ? "var(--accent-30)" : "var(--pink-30)"}`,
+                padding: "14px 16px", marginBottom: 16,
+              }}>
+                <input ref={popupInputRef} value={newLabel}
+                  onChange={(e) => setNewLabel(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") confirmAddPopup(); if (e.key === "Escape") { setAddPopup(null); setNewLabel(""); } }}
+                  placeholder={`${addPopup === "type" ? "Type" : "Tag"} name...`}
+                  style={{ width: "100%", background: "none", border: "none", color: "var(--t1)", fontSize: 16, fontFamily: MONO, outline: "none", textTransform: "uppercase", letterSpacing: 1 }}
+                />
+              </div>
+
+              {/* Existing items with delete on custom */}
+              <div style={{ fontSize: 10, color: "var(--t5)", fontFamily: MONO, letterSpacing: 1, marginBottom: 10 }}>
+                {newLabel.trim() ? "PREVIEW" : "EXISTING"}
+              </div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: 20 }}>
+                {popupItems.map((t) => {
+                  const isCustom = !defaultIds.has(t.id);
+                  const isConfirming = confirmDeleteId === t.id;
+                  return (
+                    <div key={t.id} style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                      <div style={{
+                        padding: isRound ? "7px 16px" : "6px 12px",
+                        paddingRight: isCustom ? (isRound ? 28 : 24) : undefined,
+                        borderRadius: isRound ? 100 : 8,
+                        fontFamily: MONO, fontSize: 11, fontWeight: isCustom ? 700 : 600,
+                        letterSpacing: isRound ? 1 : 0,
+                        background: isCustom ? `${t.color}22` : "transparent",
+                        color: isCustom ? t.color : "var(--t5)",
+                        border: isCustom ? `1.5px solid ${t.color}55` : "1px solid var(--border2)",
+                        display: "flex", alignItems: "center", gap: 6,
+                      }}>
+                        {t.label}
+                        {isCustom && (
+                          <div className="tap" onClick={(e) => { e.stopPropagation(); handleDeleteInPopup(t.id); }}
+                            style={{
+                              width: 16, height: 16, borderRadius: "50%",
+                              background: isConfirming ? "var(--danger)" : "var(--danger-10)",
+                              display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
+                              transition: "all 0.15s",
+                            }}>
+                            <svg width="8" height="8" viewBox="0 0 24 24" fill="none"
+                              stroke={isConfirming ? "#fff" : "var(--danger)"} strokeWidth="3" strokeLinecap="round">
+                              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                            </svg>
+                          </div>
+                        )}
+                      </div>
+                      {isConfirming && (
+                        <span style={{ position: "absolute", top: -8, right: -4, fontSize: 8, color: "var(--danger)", fontFamily: MONO, fontWeight: 700, whiteSpace: "nowrap" }}>tap to confirm</span>
                       )}
                     </div>
-                    {isConfirming && (
-                      <span style={{ position: "absolute", top: -8, right: -4, fontSize: 8, color: "var(--danger)", fontFamily: MONO, fontWeight: 700, whiteSpace: "nowrap" }}>tap to confirm</span>
-                    )}
-                  </div>
-                );
-              })}
-              {/* Preview new item */}
-              {newLabel.trim() && (
-                <>
-                  <div style={{
-                    padding: isRound ? "7px 16px" : "6px 12px",
-                    borderRadius: isRound ? 100 : 8,
-                    fontFamily: MONO, fontSize: 11, fontWeight: 700, letterSpacing: isRound ? 1 : 0,
-                    background: `${previewColor}22`, color: previewColor,
-                    border: `1.5px solid ${previewColor}55`,
-                  }}>{newLabel.trim().toUpperCase()}</div>
-                  <span style={{ fontSize: 9, color: "var(--accent)", fontFamily: MONO }}>new</span>
-                </>
-              )}
-            </div>
+                  );
+                })}
+                {/* Preview new item */}
+                {newLabel.trim() && (
+                  <>
+                    <div style={{
+                      padding: isRound ? "7px 16px" : "6px 12px",
+                      borderRadius: isRound ? 100 : 8,
+                      fontFamily: MONO, fontSize: 11, fontWeight: 700, letterSpacing: isRound ? 1 : 0,
+                      background: `${previewColor}22`, color: previewColor,
+                      border: `1.5px solid ${previewColor}55`,
+                    }}>{newLabel.trim().toUpperCase()}</div>
+                    <span style={{ fontSize: 9, color: "var(--accent)", fontFamily: MONO }}>new</span>
+                  </>
+                )}
+              </div>
 
-            {/* Buttons */}
-            <div style={{ display: "flex", gap: 8 }}>
-              <div className="tap" onClick={confirmAddPopup} style={{
-                flex: 1, background: newLabel.trim() ? "var(--accent)" : "var(--border2)",
-                borderRadius: 12, padding: 12, textAlign: "center", fontSize: 13, fontWeight: 700,
-                color: newLabel.trim() ? "var(--fill-title)" : "var(--t5)", fontFamily: DISPLAY, cursor: "pointer",
-                transition: "all 0.15s",
-              }}>Add {addPopup}</div>
-              <div className="tap" onClick={() => { setAddPopup(null); setNewLabel(""); setConfirmDeleteId(null); }} style={{
-                width: 44, background: "var(--card2)", borderRadius: 12, border: "1px solid var(--border)",
-                display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
-              }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t4)" strokeWidth="2" strokeLinecap="round">
-                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
+              {/* Buttons */}
+              <div style={{ display: "flex", gap: 8 }}>
+                <div className="tap" onClick={confirmAddPopup} style={{
+                  flex: 1, background: newLabel.trim() ? "var(--accent)" : "var(--border2)",
+                  borderRadius: 12, padding: 12, textAlign: "center", fontSize: 13, fontWeight: 700,
+                  color: newLabel.trim() ? "var(--fill-title)" : "var(--t5)", fontFamily: DISPLAY, cursor: "pointer",
+                  transition: "all 0.15s",
+                }}>Add {addPopup}</div>
+                <div className="tap" onClick={() => { setAddPopup(null); setNewLabel(""); setConfirmDeleteId(null); }} style={{
+                  width: 44, background: "var(--card2)", borderRadius: 12, border: "1px solid var(--border)",
+                  display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
+                }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t4)" strokeWidth="2" strokeLinecap="round">
+                    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </div>
               </div>
             </div>
           </div>
@@ -516,6 +598,9 @@ export default function CreateTaskSheet({
         @keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes popIn { from { opacity: 0; transform: translateX(-50%) scale(0.95); } to { opacity: 1; transform: translateX(-50%) scale(1); } }
+        @keyframes popInCenter { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+        .create-popup::-webkit-scrollbar { display: none; }
+        .tag-scroll::-webkit-scrollbar { display: none; }
       `}</style>
     </>
   );

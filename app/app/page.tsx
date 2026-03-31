@@ -843,16 +843,24 @@ const getTypeLabel = (typeId: string): string => {
 
   // Auto-scroll date strip to selected date
   useEffect(() => {
-    const container = dateStripScrollRef.current;
-    if (!container) return;
-    const items = container.children;
-    const centerIndex = allDates.findIndex(d => isSameDay(d, selectedDate));
-    if (centerIndex >= 0 && items[centerIndex]) {
-      const item = items[centerIndex] as HTMLElement;
-      const scrollLeft = item.offsetLeft - container.offsetWidth / 2 + item.offsetWidth / 2;
-      container.scrollTo({ left: scrollLeft, behavior: dateStripInitialScroll.current ? "smooth" : "auto" });
+    const scrollToDate = () => {
+      const container = dateStripScrollRef.current;
+      if (!container) return;
+      const items = container.children;
+      const centerIndex = allDates.findIndex(d => isSameDay(d, selectedDate));
+      if (centerIndex >= 0 && items[centerIndex]) {
+        const item = items[centerIndex] as HTMLElement;
+        const scrollLeft = item.offsetLeft - container.offsetWidth / 2 + item.offsetWidth / 2;
+        container.scrollTo({ left: scrollLeft, behavior: dateStripInitialScroll.current ? "smooth" : "auto" });
+      }
+      dateStripInitialScroll.current = true;
+    };
+    // Use rAF on initial mount to ensure DOM is laid out
+    if (!dateStripInitialScroll.current) {
+      requestAnimationFrame(scrollToDate);
+    } else {
+      scrollToDate();
     }
-    dateStripInitialScroll.current = true;
   }, [selectedDate, allDates, bottomTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Edge dim: fade dates at edges of visible scroll area
@@ -981,7 +989,7 @@ const getTypeLabel = (typeId: string): string => {
           />
 
           {/* ═══ SECTION B: Scrollable Date Strip ═══ */}
-          <div style={{ marginBottom: 8, marginTop: 24, position: "relative" }}>
+          <div style={{ marginBottom: 8, marginTop: 24, position: "relative", display: "flex", justifyContent: "center" }}>
             <div
               ref={dateStripScrollRef}
               className="no-scrollbar"
@@ -998,6 +1006,7 @@ const getTypeLabel = (typeId: string): string => {
                 scrollSnapType: "x mandatory",
                 WebkitOverflowScrolling: "touch" as any,
                 maxWidth: "85%",
+                margin: "0 auto",
               }}
             >
               {allDates.map(d => {
