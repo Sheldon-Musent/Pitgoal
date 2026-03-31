@@ -1,5 +1,5 @@
 "use client";
-import React, { useRef, useEffect, useCallback, useState } from "react";
+import React, { useRef, useEffect } from "react";
 
 interface TaskSheetProps {
   children: React.ReactNode;
@@ -8,21 +8,22 @@ interface TaskSheetProps {
   isDesktop: boolean;
 }
 
-const HANDLE_GAP = 25; // px gap between handle bar and nav top
+const HANDLE_GAP = 25;
 
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * Math.min(1, Math.max(0, t));
 }
 
+function clamp(v: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, v));
+}
+
 export default function TaskSheet({ children, marLabelRef, navHeight = 72, isDesktop }: TaskSheetProps) {
   const sheetRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  // Snap points stored in ref (recalculated on mount/resize)
   const snapsRef = useRef({ FULL: 0, HALF: 200, CLOSED: 500 });
   const currentTopRef = useRef(0);
-  const currentSnapRef = useRef(0); // 0=FULL, 1=HALF, 2=CLOSED
+  const currentSnapRef = useRef(0);
   const draggingRef = useRef(false);
   const startYRef = useRef(0);
   const startTopRef = useRef(0);
@@ -32,53 +33,48 @@ export default function TaskSheet({ children, marLabelRef, navHeight = 72, isDes
     return <div>{children}</div>;
   }
 
+  // Measure snap points from viewport — same as prototype measures from phone frame
   const measure = () => {
-    const container = containerRef.current;
-    if (!container) return;
-    const cRect = container.getBoundingClientRect();
-
     let HALF = 200;
     if (marLabelRef.current) {
       const mRect = marLabelRef.current.getBoundingClientRect();
-      HALF = Math.round(mRect.bottom - cRect.top) + 4;
+      HALF = Math.round(mRect.bottom) + 4;
     }
 
+    let CLOSED = window.innerHeight - navHeight - HANDLE_GAP;
     const navEl = document.querySelector(".nav-fixed");
-    let CLOSED = cRect.height - navHeight - HANDLE_GAP;
     if (navEl) {
       const nRect = navEl.getBoundingClientRect();
-      CLOSED = Math.round(nRect.top - cRect.top) - HANDLE_GAP;
+      CLOSED = Math.round(nRect.top) - HANDLE_GAP;
     }
 
     HALF = Math.max(0, HALF);
+    CLOSED = Math.max(HALF + 50, CLOSED);
     snapsRef.current = { FULL: 0, HALF, CLOSED };
-    // Set container height to fill remaining viewport
-    container.style.minHeight = `${Math.round(window.innerHeight - cRect.top)}px`;
   };
 
+  // Update sheet position + lerped styles — direct port from prototype updateSheet()
   const updateSheet = (top: number) => {
     const sheet = sheetRef.current;
     const content = contentRef.current;
     if (!sheet || !content) return;
 
     const { HALF, CLOSED } = snapsRef.current;
-    let sideGap: number, rad: number, bgA: number, borderA: number, contentOp: number;
+    let sideGap: number, rad: number, closedT: number;
 
     if (top <= HALF) {
       const t = HALF > 0 ? top / HALF : 0;
       sideGap = lerp(0, 10, t);
       rad = lerp(0, 18, t);
-      bgA = lerp(0, 0.85, t);
-      borderA = lerp(0, 0.1, t);
-      contentOp = 1;
     } else {
-      const t = CLOSED > HALF ? (top - HALF) / (CLOSED - HALF) : 0;
-      sideGap = lerp(10, 14, t);
-      rad = lerp(18, 22, t);
-      bgA = lerp(0.85, 0, t);
-      borderA = lerp(0.1, 0, t);
-      contentOp = lerp(1, 0, t);
+      const t2 = (top - HALF) / Math.max(CLOSED - HALF, 1);
+      sideGap = lerp(10, 14, t2);
+      rad = lerp(18, 22, t2);
     }
+
+    closedT = clamp((top - HALF) / Math.max(CLOSED - HALF, 1), 0, 1);
+    const bgA = lerp(0.85, 0, closedT);
+    const borderA = lerp(0.1, 0, closedT);
 
     sheet.style.top = `${top}px`;
     sheet.style.left = `${sideGap}px`;
@@ -86,26 +82,12 @@ export default function TaskSheet({ children, marLabelRef, navHeight = 72, isDes
     sheet.style.borderRadius = `${rad}px ${rad}px 0 0`;
     sheet.style.background = `rgba(28,28,30,${bgA.toFixed(3)})`;
     sheet.style.borderColor = `rgba(255,255,255,${borderA.toFixed(3)})`;
-    content.style.opacity = contentOp.toFixed(3);
+    content.style.opacity = `${(1 - closedT).toFixed(3)}`;
 
-    // Enable scroll only near FULL
-    sheet.style.overflowY = top < HALF * 0.5 ? "auto" : "hidden";
+    // Only allow scroll when fully open
+    sheet.style.overflowY = top < 10 ? "auto" : "hidden";
 
     currentTopRef.current = top;
-  };
-
-  const snapTo = (idx: number) => {
-    const sheet = sheetRef.current;
-    const content = contentRef.current;
-    if (!sheet || !content) return;
-
-    currentSnapRef.current = idx;
-    sheet.style.transition = "all 0.35s cubic-bezier(0.25, 1, 0.5, 1)";
-    content.style.transition = "opacity 0.3s ease";
-
-    const { FULL, HALF, CLOSED } = snapsRef.current;
-    const targets = [FULL, HALF, CLOSED];
-    updateSheet(targets[idx]);
   };
 
   const nearest = (y: number): number => {
@@ -120,44 +102,45 @@ export default function TaskSheet({ children, marLabelRef, navHeight = 72, isDes
     return best;
   };
 
-  const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
+  const snapTo = (idx: number) => {
+    const sheet = sheetRef.current;
+    const content = contentRef.current;
+    if (!sheet || !content) return;
+    currentSnapRef.current = idx;
+    sheet.style.transition = "all 0.35s cubic-bezier(0.25, 1, 0.5, 1)";
+    content.style.transition = "opacity 0.3s ease";
+    const targets = [snapsRef.current.FULL, snapsRef.current.HALF, snapsRef.current.CLOSED];
+    updateSheet(targets[idx]);
+  };
 
+  // Touch/mouse handlers — direct port from prototype
   const onStart = (e: React.TouchEvent | React.MouseEvent) => {
-    // Don't drag if touching nav
     if ((e.target as HTMLElement).closest(".nav-fixed")) return;
-    // Don't drag if scrolling inside content at FULL
-    if (currentSnapRef.current === 0 && sheetRef.current) {
-      const scrollTop = sheetRef.current.scrollTop;
-      if (scrollTop > 0) return; // let normal scroll happen
-    }
+    // At FULL, let normal scroll happen if already scrolled down
+    if (currentSnapRef.current === 0 && sheetRef.current && sheetRef.current.scrollTop > 0) return;
 
     draggingRef.current = true;
     const sheet = sheetRef.current;
-    if (sheet) {
-      sheet.style.transition = "none";
-      if (contentRef.current) contentRef.current.style.transition = "none";
-    }
+    if (sheet) { sheet.style.transition = "none"; }
+    if (contentRef.current) { contentRef.current.style.transition = "none"; }
 
     const t = "touches" in e ? e.touches[0] : e;
-    const container = containerRef.current;
-    if (!container) return;
-    const cRect = container.getBoundingClientRect();
-    startYRef.current = t.clientY - cRect.top;
+    startYRef.current = t.clientY;
     startTopRef.current = currentTopRef.current;
   };
 
   const onMove = (e: React.TouchEvent | React.MouseEvent) => {
     if (!draggingRef.current) return;
-    // Prevent default to avoid page scroll while dragging
-    if ("preventDefault" in e) e.preventDefault();
-
+    if ("preventDefault" in e && "touches" in e) {
+      (e as React.TouchEvent).preventDefault?.();
+    }
     const t = "touches" in e ? e.touches[0] : e;
-    const container = containerRef.current;
-    if (!container) return;
-    const cRect = container.getBoundingClientRect();
-    const y = t.clientY - cRect.top;
     const { FULL, CLOSED } = snapsRef.current;
-    const newTop = clamp(startTopRef.current + (y - startYRef.current), FULL - 20, CLOSED + 20);
+    const newTop = clamp(
+      startTopRef.current + (t.clientY - startYRef.current),
+      FULL - 20,
+      CLOSED + 20
+    );
     updateSheet(newTop);
   };
 
@@ -174,33 +157,26 @@ export default function TaskSheet({ children, marLabelRef, navHeight = 72, isDes
   useEffect(() => {
     const timer = setTimeout(() => {
       measure();
-      snapTo(0); // default FULL
+      snapTo(0);
     }, 50);
-
     const onResize = () => { measure(); snapTo(currentSnapRef.current); };
     window.addEventListener("resize", onResize);
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener("resize", onResize);
-    };
+    return () => { clearTimeout(timer); window.removeEventListener("resize", onResize); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div
-      ref={containerRef}
-      style={{ position: "relative" }}
-    >
+    <>
       <div
         ref={sheetRef}
         className="task-sheet-mobile"
         style={{
-          position: "absolute",
+          position: "fixed",
           left: 0,
           right: 0,
           bottom: 0,
           top: 0,
-          background: "rgba(28,28,30,0.85)",
-          border: "1px solid rgba(255,255,255,0.1)",
+          background: "rgba(28,28,30,0)",
+          border: "1px solid rgba(255,255,255,0)",
           borderBottom: "none",
           borderRadius: 0,
           zIndex: 10,
@@ -231,6 +207,6 @@ export default function TaskSheet({ children, marLabelRef, navHeight = 72, isDes
           {children}
         </div>
       </div>
-    </div>
+    </>
   );
 }
