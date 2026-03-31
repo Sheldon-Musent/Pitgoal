@@ -841,6 +841,21 @@ const getTypeLabel = (typeId: string): string => {
   const lastDateTapRef = useRef(0);
 
   // Scroll date strip to center selected date
+  const smoothScrollTo = useCallback((container: HTMLElement, target: number, duration: number) => {
+    const start = container.scrollLeft;
+    const diff = target - start;
+    if (Math.abs(diff) < 1) return;
+    const startTime = performance.now();
+    const ease = (t: number) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    const step = (now: number) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      container.scrollLeft = start + diff * ease(progress);
+      if (progress < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }, []);
+
   const scrollDateToCenter = useCallback((smooth: boolean) => {
     const idx = allDates.findIndex(d => isSameDay(d, selectedDate));
     if (idx < 0) return;
@@ -848,9 +863,13 @@ const getTypeLabel = (typeId: string): string => {
     if (!container) return;
     const cell = container.querySelector(`[data-didx="${idx}"]`) as HTMLElement;
     if (!cell) return;
-    const scrollTarget = cell.offsetLeft - container.offsetWidth / 2 + cell.offsetWidth / 2;
-    container.scrollTo({ left: Math.max(0, scrollTarget), behavior: smooth ? "smooth" : "auto" });
-  }, [allDates, selectedDate]);
+    const scrollTarget = Math.max(0, cell.offsetLeft - container.offsetWidth / 2 + cell.offsetWidth / 2);
+    if (smooth) {
+      smoothScrollTo(container, scrollTarget, 300);
+    } else {
+      container.scrollLeft = scrollTarget;
+    }
+  }, [allDates, selectedDate, smoothScrollTo]);
 
   // On mount: scroll to today instantly
   useEffect(() => {
@@ -1015,8 +1034,19 @@ const getTypeLabel = (typeId: string): string => {
                             const todayIdx = allDates.findIndex(dd => isSameDay(dd, todayDate));
                             const cell = ctr?.querySelector(`[data-didx="${todayIdx}"]`) as HTMLElement;
                             if (cell && ctr) {
-                              const target = cell.offsetLeft - ctr.offsetWidth / 2 + cell.offsetWidth / 2;
-                              ctr.scrollTo({ left: Math.max(0, target), behavior: "smooth" });
+                              const target = Math.max(0, cell.offsetLeft - ctr.offsetWidth / 2 + cell.offsetWidth / 2);
+                              const start = ctr.scrollLeft;
+                              const diff = target - start;
+                              if (Math.abs(diff) < 1) return;
+                              const startTime = performance.now();
+                              const ease = (t: number) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+                              const step = (now: number) => {
+                                const elapsed = now - startTime;
+                                const progress = Math.min(elapsed / 300, 1);
+                                ctr.scrollLeft = start + diff * ease(progress);
+                                if (progress < 1) requestAnimationFrame(step);
+                              };
+                              requestAnimationFrame(step);
                             }
                           }, 50);
                           return;
@@ -1031,8 +1061,19 @@ const getTypeLabel = (typeId: string): string => {
                           const ctr = dateStripScrollRef.current;
                           const cell = ctr?.querySelector(`[data-didx="${idx}"]`) as HTMLElement;
                           if (cell && ctr) {
-                            const target = cell.offsetLeft - ctr.offsetWidth / 2 + cell.offsetWidth / 2;
-                            ctr.scrollTo({ left: Math.max(0, target), behavior: "smooth" });
+                            const target = Math.max(0, cell.offsetLeft - ctr.offsetWidth / 2 + cell.offsetWidth / 2);
+                            const start = ctr.scrollLeft;
+                            const diff = target - start;
+                            if (Math.abs(diff) < 1) return;
+                            const startTime = performance.now();
+                            const ease = (t: number) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+                            const step = (now: number) => {
+                              const elapsed = now - startTime;
+                              const progress = Math.min(elapsed / 300, 1);
+                              ctr.scrollLeft = start + diff * ease(progress);
+                              if (progress < 1) requestAnimationFrame(step);
+                            };
+                            requestAnimationFrame(step);
                           }
                         }, 500);
                       }}
