@@ -176,7 +176,7 @@ export default function BottomNav({ active, onChange, onAdd, expanded, onExpand 
         left: 0,
         right: 0,
         zIndex: 100,
-        background: "var(--bg)",
+        background: "transparent",
         transform: "translateZ(0)",
         willChange: "transform",
         display: "flex",

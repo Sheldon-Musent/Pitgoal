@@ -65,11 +65,11 @@ export default function TaskSheet({ children, marLabelRef, navHeight = 72, isDes
     if (top <= HALF) {
       const t = HALF > 0 ? top / HALF : 0;
       sideGap = lerp(0, 10, t);
-      rad = lerp(0, 18, t);
+      rad = lerp(0, 24, t);
     } else {
       const t2 = (top - HALF) / Math.max(CLOSED - HALF, 1);
       sideGap = lerp(10, 14, t2);
-      rad = lerp(18, 22, t2);
+      rad = lerp(24, 28, t2);
     }
 
     closedT = clamp((top - HALF) / Math.max(CLOSED - HALF, 1), 0, 1);
