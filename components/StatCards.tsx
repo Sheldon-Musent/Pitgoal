@@ -1,4 +1,5 @@
 "use client";
+import { useState, useEffect } from "react";
 
 interface StatCardsProps {
   energy: number;
@@ -7,7 +8,7 @@ interface StatCardsProps {
   sleepRestoreRate: number;
   isSleeping: boolean;
   onCardClick: (index: number) => void;
-
+  isCharging?: boolean;
   isDesktop: boolean;
 }
 
@@ -17,9 +18,34 @@ const getEnergyColor = (energy: number): string => {
   return '#ef4444';
 };
 
-export default function StatCards({ energy, tasksDone, hoursTracked, sleepRestoreRate, isSleeping, onCardClick, isDesktop }: StatCardsProps) {
+export const getChargingColor = (pct: number): string => {
+  if (pct <= 20) {
+    const t = pct / 20;
+    const r = Math.round(239 + (250 - 239) * t);
+    const g = Math.round(68 + (204 - 68) * t);
+    const b = Math.round(21 + (21 - 68) * t);
+    return `rgb(${r},${g},${b})`;
+  } else if (pct <= 50) {
+    const t = (pct - 20) / 30;
+    const r = Math.round(250 - (250 - 34) * t);
+    const g = Math.round(204 + (197 - 204) * t);
+    const b = Math.round(21 + (94 - 21) * t);
+    return `rgb(${r},${g},${b})`;
+  }
+  return "#22c55e";
+};
+
+export default function StatCards({ energy, tasksDone, hoursTracked, sleepRestoreRate, isSleeping, onCardClick, isCharging, isDesktop }: StatCardsProps) {
   const ePct = Math.round(energy);
-  const energyColor = getEnergyColor(energy);
+  const energyColor = isCharging ? getChargingColor(ePct) : getEnergyColor(energy);
+
+  const [arrowVisible, setArrowVisible] = useState(true);
+
+  useEffect(() => {
+    if (!isCharging) return;
+    const id = setInterval(() => setArrowVisible(v => !v), 600);
+    return () => clearInterval(id);
+  }, [isCharging]);
   const hrsToFull = sleepRestoreRate > 0 ? Math.round(((100 - ePct) / sleepRestoreRate) * 10) / 10 : 0;
 
   const numSize = isDesktop ? 34 : 26;
@@ -133,9 +159,30 @@ export default function StatCards({ energy, tasksDone, hoursTracked, sleepRestor
       {/* ── POWER BAR Card ── */}
       <div className="tap" onClick={() => onCardClick(2)} style={cardBase}>
         <div style={textLayer}>
-          <div style={{ display: "flex", alignItems: "baseline" }}>
+          <div style={{ display: "flex", alignItems: "center" }}>
             <span style={{ fontSize: numSize, fontWeight: 800, color: energyColor, lineHeight: 1 }}>{ePct}</span>
             <span style={{ fontSize: pctSymSize, fontWeight: 700, color: energyColor }}>%</span>
+            {isCharging && (
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 12 12"
+                fill="none"
+                style={{
+                  opacity: arrowVisible ? 1 : 0.15,
+                  transition: "opacity 0.3s",
+                  marginLeft: 2,
+                }}
+              >
+                <path
+                  d="M6 10V2M6 2L3 5M6 2L9 5"
+                  stroke={energyColor}
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            )}
           </div>
         </div>
         <div style={textLayer}>
@@ -155,6 +202,17 @@ export default function StatCards({ energy, tasksDone, hoursTracked, sleepRestor
           <g transform="rotate(-7.8, 65, 90)">
             <path d="M70 4 Q68 0 64 2 L20 78 Q15 85 24 85 L39 85 Q43 85 41 90 L30 174 Q28 182 36 176 L108 76 Q114 68 105 68 L82 68 Q78 68 80 62 L100 6 Q102 0 96 2 Z" fill="rgba(255,255,255,0.025)" />
             <g clipPath="url(#bolt-clip)">
+              {/* Charging wave fill */}
+              {isCharging && (
+                <rect
+                  x="0"
+                  y={180 - (ePct / 100) * 180}
+                  width="130"
+                  height={(ePct / 100) * 180}
+                  fill={energyColor.startsWith("rgb(") ? energyColor.replace("rgb(", "rgba(").replace(")", ",0.12)") : energyColor + "1F"}
+                  style={{ transition: "y 1s ease, height 1s ease, fill 1s ease" }}
+                />
+              )}
               {/* Back wave */}
               <path fill={energyColor} opacity="0.35">
                 <animate

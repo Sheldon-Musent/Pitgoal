@@ -27,7 +27,7 @@ import { DEFAULT_TYPES, DEFAULT_TAGS, DEFAULT_TYPE_IDS, DEFAULT_TAG_IDS } from "
 import SideNav from "../../components/SideNav";
 import DayTimeline from "../../components/DayTimeline";
 import ResizableLayout from "../../components/ResizableLayout";
-import StatCards, { waveValues } from "../../components/StatCards";
+import StatCards, { waveValues, getChargingColor } from "../../components/StatCards";
 
 // ── Energy system constants ──
 const IDLE_RATE = 0.5;
@@ -101,6 +101,7 @@ export default function Home() {
   const [showDone, setShowDone] = useState(false);
   const [showSkipped, setShowSkipped] = useState(false);
   const [statPopup, setStatPopup] = useState<number | null>(null);
+  const [popupArrowVisible, setPopupArrowVisible] = useState(true);
   // 0 = done, 1 = tracked, 2 = energy, null = closed
   const [statFilter, setStatFilter] = useState<"today" | "week" | "month" | "qtr" | "year">("today");
   const [statSortNewest, setStatSortNewest] = useState(true);
@@ -329,6 +330,13 @@ export default function Home() {
 
   // ═══ TICK ═══
   useEffect(() => { const id = setInterval(() => setTick(t => t + 1), 1000); return () => clearInterval(id); }, []);
+
+  const popupIsCharging = isSleeping || (activeTask?.type === "rest");
+  useEffect(() => {
+    if (!popupIsCharging) return;
+    const id = setInterval(() => setPopupArrowVisible(v => !v), 600);
+    return () => clearInterval(id);
+  }, [popupIsCharging]);
 
   // ═══ CLEANUP TIMERS ON UNMOUNT ═══
   useEffect(() => {
@@ -977,7 +985,7 @@ const getTypeLabel = (typeId: string): string => {
             sleepRestoreRate={SLEEP_RESTORE_PER_HOUR}
             isSleeping={isSleeping}
             onCardClick={(i) => setStatPopup(i)}
-
+            isCharging={isSleeping || (activeTask?.type === "rest")}
             isDesktop={isDesktop}
           />
 
@@ -2044,7 +2052,7 @@ const getTypeLabel = (typeId: string): string => {
         const filteredCancelCount = getFilteredCancelCount();
 
         // Energy color for power bar
-        const popupEnergyColor = energyVal > 50 ? "#22c55e" : energyVal >= 20 ? "#facc15" : "#ef4444";
+        const popupEnergyColor = popupIsCharging ? getChargingColor(energyVal) : (energyVal > 50 ? "#22c55e" : energyVal >= 20 ? "#facc15" : "#ef4444");
 
         // ── Shared filter pills renderer ──
         const renderFilterPills = (accentColor: string) => (
@@ -2333,9 +2341,30 @@ const getTypeLabel = (typeId: string): string => {
               {/* Top section with lightning bolt SVG */}
               <div style={{ position: "relative", overflow: "hidden", minHeight: 160, paddingBottom: 12, display: "flex", flexDirection: "column", justifyContent: "space-between", borderRadius: "20px 20px 0 0" }}>
                 <div style={{ position: "relative", zIndex: 1 }}>
-                  <div style={{ display: "flex", alignItems: "baseline" }}>
+                  <div style={{ display: "flex", alignItems: "center" }}>
                     <span style={{ fontSize: 34, fontWeight: 800, color: popupEnergyColor, lineHeight: 1 }}>{energyVal}</span>
                     <span style={{ fontSize: 15, fontWeight: 700, color: popupEnergyColor }}>%</span>
+                    {popupIsCharging && (
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 12 12"
+                        fill="none"
+                        style={{
+                          opacity: popupArrowVisible ? 1 : 0.15,
+                          transition: "opacity 0.3s",
+                          marginLeft: 3,
+                        }}
+                      >
+                        <path
+                          d="M6 10V2M6 2L3 5M6 2L9 5"
+                          stroke={popupEnergyColor}
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    )}
                   </div>
                   <div style={{ fontSize: 11, color: "var(--t5)", marginTop: 6 }}>
                     {isSleeping ? "currently sleeping" : energyVal >= 100 ? "fully charged" : `${energyVal < 20 ? "critically low" : energyVal < 50 ? "getting low" : "healthy"}`}
@@ -2345,8 +2374,14 @@ const getTypeLabel = (typeId: string): string => {
                   </div>
                 </div>
                 <div style={{ position: "relative", zIndex: 1, marginTop: 16 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.9)", lineHeight: 1 }}>{hrsToFull} hrs</div>
-                  <div style={{ fontSize: 11, fontWeight: 400, fontStyle: "italic", color: "var(--t5)", lineHeight: 1, marginTop: 2 }}>to full charge</div>
+                  {popupIsCharging ? (
+                    <div style={{ fontSize: 12, fontWeight: 600, color: popupEnergyColor, lineHeight: 1 }}>charging...</div>
+                  ) : (
+                    <>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.9)", lineHeight: 1 }}>{hrsToFull} hrs</div>
+                      <div style={{ fontSize: 11, fontWeight: 400, fontStyle: "italic", color: "var(--t5)", lineHeight: 1, marginTop: 2 }}>to full charge</div>
+                    </>
+                  )}
                 </div>
                 {/* Lightning bolt SVG */}
                 <svg viewBox="0 0 130 180" style={{ position: "absolute", right: -46, top: -24, bottom: -24, height: "calc(100% + 48px)", width: "auto" }}>
@@ -2358,6 +2393,16 @@ const getTypeLabel = (typeId: string): string => {
                   <g transform="rotate(-7.8, 65, 90)">
                     <path d="M70 4 Q68 0 64 2 L20 78 Q15 85 24 85 L39 85 Q43 85 41 90 L30 174 Q28 182 36 176 L108 76 Q114 68 105 68 L82 68 Q78 68 80 62 L100 6 Q102 0 96 2 Z" fill="rgba(255,255,255,0.025)" />
                     <g clipPath="url(#popup-bolt-clip)">
+                      {popupIsCharging && (
+                        <rect
+                          x="0"
+                          y={180 - (ePct / 100) * 180}
+                          width="130"
+                          height={(ePct / 100) * 180}
+                          fill={popupEnergyColor.startsWith("rgb(") ? popupEnergyColor.replace("rgb(", "rgba(").replace(")", ",0.12)") : popupEnergyColor + "1F"}
+                          style={{ transition: "y 1s ease, height 1s ease, fill 1s ease" }}
+                        />
+                      )}
                       <path fill={popupEnergyColor} opacity="0.35">
                         <animate attributeName="d" dur="7s" repeatCount="indefinite"
                           keyTimes="0;0.12;0.28;0.45;0.58;0.72;0.88;1"
