@@ -847,19 +847,30 @@ const getTypeLabel = (typeId: string): string => {
     if (!container) return;
 
     const cellId = `dscell-${selectedDate.getFullYear()}-${selectedDate.getMonth()}-${selectedDate.getDate()}`;
+    const isFirstScroll = !dateStripInitialScroll.current;
     const doScroll = () => {
       const el = document.getElementById(cellId);
-      if (!el) return;
-      el.scrollIntoView({
-        inline: "center",
-        block: "nearest",
-        behavior: dateStripInitialScroll.current ? "smooth" : "auto",
-      });
+      if (!el || !container) return;
+      const containerWidth = container.offsetWidth;
+      if (containerWidth === 0) return;
+      // Disable scroll snap temporarily so it doesn't fight us
+      container.style.scrollSnapType = "none";
+      const scrollTarget = el.offsetLeft - containerWidth / 2 + el.offsetWidth / 2;
+      if (isFirstScroll) {
+        container.scrollLeft = Math.max(0, scrollTarget);
+      } else {
+        container.scrollTo({
+          left: Math.max(0, scrollTarget),
+          behavior: "smooth",
+        });
+      }
+      // Re-enable scroll snap after scroll completes
+      setTimeout(() => {
+        if (container) container.style.scrollSnapType = "x mandatory";
+      }, isFirstScroll ? 50 : 400);
       dateStripInitialScroll.current = true;
     };
-    // Try immediately, then retry after layout
-    doScroll();
-    setTimeout(doScroll, 150);
+    setTimeout(doScroll, isFirstScroll ? 200 : 50);
   }, [selectedDate, allDates, loaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Edge dim: fade dates at edges of visible scroll area
