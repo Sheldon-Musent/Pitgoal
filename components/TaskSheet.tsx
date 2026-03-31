@@ -50,7 +50,10 @@ export default function TaskSheet({ children, marLabelRef, navHeight = 72, isDes
       CLOSED = Math.round(nRect.top - cRect.top) - HANDLE_GAP;
     }
 
+    HALF = Math.max(0, HALF);
     snapsRef.current = { FULL: 0, HALF, CLOSED };
+    // Set container height to fill remaining viewport
+    container.style.minHeight = `${Math.round(window.innerHeight - cRect.top)}px`;
   };
 
   const updateSheet = (top: number) => {
@@ -65,8 +68,8 @@ export default function TaskSheet({ children, marLabelRef, navHeight = 72, isDes
       const t = HALF > 0 ? top / HALF : 0;
       sideGap = lerp(0, 10, t);
       rad = lerp(0, 18, t);
-      bgA = 0.85;
-      borderA = 0.1;
+      bgA = lerp(0, 0.85, t);
+      borderA = lerp(0, 0.1, t);
       contentOp = 1;
     } else {
       const t = CLOSED > HALF ? (top - HALF) / (CLOSED - HALF) : 0;
@@ -185,7 +188,7 @@ export default function TaskSheet({ children, marLabelRef, navHeight = 72, isDes
   return (
     <div
       ref={containerRef}
-      style={{ position: "relative", minHeight: "calc(100vh - 200px)" }}
+      style={{ position: "relative" }}
     >
       <div
         ref={sheetRef}
