@@ -843,25 +843,27 @@ const getTypeLabel = (typeId: string): string => {
 
   // Auto-scroll date strip to selected date
   useEffect(() => {
-    const scrollToDate = () => {
-      const container = dateStripScrollRef.current;
-      if (!container) return;
+    const container = dateStripScrollRef.current;
+    if (!container) return;
+
+    requestAnimationFrame(() => {
       const items = container.children;
+      if (!items || items.length === 0) return;
+
       const centerIndex = allDates.findIndex(d => isSameDay(d, selectedDate));
-      if (centerIndex >= 0 && items[centerIndex]) {
-        const item = items[centerIndex] as HTMLElement;
-        const scrollLeft = item.offsetLeft - container.offsetWidth / 2 + item.offsetWidth / 2;
-        container.scrollTo({ left: scrollLeft, behavior: dateStripInitialScroll.current ? "smooth" : "auto" });
-      }
+      if (centerIndex < 0 || !items[centerIndex]) return;
+
+      const child = items[centerIndex] as HTMLElement;
+      const scrollTarget = child.offsetLeft - container.offsetWidth / 2 + child.offsetWidth / 2;
+
+      container.scrollTo({
+        left: scrollTarget,
+        behavior: dateStripInitialScroll.current ? "smooth" : "auto",
+      });
+
       dateStripInitialScroll.current = true;
-    };
-    // Use rAF on initial mount to ensure DOM is laid out
-    if (!dateStripInitialScroll.current) {
-      requestAnimationFrame(scrollToDate);
-    } else {
-      scrollToDate();
-    }
-  }, [selectedDate, allDates, bottomTab]); // eslint-disable-line react-hooks/exhaustive-deps
+    });
+  }, [selectedDate, allDates, loaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Edge dim: fade dates at edges of visible scroll area
   useEffect(() => {

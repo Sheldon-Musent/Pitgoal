@@ -275,8 +275,8 @@ export default function CreateTaskSheet({
       <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 200, animation: "fadeIn 0.2s ease" }} />
 
       {/* Popup container */}
-      <div style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 201 }}>
-        <div className="create-popup" style={{
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 201 }}>
+        <div className="create-popup" onClick={(e) => e.stopPropagation()} style={{
           width: 320, maxHeight: "80vh", overflowY: "auto",
           scrollbarWidth: "none", msOverflowStyle: "none" as any, WebkitOverflowScrolling: "touch" as any,
           background: "rgba(28,28,30,0.65)",
@@ -348,7 +348,7 @@ export default function CreateTaskSheet({
               style={{
                 width: "100%", background: "var(--bg)", borderRadius: 12, border: "1px solid var(--border2)",
                 padding: "12px 14px", color: "var(--t2)", fontSize: 13, fontFamily: BODY, outline: "none",
-                resize: "vertical", minHeight: 56, lineHeight: 1.5,
+                resize: "none", minHeight: 56, maxHeight: 80, overflowY: "auto", scrollbarWidth: "none" as any, lineHeight: 1.5,
               }}
             />
             <div style={{ fontSize: 9, color: "var(--t5)", textAlign: "right", marginTop: 4, opacity: 0.5 }}>
@@ -413,9 +413,7 @@ export default function CreateTaskSheet({
                 </svg>
               </button>
             </div>
-            <div style={{ fontSize: 9, color: "var(--t5)", opacity: 0.4, marginTop: 4, marginBottom: 14 }}>
-              swipe for more · {allTags.length} tags
-            </div>
+            <div style={{ marginBottom: 14 }} />
           </div>
 
           {/* ── Divider ── */}
@@ -423,58 +421,54 @@ export default function CreateTaskSheet({
 
           {/* ── TIME + DURATION ── */}
           <div style={{ marginBottom: 18 }}>
-            <div style={sectionLabelStyle}>TIME + DURATION</div>
             <div style={{ display: "flex", gap: 8 }}>
               {/* TIME */}
               <div style={{ flex: 1, background: "var(--bg)", borderRadius: 12, border: "1px solid var(--border2)", padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span style={{ fontSize: 11, color: "var(--t5)", fontFamily: MONO }}>TIME</span>
                 <input type="time" value={time} onChange={(e) => setTime(e.target.value)}
-                  style={{ background: "none", border: "none", color: "var(--accent)", fontSize: 14, fontWeight: 600, fontFamily: MONO, outline: "none", width: 80, textAlign: "right" }} />
+                  placeholder="--:--"
+                  style={{ background: "none", border: "none", color: time ? "var(--t1)" : "var(--t5)", fontSize: 15, fontWeight: 600, fontFamily: MONO, outline: "none", width: "100%" }} />
               </div>
-              {/* HRS */}
+              {/* DURATION */}
               <div style={{
-                display: "flex", alignItems: "center", gap: 4,
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 2,
                 background: "var(--bg, rgba(255,255,255,0.04))", border: "1px solid var(--border)",
-                borderRadius: 12, padding: "10px 12px", minWidth: 62, justifyContent: "center",
+                borderRadius: 12, padding: "10px 16px", minWidth: 80,
               }}>
-                <span style={{ fontSize: 10, color: "var(--t5)", fontWeight: 600, letterSpacing: 1, fontFamily: MONO }}>HRS</span>
-                <input value={durationHrs} onChange={handleDurationHrsChange} inputMode="numeric"
-                  style={{ width: 24, background: "none", border: "none", color: "var(--t1)", fontSize: 15, fontWeight: 600, textAlign: "center", fontFamily: "inherit", outline: "none" }}
+                <input
+                  value={`${durationHrs}:${String(parseInt(durationMin || "0", 10)).padStart(2, "0")}`}
+                  onChange={(e) => {
+                    const raw = e.target.value.replace(/[^0-9:]/g, "");
+                    if (raw.includes(":")) {
+                      const parts = raw.split(":");
+                      const h = parseInt(parts[0] || "0", 10);
+                      const m = parseInt(parts[1] || "0", 10);
+                      setDurationHrs(String(isNaN(h) ? 0 : h));
+                      setDurationMin(String(isNaN(m) ? 0 : Math.min(m, 59)));
+                    } else if (raw.length >= 3) {
+                      const h = parseInt(raw.slice(0, raw.length - 2), 10);
+                      const m = parseInt(raw.slice(-2), 10);
+                      setDurationHrs(String(isNaN(h) ? 0 : h));
+                      setDurationMin(String(isNaN(m) ? 0 : Math.min(m, 59)));
+                    } else {
+                      setDurationHrs("0");
+                      setDurationMin(raw || "0");
+                    }
+                  }}
+                  inputMode="numeric"
+                  style={{
+                    width: 52, background: "none", border: "none", color: "var(--t1)",
+                    fontSize: 15, fontWeight: 600, textAlign: "center", fontFamily: "inherit", outline: "none",
+                  }}
                 />
               </div>
-              {/* MIN */}
-              <div style={{
-                display: "flex", alignItems: "center", gap: 4,
-                background: "var(--bg, rgba(255,255,255,0.04))", border: "1px solid var(--border)",
-                borderRadius: 12, padding: "10px 12px", minWidth: 62, justifyContent: "center",
-              }}>
-                <span style={{ fontSize: 10, color: "var(--t5)", fontWeight: 600, letterSpacing: 1, fontFamily: MONO }}>MIN</span>
-                <input value={durationMin} onChange={handleDurationMinChange} inputMode="numeric"
-                  style={{ width: 28, background: "none", border: "none", color: "var(--t1)", fontSize: 15, fontWeight: 600, textAlign: "center", fontFamily: "inherit", outline: "none" }}
-                />
-              </div>
-            </div>
-            <div style={{ fontSize: 9, color: "var(--t5)", opacity: 0.4, marginTop: 6, marginBottom: 20 }}>
-              type 0130 → 1h 30m · or inline &quot;study @ 2pm 1.5h&quot;
             </div>
           </div>
 
           {/* ── Buttons ── */}
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <button onClick={handleCreate} style={{
-              flex: 1, background: "var(--accent, #facc15)", borderRadius: 14, padding: 14, textAlign: "center",
-              fontSize: 15, fontWeight: 700, color: "#0a0a0a", border: "none", cursor: "pointer", fontFamily: "inherit",
-            }}>Create task</button>
-            <button onClick={onClose} style={{
-              width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center",
-              borderRadius: "50%", background: "rgba(255,255,255,0.06)", border: "none", cursor: "pointer",
-            }}>
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <line x1="3" y1="3" x2="11" y2="11" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" strokeLinecap="round"/>
-                <line x1="11" y1="3" x2="3" y2="11" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" strokeLinecap="round"/>
-              </svg>
-            </button>
-          </div>
+          <button onClick={handleCreate} style={{
+            width: "100%", background: "var(--accent, #facc15)", borderRadius: 14, padding: 14, textAlign: "center",
+            fontSize: 15, fontWeight: 700, color: "#0a0a0a", border: "none", cursor: "pointer", fontFamily: "inherit",
+          }}>Create task</button>
         </div>
       </div>
 
