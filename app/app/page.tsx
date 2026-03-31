@@ -145,7 +145,8 @@ export default function Home() {
   const navScrollTimer = useRef<any>(null);
 
   const dateStripScrollRef = useRef<HTMLDivElement>(null);
-  // dateStripInitialScroll removed — fixed window approach
+  const dateSnapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dateStripDidInit = useRef(false);
 
   const powerTapTimer = useRef<any>(null);
   const swipeStartX = useRef<number | null>(null);
@@ -828,22 +829,45 @@ const getTypeLabel = (typeId: string): string => {
   const pauseElapsedSec = pausedTask ? Math.floor((Date.now() - (pausedTask.pausedAt || Date.now())) / 1000) : 0;
   const pauseTimerStr = `${pad(Math.floor(pauseElapsedSec / 3600))}:${pad(Math.floor((pauseElapsedSec % 3600) / 60))}:${pad(pauseElapsedSec % 60)}`;
   const allDates = useMemo(() => {
-    // Generate 7 visible dates centered on selected date
-    const center = new Date(selectedDate);
     const dates: Date[] = [];
-    for (let i = -3; i <= 3; i++) {
-      const d = new Date(center);
+    for (let i = -15; i <= 15; i++) {
+      const d = new Date(today);
       d.setDate(d.getDate() + i);
       d.setHours(0, 0, 0, 0);
       dates.push(d);
     }
     return dates;
-  }, [selectedDate.getTime()]);
+  }, []);
   const lastDateTapRef = useRef(0);
 
-  // No auto-scroll needed — selected date is always centered in the 7-date window
+  // Scroll date strip to center selected date
+  const scrollDateToCenter = useCallback((smooth: boolean) => {
+    const idx = allDates.findIndex(d => isSameDay(d, selectedDate));
+    if (idx < 0) return;
+    const container = dateStripScrollRef.current;
+    if (!container) return;
+    const cell = container.querySelector(`[data-didx="${idx}"]`) as HTMLElement;
+    if (!cell) return;
+    cell.scrollIntoView({ inline: "center", block: "nearest", behavior: smooth ? "smooth" : "auto" });
+  }, [allDates, selectedDate]);
 
-  // No edge dim needed — fixed 7-date window, no scrolling
+  // On mount: scroll to today instantly
+  useEffect(() => {
+    if (!loaded || dateStripDidInit.current) return;
+    setTimeout(() => {
+      scrollDateToCenter(false);
+      dateStripDidInit.current = true;
+    }, 200);
+  }, [loaded, scrollDateToCenter]);
+
+  // On tab return to home: re-center on selected date
+  useEffect(() => {
+    if (bottomTab === "main" && dateStripDidInit.current) {
+      setTimeout(() => scrollDateToCenter(false), 100);
+    }
+  }, [bottomTab, scrollDateToCenter]);
+
+  // Edge dim handled by CSS gradient overlays — no JS needed
 
   const handleTabChange = (tab: BottomTab) => setBottomTab(tab);
 
@@ -938,49 +962,89 @@ const getTypeLabel = (typeId: string): string => {
           />
 
           {/* ═══ SECTION B: Scrollable Date Strip ═══ */}
-          <div style={{ marginBottom: 8, marginTop: 24, position: "relative", display: "flex", flexDirection: "column", alignItems: "center" }}>
-            <div
-              ref={dateStripScrollRef}
-              style={{
-                background: "rgba(28,28,30,0.35)",
-                backdropFilter: "blur(15px) saturate(180%)",
-                WebkitBackdropFilter: "blur(15px) saturate(180%)",
-                borderRadius: 50,
-                padding: 5,
-                border: "none",
-                display: "flex",
-                gap: 0,
-                justifyContent: "center",
-              }}
-            >
-              {allDates.map(d => {
-                const isT = isSameDay(d, today);
-                const isSel = isSameDay(d, selectedDate);
-                return (
-                  <div key={d.getTime()} onClick={() => {
-                    const now = Date.now();
-                    if (now - lastDateTapRef.current < 300) {
-                      const todayDate = new Date();
-                      setSelectedDate(todayDate);
-                      setViewMonth(todayDate.getMonth());
-                      setViewYear(todayDate.getFullYear());
-                      lastDateTapRef.current = 0;
-                      return;
-                    }
-                    lastDateTapRef.current = now;
-                    setSelectedDate(new Date(d));
-                    setViewMonth(d.getMonth());
-                    setViewYear(d.getFullYear());
-                  }}
-                    style={{ width: 56, height: 56, flexShrink: 0, borderRadius: "50%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: "pointer", background: isSel ? "#FFD000" : "transparent", transition: "background 0.2s", scrollSnapAlign: "center" }}>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: isSel ? "#0a0a0a" : "var(--t5)", lineHeight: 1.2 }}>{d.getDate()}</div>
-                    <div style={{ fontSize: 9, fontWeight: 500, color: isSel ? "rgba(0,0,0,0.5)" : "var(--t5)", fontFamily: MONO }}>{DAYS[d.getDay()]}</div>
-                    {isT && !isSel && <div style={{ width: 4, height: 4, borderRadius: "50%", marginTop: 2, background: "var(--accent)" }} />}
-                  </div>
-                );
-              })}
+          <div style={{ marginBottom: 8, marginTop: 24, display: "flex", flexDirection: "column", alignItems: "center" }}>
+            {/* Edge dim wrapper */}
+            <div style={{ maxWidth: "85%", width: "100%", position: "relative" }}>
+              {/* Left dim */}
+              <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: 40, background: "linear-gradient(to right, rgba(10,10,10,0.85), transparent)", borderRadius: "50px 0 0 50px", zIndex: 2, pointerEvents: "none" }} />
+              {/* Right dim */}
+              <div style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 40, background: "linear-gradient(to left, rgba(10,10,10,0.85), transparent)", borderRadius: "0 50px 50px 0", zIndex: 2, pointerEvents: "none" }} />
+              {/* Scrollable strip */}
+              <div
+                ref={dateStripScrollRef}
+                className="no-scrollbar"
+                style={{
+                  background: "rgba(28,28,30,0.35)",
+                  backdropFilter: "blur(15px) saturate(180%)",
+                  WebkitBackdropFilter: "blur(15px) saturate(180%)",
+                  borderRadius: 50,
+                  padding: 5,
+                  display: "flex",
+                  gap: 0,
+                  overflowX: "auto",
+                  WebkitOverflowScrolling: "touch" as any,
+                }}
+              >
+                {/* Left spacer — lets first dates reach center */}
+                <div style={{ flexShrink: 0, width: "calc(50% - 28px)" }} />
+                {allDates.map((d, idx) => {
+                  const isT = isSameDay(d, today);
+                  const isSel = isSameDay(d, selectedDate);
+                  return (
+                    <div
+                      key={d.getTime()}
+                      data-didx={idx}
+                      onClick={() => {
+                        const now = Date.now();
+                        if (now - lastDateTapRef.current < 300) {
+                          const todayDate = new Date();
+                          setSelectedDate(todayDate);
+                          setViewMonth(todayDate.getMonth());
+                          setViewYear(todayDate.getFullYear());
+                          lastDateTapRef.current = 0;
+                          // Snap to center immediately on double-tap
+                          setTimeout(() => scrollDateToCenter(true), 50);
+                          return;
+                        }
+                        lastDateTapRef.current = now;
+                        setSelectedDate(new Date(d));
+                        setViewMonth(d.getMonth());
+                        setViewYear(d.getFullYear());
+                        // Delayed snap: highlight instantly, scroll to center after 0.5s
+                        if (dateSnapTimer.current) clearTimeout(dateSnapTimer.current);
+                        dateSnapTimer.current = setTimeout(() => {
+                          const cell = dateStripScrollRef.current?.querySelector(`[data-didx="${idx}"]`) as HTMLElement;
+                          if (cell) cell.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+                        }, 500);
+                      }}
+                      style={{
+                        width: 56,
+                        height: 56,
+                        flexShrink: 0,
+                        borderRadius: "50%",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        cursor: "pointer",
+                        background: isSel ? "#FFD000" : "transparent",
+                        transition: "background 0.2s",
+                        position: "relative",
+                      }}
+                    >
+                      <div style={{ fontSize: 18, fontWeight: 700, color: isSel ? "#0a0a0a" : "var(--t5)", lineHeight: 1.2 }}>{d.getDate()}</div>
+                      <div style={{ fontSize: 9, fontWeight: 500, color: isSel ? "rgba(0,0,0,0.5)" : "var(--t5)", fontFamily: MONO }}>{DAYS[d.getDay()]}</div>
+                      {isT && !isSel && (
+                        <div style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--accent)", position: "absolute", bottom: 4, left: "50%", transform: "translateX(-50%)" }} />
+                      )}
+                    </div>
+                  );
+                })}
+                {/* Right spacer — lets last dates reach center */}
+                <div style={{ flexShrink: 0, width: "calc(50% - 28px)" }} />
+              </div>
             </div>
-            {/* Month label below strip */}
+            {/* Month label */}
             <div className="tap" onClick={() => setMonthPickerOpen(!monthPickerOpen)} style={{ textAlign: "center", marginTop: 8, cursor: "pointer" }}>
               <span style={{ fontSize: 10, color: "var(--t5)", fontFamily: MONO, letterSpacing: 1, fontWeight: 600 }}>{MONTHS_SHORT[selectedDate.getMonth()]} {selectedDate.getFullYear()} ▾</span>
             </div>
