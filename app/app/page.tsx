@@ -846,25 +846,33 @@ const getTypeLabel = (typeId: string): string => {
     const container = dateStripScrollRef.current;
     if (!container) return;
 
-    setTimeout(() => {
+    let attempts = 0;
+    const tryScroll = () => {
+      attempts++;
       const items = container.children;
-      if (!items || items.length === 0) return;
-
+      if (!items || items.length === 0) {
+        if (attempts < 20) setTimeout(tryScroll, 50);
+        return;
+      }
       const centerIndex = allDates.findIndex(d => isSameDay(d, selectedDate));
-      if (centerIndex < 0 || !items[centerIndex]) return;
-
+      if (centerIndex < 0 || !items[centerIndex]) {
+        if (attempts < 20) setTimeout(tryScroll, 50);
+        return;
+      }
       const child = items[centerIndex] as HTMLElement;
       const containerWidth = container.offsetWidth;
-      if (containerWidth === 0) return;
+      if (containerWidth === 0) {
+        if (attempts < 20) setTimeout(tryScroll, 50);
+        return;
+      }
       const scrollTarget = child.offsetLeft - containerWidth / 2 + child.offsetWidth / 2;
-
       container.scrollTo({
         left: Math.max(0, scrollTarget),
         behavior: dateStripInitialScroll.current ? "smooth" : "auto",
       });
-
       dateStripInitialScroll.current = true;
-    }, 100);
+    };
+    setTimeout(tryScroll, 50);
   }, [selectedDate, allDates, loaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Edge dim: fade dates at edges of visible scroll area
