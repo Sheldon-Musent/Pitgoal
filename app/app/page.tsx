@@ -878,14 +878,14 @@ const getTypeLabel = (typeId: string): string => {
       scrollDateToCenter(false);
       dateStripDidInit.current = true;
     }, 200);
-  }, [loaded, scrollDateToCenter]);
+  }, [loaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // On tab return to home: re-center on selected date
   useEffect(() => {
     if (bottomTab === "main" && dateStripDidInit.current) {
       setTimeout(() => scrollDateToCenter(false), 100);
     }
-  }, [bottomTab, scrollDateToCenter]);
+  }, [bottomTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Edge dim handled by CSS gradient overlays — no JS needed
 
