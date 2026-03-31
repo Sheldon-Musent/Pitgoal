@@ -71,8 +71,7 @@ export default function CreateTaskSheet({
   const [selectedType, setSelectedType] = useState("task");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [time, setTime] = useState("");
-  const [durationHrs, setDurationHrs] = useState("0");
-  const [durationMin, setDurationMin] = useState("60");
+  const [durationMin, setDurationMin] = useState(0);
   const [addPopup, setAddPopup] = useState<"type" | "tag" | null>(null);
   const [newLabel, setNewLabel] = useState("");
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -87,7 +86,7 @@ export default function CreateTaskSheet({
     if (open) {
       setTimeout(() => inputRef.current?.focus(), 100);
       setName(""); setDesc(""); setSelectedType("task"); setSelectedTags([]);
-      setTime(""); setDurationHrs("0"); setDurationMin("60"); setAddPopup(null); setNewLabel(""); setConfirmDeleteId(null);
+      setTime(""); setDurationMin(0); setAddPopup(null); setNewLabel(""); setConfirmDeleteId(null);
     }
   }, [open]);
 
@@ -147,11 +146,10 @@ export default function CreateTaskSheet({
     onInputChange(val);
     const { parsedTime, parsedDur, parsedTags } = parseInline(val);
     if (parsedTime && !time) setTime(parsedTime);
-    if (parsedDur && !(durationHrs !== "0" || durationMin !== "60")) {
+    if (parsedDur && durationMin === 0) {
       const mins = parseInt(parsedDur);
       if (!isNaN(mins)) {
-        setDurationHrs(String(Math.floor(mins / 60)));
-        setDurationMin(String(mins % 60));
+        setDurationMin(mins);
       }
     }
     if (parsedTags.length > 0) setSelectedTags((prev) => [...new Set([...prev, ...parsedTags])]);
@@ -168,22 +166,20 @@ export default function CreateTaskSheet({
     const now = new Date();
     const fallbackTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
     const [h, m] = (time || fallbackTime).split(":").map(Number);
-    const totalMinutes = (parseInt(durationHrs || "0", 10) * 60) + parseInt(durationMin || "0", 10);
     onCreateTask({
       name: taskName, type: selectedType, tags: selectedTags, desc: desc.trim(),
       time: time || fallbackTime,
       timeMin: (h || 0) * 60 + (m || 0),
-      duration: totalMinutes || 60,
+      duration: durationMin || 60,
     });
     setName(""); setDesc(""); setSelectedType("task"); setSelectedTags([]);
-    setTime(""); setDurationHrs("0"); setDurationMin("60"); onClose();
+    setTime(""); setDurationMin(0); onClose();
   };
 
   const handlePickSuggestion = (s: any) => {
     setName(s.name);
     if (s.duration) {
-      setDurationHrs(String(Math.floor(s.duration / 60)));
-      setDurationMin(String(s.duration % 60));
+      setDurationMin(s.duration);
     }
     if (s.type) setSelectedType(s.type);
     onInputChange("");
@@ -223,28 +219,44 @@ export default function CreateTaskSheet({
     }
   };
 
-  const handleDurationHrsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value.replace(/\D/g, "");
-    setDurationHrs(val);
+  const formatDuration = (totalMinutes: number): string => {
+    if (totalMinutes <= 60) {
+      return `${String(totalMinutes).padStart(2, "0")}:00`;
+    } else {
+      const hrs = Math.floor(totalMinutes / 60);
+      const mins = totalMinutes % 60;
+      return `${String(hrs).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
+    }
   };
 
-  const handleDurationMinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value.replace(/\D/g, "");
-    if (val.length === 4) {
-      const hrs = parseInt(val.slice(0, 2), 10);
-      const mins = parseInt(val.slice(2, 4), 10);
-      setDurationHrs(String(hrs));
-      setDurationMin(String(mins));
+  const handleDurationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value.replace(/[^0-9]/g, "");
+
+    if (raw.length === 0) {
+      setDurationMin(0);
       return;
     }
-    if (val.length === 3) {
-      const hrs = parseInt(val.slice(0, 1), 10);
-      const mins = parseInt(val.slice(1, 3), 10);
-      setDurationHrs(String(hrs));
-      setDurationMin(String(mins));
+
+    const num = parseInt(raw, 10);
+
+    if (raw.length <= 2) {
+      setDurationMin(num);
       return;
     }
-    setDurationMin(val);
+
+    if (raw.length === 3) {
+      const h = parseInt(raw[0], 10);
+      const m = parseInt(raw.slice(1), 10);
+      setDurationMin(h * 60 + Math.min(m, 59));
+      return;
+    }
+
+    if (raw.length >= 4) {
+      const h = parseInt(raw.slice(0, 2), 10);
+      const m = parseInt(raw.slice(2, 4), 10);
+      setDurationMin(h * 60 + Math.min(m, 59));
+      return;
+    }
   };
 
   const fmtDur = (m: number) => m >= 60 ? (m % 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${Math.floor(m / 60)}h`) : `${m}m`;
@@ -435,25 +447,8 @@ export default function CreateTaskSheet({
                 borderRadius: 12, padding: "10px 16px", minWidth: 80,
               }}>
                 <input
-                  value={`${durationHrs}:${String(parseInt(durationMin || "0", 10)).padStart(2, "0")}`}
-                  onChange={(e) => {
-                    const raw = e.target.value.replace(/[^0-9:]/g, "");
-                    if (raw.includes(":")) {
-                      const parts = raw.split(":");
-                      const h = parseInt(parts[0] || "0", 10);
-                      const m = parseInt(parts[1] || "0", 10);
-                      setDurationHrs(String(isNaN(h) ? 0 : h));
-                      setDurationMin(String(isNaN(m) ? 0 : Math.min(m, 59)));
-                    } else if (raw.length >= 3) {
-                      const h = parseInt(raw.slice(0, raw.length - 2), 10);
-                      const m = parseInt(raw.slice(-2), 10);
-                      setDurationHrs(String(isNaN(h) ? 0 : h));
-                      setDurationMin(String(isNaN(m) ? 0 : Math.min(m, 59)));
-                    } else {
-                      setDurationHrs("0");
-                      setDurationMin(raw || "0");
-                    }
-                  }}
+                  value={formatDuration(durationMin)}
+                  onChange={handleDurationChange}
                   inputMode="numeric"
                   style={{
                     width: 52, background: "none", border: "none", color: "var(--t1)",
