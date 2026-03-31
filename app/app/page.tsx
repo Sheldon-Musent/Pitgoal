@@ -145,7 +145,7 @@ export default function Home() {
   const navScrollTimer = useRef<any>(null);
 
   const dateStripScrollRef = useRef<HTMLDivElement>(null);
-  const dateStripInitialScroll = useRef(false);
+  // dateStripInitialScroll removed — fixed window approach
 
   const powerTapTimer = useRef<any>(null);
   const swipeStartX = useRef<number | null>(null);
@@ -828,87 +828,22 @@ const getTypeLabel = (typeId: string): string => {
   const pauseElapsedSec = pausedTask ? Math.floor((Date.now() - (pausedTask.pausedAt || Date.now())) / 1000) : 0;
   const pauseTimerStr = `${pad(Math.floor(pauseElapsedSec / 3600))}:${pad(Math.floor((pauseElapsedSec % 3600) / 60))}:${pad(pauseElapsedSec % 60)}`;
   const allDates = useMemo(() => {
-    // Generate continuous dates: 30 days before selected date to 30 days after
+    // Generate 7 visible dates centered on selected date
     const center = new Date(selectedDate);
     const dates: Date[] = [];
-    for (let i = -30; i <= 30; i++) {
+    for (let i = -3; i <= 3; i++) {
       const d = new Date(center);
       d.setDate(d.getDate() + i);
       d.setHours(0, 0, 0, 0);
       dates.push(d);
     }
     return dates;
-  }, [selectedDate.getMonth(), selectedDate.getFullYear()]);
+  }, [selectedDate.getTime()]);
   const lastDateTapRef = useRef(0);
 
-  // Auto-scroll date strip to selected date
-  useEffect(() => {
-    const container = dateStripScrollRef.current;
-    if (!container) return;
+  // No auto-scroll needed — selected date is always centered in the 7-date window
 
-    const cellId = `dscell-${selectedDate.getFullYear()}-${selectedDate.getMonth()}-${selectedDate.getDate()}`;
-    const isFirstScroll = !dateStripInitialScroll.current;
-    const doScroll = () => {
-      const el = document.getElementById(cellId);
-      if (!el || !container) return;
-      const containerWidth = container.offsetWidth;
-      if (containerWidth === 0) return;
-      // Disable scroll snap temporarily so it doesn't fight us
-      container.style.scrollSnapType = "none";
-      const scrollTarget = el.offsetLeft - containerWidth / 2 + el.offsetWidth / 2;
-      if (isFirstScroll) {
-        container.scrollLeft = Math.max(0, scrollTarget);
-      } else {
-        container.scrollTo({
-          left: Math.max(0, scrollTarget),
-          behavior: "smooth",
-        });
-      }
-      // Re-enable scroll snap after scroll completes
-      setTimeout(() => {
-        if (container) container.style.scrollSnapType = "x mandatory";
-      }, isFirstScroll ? 50 : 400);
-      dateStripInitialScroll.current = true;
-    };
-    setTimeout(doScroll, isFirstScroll ? 200 : 50);
-  }, [selectedDate, allDates, loaded]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Edge dim: fade dates at edges of visible scroll area
-  useEffect(() => {
-    const container = dateStripScrollRef.current;
-    if (!container) return;
-
-    let rafId = 0;
-    const updateEdgeDim = () => {
-      cancelAnimationFrame(rafId);
-      rafId = requestAnimationFrame(() => {
-      const items = container.children;
-      const rect = container.getBoundingClientRect();
-      const fadeZone = 50; // px from edge where dimming starts
-
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i] as HTMLElement;
-        const itemRect = item.getBoundingClientRect();
-        const itemCenter = itemRect.left + itemRect.width / 2;
-
-        const distFromLeft = itemCenter - rect.left;
-        const distFromRight = rect.right - itemCenter;
-        const minDist = Math.min(distFromLeft, distFromRight);
-
-        if (minDist < fadeZone) {
-          const opacity = Math.max(0.15, minDist / fadeZone);
-          item.style.opacity = String(opacity);
-        } else {
-          item.style.opacity = "1";
-        }
-      }
-      });
-    };
-
-    updateEdgeDim();
-    container.addEventListener("scroll", updateEdgeDim, { passive: true });
-    return () => { container.removeEventListener("scroll", updateEdgeDim); cancelAnimationFrame(rafId); };
-  }, [allDates]);
+  // No edge dim needed — fixed 7-date window, no scrolling
 
   const handleTabChange = (tab: BottomTab) => setBottomTab(tab);
 
@@ -1006,7 +941,6 @@ const getTypeLabel = (typeId: string): string => {
           <div style={{ marginBottom: 8, marginTop: 24, position: "relative", display: "flex", flexDirection: "column", alignItems: "center" }}>
             <div
               ref={dateStripScrollRef}
-              className="no-scrollbar"
               style={{
                 background: "rgba(28,28,30,0.35)",
                 backdropFilter: "blur(15px) saturate(180%)",
@@ -1016,18 +950,14 @@ const getTypeLabel = (typeId: string): string => {
                 border: "none",
                 display: "flex",
                 gap: 0,
-                overflowX: "auto",
-                scrollSnapType: "x mandatory",
-                WebkitOverflowScrolling: "touch" as any,
-                maxWidth: "85%",
-                margin: "0 auto",
+                justifyContent: "center",
               }}
             >
               {allDates.map(d => {
                 const isT = isSameDay(d, today);
                 const isSel = isSameDay(d, selectedDate);
                 return (
-                  <div id={`dscell-${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`} key={d.getTime()} onClick={() => {
+                  <div key={d.getTime()} onClick={() => {
                     const now = Date.now();
                     if (now - lastDateTapRef.current < 300) {
                       const todayDate = new Date();
