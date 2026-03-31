@@ -311,3 +311,6 @@ input[type="number"] {
     display: flex !important;
   }
 }
+
+/* Date strip needs manual scroll control — override smooth */
+.no-scrollbar { scroll-behavior: auto; }
