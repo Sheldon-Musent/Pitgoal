@@ -846,7 +846,7 @@ const getTypeLabel = (typeId: string): string => {
     const container = dateStripScrollRef.current;
     if (!container) return;
 
-    requestAnimationFrame(() => {
+    setTimeout(() => {
       const items = container.children;
       if (!items || items.length === 0) return;
 
@@ -854,15 +854,17 @@ const getTypeLabel = (typeId: string): string => {
       if (centerIndex < 0 || !items[centerIndex]) return;
 
       const child = items[centerIndex] as HTMLElement;
-      const scrollTarget = child.offsetLeft - container.offsetWidth / 2 + child.offsetWidth / 2;
+      const containerWidth = container.offsetWidth;
+      if (containerWidth === 0) return;
+      const scrollTarget = child.offsetLeft - containerWidth / 2 + child.offsetWidth / 2;
 
       container.scrollTo({
-        left: scrollTarget,
+        left: Math.max(0, scrollTarget),
         behavior: dateStripInitialScroll.current ? "smooth" : "auto",
       });
 
       dateStripInitialScroll.current = true;
-    });
+    }, 100);
   }, [selectedDate, allDates, loaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Edge dim: fade dates at edges of visible scroll area
@@ -991,7 +993,7 @@ const getTypeLabel = (typeId: string): string => {
           />
 
           {/* ═══ SECTION B: Scrollable Date Strip ═══ */}
-          <div style={{ marginBottom: 8, marginTop: 24, position: "relative", display: "flex", justifyContent: "center" }}>
+          <div style={{ marginBottom: 8, marginTop: 24, position: "relative", display: "flex", flexDirection: "column", alignItems: "center" }}>
             <div
               ref={dateStripScrollRef}
               className="no-scrollbar"
@@ -1040,7 +1042,7 @@ const getTypeLabel = (typeId: string): string => {
             </div>
             {/* Month label below strip */}
             <div className="tap" onClick={() => setMonthPickerOpen(!monthPickerOpen)} style={{ textAlign: "center", marginTop: 8, cursor: "pointer" }}>
-              <span style={{ fontSize: 10, color: "var(--t5)", fontFamily: MONO, letterSpacing: 1, fontWeight: 600 }}>{MONTHS_SHORT[viewMonth]} {viewYear} ▾</span>
+              <span style={{ fontSize: 10, color: "var(--t5)", fontFamily: MONO, letterSpacing: 1, fontWeight: 600 }}>{MONTHS_SHORT[selectedDate.getMonth()]} {selectedDate.getFullYear()} ▾</span>
             </div>
             {/* Month picker overlay — centered fixed modal */}
             {monthPickerOpen && (
