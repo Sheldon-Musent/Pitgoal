@@ -185,7 +185,7 @@ export default function TaskSheet({ children, marLabelRef, navHeight = 72, isDes
   return (
     <div
       ref={containerRef}
-      style={{ position: "relative", flex: 1, minHeight: 0 }}
+      style={{ position: "relative", minHeight: "calc(100vh - 200px)" }}
     >
       <div
         ref={sheetRef}
