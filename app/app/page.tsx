@@ -1465,7 +1465,7 @@ const getTypeLabel = (typeId: string): string => {
                             onClick={() => setExpandedTask(isExpanded ? null : task.id)}
                             style={{
                               background: "#FFD000",
-                              borderRadius: isExpanded ? 24 : 50,
+                              borderRadius: 16,
                               padding: "24px 28px",
                               cursor: "pointer",
                               transition: "border-radius 0.2s",
@@ -1514,7 +1514,7 @@ const getTypeLabel = (typeId: string): string => {
                       <div key={task.id} style={{ marginBottom: 8, animation: `fadeUp 0.3s ease ${i * 0.04}s both` }}>
                         <div style={{
                           background: task.urgent ? "var(--danger-fill)" : "var(--card)",
-                          borderRadius: isExpanded ? 16 : (task.name.length > 35 ? 28 : 50),
+                          borderRadius: 14,
                           border: `1px solid ${isExpanded ? "var(--border2)" : isOverdue ? "rgba(226,75,74,0.3)" : task.urgent ? "transparent" : "var(--border)"}`,
                           transition: "border-radius 0.2s",
                           minHeight: 72,
@@ -1639,7 +1639,7 @@ const getTypeLabel = (typeId: string): string => {
                         const displayTime = getDisplayTime(task);
                         const endTime = fmtTime(Math.floor((getDisplayTimeMin(task) + (task.actual_duration || task.duration)) / 60) % 24, (getDisplayTimeMin(task) + (task.actual_duration || task.duration)) % 60);
                         return (
-                          <div key={task.id} className="tap" onClick={() => markUndone(task)} style={{ background: "var(--card)", borderRadius: task.name.length > 35 ? 28 : 50, padding: "18px 22px", border: "1px solid var(--border)", opacity: 0.5, display: "flex", alignItems: "center", gap: 12, cursor: "pointer", minHeight: 52, overflow: "hidden" }}>
+                          <div key={task.id} className="tap" onClick={() => markUndone(task)} style={{ background: "var(--card)", borderRadius: 14, padding: "18px 22px", border: "1px solid var(--border)", opacity: 0.5, display: "flex", alignItems: "center", gap: 12, cursor: "pointer", minHeight: 52, overflow: "hidden" }}>
                             <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
                               <div style={{ fontSize: 13, color: "var(--t5)", textDecoration: "line-through", fontFamily: BODY, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const, overflow: "hidden", lineHeight: 1.3, wordBreak: "break-word" }}>{task.name}</div>
                               <div style={{ fontSize: 10, color: "var(--t5)", fontFamily: MONO, marginTop: 2, fontWeight: 500 }}>{displayTime} — {endTime}{task.actual_duration ? ` · ${fmtDur(task.actual_duration)} actual` : ""}</div>
@@ -1666,7 +1666,7 @@ const getTypeLabel = (typeId: string): string => {
                       {skippedTasks.map((task) => {
                         const displayTime = getDisplayTime(task);
                         return (
-                          <div key={task.id} style={{ background: "var(--card)", borderRadius: task.name.length > 35 ? 28 : 50, padding: "18px 22px", border: "1px solid var(--border)", opacity: 0.5, display: "flex", alignItems: "center", gap: 12, minHeight: 52, overflow: "hidden" }}>
+                          <div key={task.id} style={{ background: "var(--card)", borderRadius: 14, padding: "18px 22px", border: "1px solid var(--border)", opacity: 0.5, display: "flex", alignItems: "center", gap: 12, minHeight: 52, overflow: "hidden" }}>
                             <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
                               <div style={{ fontSize: 13, color: "var(--t5)", textDecoration: "line-through", fontFamily: BODY, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const, overflow: "hidden", lineHeight: 1.3, wordBreak: "break-word" }}>{task.name}</div>
                               <div style={{ fontSize: 10, color: "var(--t5)", fontFamily: MONO, marginTop: 2, fontWeight: 500 }}>{displayTime} · skipped{task.actual_duration ? ` · ${fmtDur(task.actual_duration)} partial` : ""}</div>
