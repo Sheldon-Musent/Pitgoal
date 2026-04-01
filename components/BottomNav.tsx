@@ -72,6 +72,17 @@ const TABS: { id: BottomTab; icon: (active: boolean) => React.ReactNode }[] = [
   },
 ];
 
+// Fixed pixel widths per tab — prevents layout recalculation during expand/collapse
+const TAB_EXPANDED_W: Record<BottomTab, number> = {
+  main: 88,
+  community: 72,
+  friends: 86,
+  profile: 68,
+};
+const TAB_COLLAPSED_W = 50;
+const PILL_EXPANDED_W = TAB_EXPANDED_W.main + TAB_EXPANDED_W.community + TAB_EXPANDED_W.friends + TAB_EXPANDED_W.profile + 10; // +10 for padding
+const PILL_COLLAPSED_W = TAB_COLLAPSED_W * 4 + 10;
+
 export default function BottomNav({ active, onChange, onAdd, expanded, onExpand }: BottomNavProps) {
   const pillRef = useRef<HTMLDivElement>(null);
   const cellRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -209,9 +220,8 @@ export default function BottomNav({ active, onChange, onAdd, expanded, onExpand 
           willChange: "transform",
           WebkitTransform: "translateZ(0)",
           transform: "translateZ(0)",
-          maxWidth: expanded ? "calc(100vw - 56px)" : "calc(100vw - 80px)",
+          width: expanded ? PILL_EXPANDED_W : PILL_COLLAPSED_W,
           overflow: "hidden",
-          transition: "none",
         }}
       >
         {/* Yellow highlight (absolute positioned) */}
@@ -242,16 +252,16 @@ export default function BottomNav({ active, onChange, onAdd, expanded, onExpand 
                 flexDirection: "row",
                 alignItems: "center",
                 justifyContent: "center",
-                gap: expanded ? 6 : 0,
+                gap: 6,
                 cursor: "pointer",
                 position: "relative",
                 zIndex: 1,
                 borderRadius: 50,
-                width: expanded ? "auto" : 50,
-                paddingLeft: expanded ? 14 : 0,
-                paddingRight: expanded ? 14 : 0,
+                width: expanded ? TAB_EXPANDED_W[tab.id] : TAB_COLLAPSED_W,
+                paddingLeft: 0,
+                paddingRight: 0,
                 transition: "none",
-                minWidth: 50,
+                minWidth: TAB_COLLAPSED_W,
               }}
             >
               <div style={{ flexShrink: 0 }}>{tab.icon(isActive)}</div>
@@ -262,10 +272,10 @@ export default function BottomNav({ active, onChange, onAdd, expanded, onExpand 
                 lineHeight: 1,
                 overflow: "hidden",
                 whiteSpace: "nowrap",
-                maxWidth: expanded ? 80 : 0,
+                width: expanded ? "auto" : 0,
                 opacity: expanded ? 1 : 0,
-                transition: "max-width 0.25s ease, opacity 0.2s ease",
-                willChange: "max-width, opacity",
+                transition: "opacity 0.2s ease",
+                willChange: "opacity",
               }}>
                 {TAB_LABELS[tab.id]}
               </span>
@@ -292,10 +302,9 @@ export default function BottomNav({ active, onChange, onAdd, expanded, onExpand 
             justifyContent: "center",
             cursor: "pointer",
             flexShrink: 0,
-            transition: "transform 0.25s ease",
             willChange: "transform",
-            WebkitTransform: expanded ? "scale(0.72)" : "scale(1)",
-            transform: expanded ? "scale(0.72)" : "scale(1)",
+            WebkitTransform: "translateZ(0)",
+            transform: "translateZ(0)",
           }}
         >
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--fill-title, #0a0a0a)" strokeWidth="2.5" strokeLinecap="round">
