@@ -35,6 +35,13 @@ export default function TaskSheet({ children, marLabelRef, navHeight = 72, isDes
 
   // Measure snap points from viewport — same as prototype measures from phone frame
   const measure = () => {
+    // Get safe area inset for iOS PWA (notch)
+    const safeDiv = document.createElement("div");
+    safeDiv.style.cssText = "position:fixed;top:0;padding-top:env(safe-area-inset-top,0px);visibility:hidden;pointer-events:none;";
+    document.body.appendChild(safeDiv);
+    const safeTop = parseInt(getComputedStyle(safeDiv).paddingTop) || 0;
+    document.body.removeChild(safeDiv);
+
     let HALF = 200;
     if (marLabelRef.current) {
       const mRect = marLabelRef.current.getBoundingClientRect();
@@ -48,9 +55,10 @@ export default function TaskSheet({ children, marLabelRef, navHeight = 72, isDes
       CLOSED = Math.round(nRect.top) - HANDLE_GAP;
     }
 
-    HALF = Math.max(0, HALF);
+    const FULL = safeTop;
+    HALF = Math.max(FULL, HALF);
     CLOSED = Math.max(HALF + 50, CLOSED);
-    snapsRef.current = { FULL: 0, HALF, CLOSED };
+    snapsRef.current = { FULL, HALF, CLOSED };
   };
 
   // Update sheet position + lerped styles — direct port from prototype updateSheet()
@@ -63,7 +71,8 @@ export default function TaskSheet({ children, marLabelRef, navHeight = 72, isDes
     let sideGap: number, rad: number, closedT: number;
 
     if (top <= HALF) {
-      const t = HALF > 0 ? top / HALF : 0;
+      const { FULL } = snapsRef.current;
+      const t = HALF > FULL ? (top - FULL) / (HALF - FULL) : 0;
       sideGap = lerp(0, 10, t);
       rad = lerp(0, 24, t);
     } else {
@@ -217,7 +226,7 @@ export default function TaskSheet({ children, marLabelRef, navHeight = 72, isDes
           </div>
         </div>
         {/* Task content */}
-        <div ref={contentRef} style={{ padding: "0 24px" }}>
+        <div ref={contentRef} style={{ padding: "0 24px", paddingBottom: "calc(100px + env(safe-area-inset-bottom, 0px))" }}>
           {children}
         </div>
       </div>
@@ -227,7 +236,7 @@ export default function TaskSheet({ children, marLabelRef, navHeight = 72, isDes
         bottom: 0,
         left: 0,
         right: 0,
-        height: 80,
+        height: "calc(80px + env(safe-area-inset-bottom, 0px))",
         background: "linear-gradient(to bottom, transparent, #0a0a0a)",
         pointerEvents: "none",
         zIndex: 11,
