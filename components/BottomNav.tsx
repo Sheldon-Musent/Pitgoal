@@ -160,26 +160,25 @@ export default function BottomNav({ active, onChange, onAdd }: BottomNavProps) {
               style={{
                 height: 44,
                 display: "flex",
-                flexDirection: "column",
+                flexDirection: "row",
                 alignItems: "center",
                 justifyContent: "center",
-                gap: 2,
+                gap: 6,
                 cursor: "pointer",
                 position: "relative",
                 zIndex: 1,
                 borderRadius: 50,
-                padding: "0 16px",
+                padding: "0 18px",
                 minWidth: 56,
               }}
             >
               <div style={{ flexShrink: 0 }}>{tab.icon(isActive)}</div>
               <span style={{
-                fontSize: 9,
+                fontSize: 11,
                 fontWeight: 600,
                 color: isActive ? "var(--fill-title, #0a0a0a)" : "var(--t4)",
                 lineHeight: 1,
                 whiteSpace: "nowrap",
-                letterSpacing: 0.5,
               }}>
                 {TAB_LABELS[tab.id]}
               </span>
