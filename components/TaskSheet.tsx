@@ -195,7 +195,7 @@ export default function TaskSheet({ children, stickyHeader, marLabelRef, navHeig
   useEffect(() => {
     const timer = setTimeout(() => {
       measure();
-      snapTo(0);
+      snapTo(1);
     }, 50);
     const onResize = () => { measure(); snapTo(currentSnapRef.current); };
     window.addEventListener("resize", onResize);
