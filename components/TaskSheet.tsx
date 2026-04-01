@@ -184,8 +184,8 @@ export default function TaskSheet({ children, marLabelRef, navHeight = 72, isDes
           willChange: "top, left, right, border-radius",
         }}
       >
-        {/* Handle bar — only this triggers drag */}
-        <div className="task-sheet-handle"
+        {/* Drag zone — top 44px of sheet */}
+        <div
           onTouchStart={onStart}
           onTouchMove={onMove}
           onTouchEnd={onEnd}
@@ -193,13 +193,16 @@ export default function TaskSheet({ children, marLabelRef, navHeight = 72, isDes
           onMouseMove={onMove}
           onMouseUp={onEnd}
           onMouseLeave={onEnd}
+          style={{ cursor: "grab", touchAction: "none" }}
         >
-          <div style={{
-            width: 36,
-            height: 4,
-            borderRadius: 2,
-            background: "rgba(255,255,255,0.2)",
-          }} />
+          <div className="task-sheet-handle">
+            <div style={{
+              width: 36,
+              height: 4,
+              borderRadius: 2,
+              background: "rgba(255,255,255,0.2)",
+            }} />
+          </div>
         </div>
         {/* Task content */}
         <div ref={contentRef} style={{ padding: "0 24px" }}>
