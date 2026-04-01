@@ -280,7 +280,7 @@ const WeekCalendar = forwardRef<{ scrollToToday: () => void }, WeekCalendarProps
                     color: "var(--t4)",
                     marginTop: 1,
                   }}>
-                    {getDayHours(day)}
+                    {isT ? getDayHours(day) : ""}
                   </div>
                 </div>
 
@@ -303,7 +303,7 @@ const WeekCalendar = forwardRef<{ scrollToToday: () => void }, WeekCalendarProps
                   ))}
 
                   {/* Task blocks */}
-                  {blocks.map((b, bi) => {
+                  {isT && blocks.map((b, bi) => {
                     const rest = isRest(b.type);
                     const taskBg = isT ? "rgba(255,208,0,0.5)" : "rgba(255,208,0,0.25)";
                     const restBg = isT ? "rgba(107,138,122,0.65)" : "rgba(107,138,122,0.4)";
