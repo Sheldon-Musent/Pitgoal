@@ -124,7 +124,7 @@ export default function TaskSheet({ children, marLabelRef, navHeight = 72, isDes
     const content = contentRef.current;
     if (!sheet || !content) return;
     currentSnapRef.current = idx;
-    sheet.style.transition = "transform 0.35s cubic-bezier(0.25, 1, 0.5, 1), left 0.35s cubic-bezier(0.25, 1, 0.5, 1), right 0.35s cubic-bezier(0.25, 1, 0.5, 1), border-radius 0.35s cubic-bezier(0.25, 1, 0.5, 1), background 0.35s cubic-bezier(0.25, 1, 0.5, 1), border-color 0.35s cubic-bezier(0.25, 1, 0.5, 1)";
+    sheet.style.transition = "transform 0.35s cubic-bezier(0.25, 1, 0.5, 1), border-radius 0.35s cubic-bezier(0.25, 1, 0.5, 1), background 0.35s cubic-bezier(0.25, 1, 0.5, 1), border-color 0.35s cubic-bezier(0.25, 1, 0.5, 1)";
     content.style.transition = "opacity 0.3s ease";
     const targets = [snapsRef.current.FULL, snapsRef.current.HALF, snapsRef.current.CLOSED];
     updateSheet(targets[idx]);
