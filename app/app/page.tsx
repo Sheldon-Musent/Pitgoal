@@ -143,7 +143,8 @@ export default function Home() {
 
 
   // ── Nav expanded state (fix #6) ──
-
+  const [navExpanded, setNavExpanded] = useState(false);
+  const navScrollTimer = useRef<any>(null);
 
   const dateStripScrollRef = useRef<HTMLDivElement>(null);
   const dateSnapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -412,6 +413,20 @@ export default function Home() {
     }, 10000);
     return () => clearInterval(interval);
   }, [loaded, activeTask]);
+
+  // ═══ NAV — expand on interaction, collapse after 1.5s on release ═══
+  const expandNav = useCallback((startCollapse?: boolean) => {
+    setNavExpanded(true);
+    clearTimeout(navScrollTimer.current);
+    if (startCollapse) {
+      navScrollTimer.current = setTimeout(() => setNavExpanded(false), 1500);
+    }
+  }, []);
+  useEffect(() => {
+    const handleScroll = () => expandNav(true);
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => { window.removeEventListener("scroll", handleScroll); clearTimeout(navScrollTimer.current); };
+  }, [expandNav]);
 
   useEffect(() => { const fn = () => { if (document.visibilityState === "visible") { const n = new Date(); setViewMonth(n.getMonth()); setViewYear(n.getFullYear()); } }; document.addEventListener("visibilitychange", fn); return () => document.removeEventListener("visibilitychange", fn); }, []);
   useEffect(() => { if (monthPickerOpen && monthScrollRef.current) { const el = monthScrollRef.current.querySelector('[data-active="true"]'); if (el) (el as HTMLElement).scrollIntoView({ block: "center", behavior: "auto" }); } }, [monthPickerOpen]);
@@ -2587,7 +2602,7 @@ const getTypeLabel = (typeId: string): string => {
       ) : (
         <>
           {appContent}
-          <BottomNav active={bottomTab} onChange={handleTabChange} onAdd={() => setShowCreateSheet(true)} />
+          <BottomNav active={bottomTab} onChange={handleTabChange} onAdd={() => setShowCreateSheet(true)} expanded={navExpanded} onExpand={expandNav} />
         </>
       )}
     </div>
