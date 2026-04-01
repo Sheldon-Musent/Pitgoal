@@ -107,7 +107,7 @@ export default function Home() {
   const [statFilter, setStatFilter] = useState<"today" | "week" | "month" | "qtr" | "year">("today");
   const [statSortNewest, setStatSortNewest] = useState(true);
   const [filterMode, setFilterMode] = useState<string>("all");
-  const [calView, setCalView] = useState<"Week" | "Month" | "Quarter" | "Year">("Week");
+  const [calView, setCalView] = useState<"W" | "M" | "Q" | "Y">("W");
   const [deleteMode, setDeleteMode] = useState(false);
   const longPressTimer = useRef<any>(null);
   const [confirmSkipId, setConfirmSkipId] = useState<string | null>(null);
@@ -995,30 +995,26 @@ const getTypeLabel = (typeId: string): string => {
           </div>
 
           {/* ═══ CALENDAR VIEW TOGGLE ═══ */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, marginTop: 14, marginBottom: 16 }}>
-            <span style={{
-              fontSize: 13,
-              fontWeight: 700,
-              letterSpacing: 2.5,
-              color: "rgba(255,255,255,0.2)",
-              fontFamily: MONO,
-              textTransform: "uppercase" as const,
-            }}>VIEW</span>
-            {(["Week", "Month", "Quarter", "Year"] as const).map((v) => (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 20, marginTop: 14, marginBottom: 16 }}>
+            {(["W", "M", "Q", "Y"] as const).map((v) => (
               <div
                 key={v}
                 className="tap"
                 onClick={() => setCalView(v)}
                 style={{
-                  padding: "7px 14px",
-                  fontSize: 11,
-                  fontWeight: calView === v ? 600 : 400,
-                  letterSpacing: 0.5,
-                  color: calView === v ? "#0a0a0a" : "#444",
+                  width: 44,
+                  height: 44,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 15,
+                  fontWeight: 700,
+                  letterSpacing: 1,
+                  color: calView === v ? "#0a0a0a" : "rgba(255,255,255,0.2)",
                   borderRadius: 50,
                   cursor: "pointer",
                   background: calView === v ? "#FFD000" : "transparent",
-                  transition: "background 0.2s, color 0.2s",
+                  transition: "background 0.25s ease, color 0.25s ease",
                 }}
               >{v}</div>
             ))}

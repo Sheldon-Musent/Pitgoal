@@ -186,6 +186,15 @@ export default function TaskSheet({ children, stickyHeader, marLabelRef, navHeig
     if (!draggingRef.current) return;
     draggingRef.current = false;
     const cur = currentTopRef.current;
+    const dragDist = Math.abs(cur - startTopRef.current);
+
+    // Tap (not drag) — toggle between HALF and FULL
+    if (dragDist < 5) {
+      const nextSnap = currentSnapRef.current === 1 ? 0 : 1; // 0=FULL, 1=HALF
+      snapTo(nextSnap);
+      return;
+    }
+
     const vel = cur - startTopRef.current;
     const target = Math.abs(vel) > 40 ? cur + vel * 0.3 : cur;
     snapTo(nearest(target));
