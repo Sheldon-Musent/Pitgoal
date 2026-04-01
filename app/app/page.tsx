@@ -995,47 +995,33 @@ const getTypeLabel = (typeId: string): string => {
           </div>
 
           {/* ═══ CALENDAR VIEW TOGGLE ═══ */}
-          <div style={{ display: "flex", justifyContent: "center", marginTop: 12, marginBottom: 20 }}>
-            <div style={{
-              display: "inline-flex",
-              alignItems: "center",
-              background: "#161616",
-              borderRadius: 50,
-              padding: 5,
-              position: "relative",
-              border: "1px solid rgba(255,255,255,0.06)",
-            }}>
-              <div style={{
-                padding: "8px 14px 8px 20px",
-                fontSize: 13,
-                fontWeight: 700,
-                letterSpacing: 2.5,
-                color: "rgba(255,255,255,0.25)",
-                fontFamily: MONO,
-                textTransform: "uppercase" as const,
-                pointerEvents: "none" as const,
-              }}>VIEW</div>
-              {(["Week", "Month", "Quarter", "Year"] as const).map((v) => (
-                <div
-                  key={v}
-                  className="tap"
-                  onClick={() => setCalView(v)}
-                  style={{
-                    padding: "8px 14px",
-                    fontSize: 11,
-                    fontWeight: 500,
-                    letterSpacing: 0.5,
-                    color: calView === v ? "#0a0a0a" : "#555",
-                    borderRadius: 50,
-                    cursor: "pointer",
-                    background: calView === v ? "#FFD000" : "transparent",
-                    transition: "background 0.2s, color 0.2s",
-                    position: "relative",
-                    zIndex: 1,
-                  }}
-                >{v}</div>
-              ))}
-            </div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, marginTop: 14, marginBottom: 16 }}>
+            <span style={{
+              fontSize: 13,
+              fontWeight: 700,
+              letterSpacing: 2.5,
+              color: "rgba(255,255,255,0.2)",
+              fontFamily: MONO,
+              textTransform: "uppercase" as const,
+            }}>VIEW</span>
+            {(["Week", "Month", "Quarter", "Year"] as const).map((v) => (
+              <div
+                key={v}
+                className="tap"
+                onClick={() => setCalView(v)}
+                style={{
+                  padding: "7px 14px",
+                  fontSize: 11,
+                  fontWeight: calView === v ? 600 : 400,
+                  letterSpacing: 0.5,
+                  color: calView === v ? "#0a0a0a" : "#444",
+                  borderRadius: 50,
+                  cursor: "pointer",
+                  background: calView === v ? "#FFD000" : "transparent",
+                  transition: "background 0.2s, color 0.2s",
+                }}
+              >{v}</div>
+            ))}
           </div>
 
           <TaskSheet marLabelRef={marLabelRef} isDesktop={isDesktop} navHeight={72} stickyHeader={

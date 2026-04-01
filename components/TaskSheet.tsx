@@ -49,7 +49,7 @@ export default function TaskSheet({ children, stickyHeader, marLabelRef, navHeig
     let HALF = 200;
     if (marLabelRef.current) {
       const mRect = marLabelRef.current.getBoundingClientRect();
-      HALF = Math.round(mRect.bottom) + 20;
+      HALF = Math.round(mRect.bottom) + 70;
     }
 
     let CLOSED = window.innerHeight - navHeight - HANDLE_GAP;
