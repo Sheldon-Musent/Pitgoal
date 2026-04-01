@@ -1002,14 +1002,14 @@ const getTypeLabel = (typeId: string): string => {
                 className="tap"
                 onClick={() => setCalView(v)}
                 style={{
-                  width: 44,
-                  height: 44,
+                  width: 36,
+                  height: 36,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontSize: 15,
+                  fontSize: 13,
                   fontWeight: 700,
-                  letterSpacing: 1,
+                  letterSpacing: 0,
                   color: calView === v ? "#0a0a0a" : "rgba(255,255,255,0.2)",
                   borderRadius: 50,
                   cursor: "pointer",
