@@ -167,7 +167,7 @@ export default function WeekCalendar({ tasks, templates, history, selectedDate, 
   const isRest = (type: string) => type === "rest" || type === "sleep";
 
   return (
-    <div style={{ position: "relative", marginBottom: 8 }}>
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       {/* Day headers — sticky */}
       <div
         ref={headerScrollRef}
@@ -239,7 +239,7 @@ export default function WeekCalendar({ tasks, templates, history, selectedDate, 
         className="no-scrollbar"
         onScroll={onGridScroll}
         style={{
-          height: 260,
+          flex: 1,
           overflowX: "auto",
           overflowY: "auto",
           WebkitOverflowScrolling: "touch" as any,

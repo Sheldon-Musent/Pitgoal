@@ -1033,6 +1033,19 @@ const getTypeLabel = (typeId: string): string => {
               getDisplayTimeMin={getDisplayTimeMin}
             />
           )}
+          {/* Bottom fade for calendar */}
+          {calView === "W" && (
+            <div style={{
+              position: "fixed",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: 100,
+              background: "linear-gradient(to top, #0a0a0a 30%, transparent)",
+              pointerEvents: "none",
+              zIndex: 5,
+            }} />
+          )}
 
           <TaskSheet ref={taskSheetRef} marLabelRef={marLabelRef} isDesktop={isDesktop} navHeight={72} stickyHeader={
             <>
