@@ -116,8 +116,6 @@ export default function TaskSheet({ children, marLabelRef, navHeight = 72, isDes
   // Touch/mouse handlers — direct port from prototype
   const onStart = (e: React.TouchEvent | React.MouseEvent) => {
     if ((e.target as HTMLElement).closest(".nav-fixed")) return;
-    // At FULL, let normal scroll happen if already scrolled down
-    if (currentSnapRef.current === 0 && sheetRef.current && sheetRef.current.scrollTop > 0) return;
 
     draggingRef.current = true;
     const sheet = sheetRef.current;
@@ -185,16 +183,17 @@ export default function TaskSheet({ children, marLabelRef, navHeight = 72, isDes
           WebkitOverflowScrolling: "touch" as any,
           willChange: "top, left, right, border-radius",
         }}
-        onTouchStart={onStart}
-        onTouchMove={onMove}
-        onTouchEnd={onEnd}
-        onMouseDown={onStart}
-        onMouseMove={onMove}
-        onMouseUp={onEnd}
-        onMouseLeave={onEnd}
       >
-        {/* Handle bar */}
-        <div className="task-sheet-handle">
+        {/* Handle bar — only this triggers drag */}
+        <div className="task-sheet-handle"
+          onTouchStart={onStart}
+          onTouchMove={onMove}
+          onTouchEnd={onEnd}
+          onMouseDown={onStart}
+          onMouseMove={onMove}
+          onMouseUp={onEnd}
+          onMouseLeave={onEnd}
+        >
           <div style={{
             width: 36,
             height: 4,
@@ -203,7 +202,7 @@ export default function TaskSheet({ children, marLabelRef, navHeight = 72, isDes
           }} />
         </div>
         {/* Task content */}
-        <div ref={contentRef}>
+        <div ref={contentRef} style={{ padding: "0 24px" }}>
           {children}
         </div>
       </div>
