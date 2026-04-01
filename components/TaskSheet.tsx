@@ -84,8 +84,8 @@ export default function TaskSheet({ children, marLabelRef, navHeight = 72, isDes
     sheet.style.borderColor = `rgba(255,255,255,${borderA.toFixed(3)})`;
     content.style.opacity = `${(1 - closedT).toFixed(3)}`;
 
-    // Only allow scroll when fully open
-    sheet.style.overflowY = top < 10 ? "auto" : "hidden";
+    // Allow scroll in FULL and HALF views
+    sheet.style.overflowY = top <= HALF + 10 ? "auto" : "hidden";
 
     currentTopRef.current = top;
   };
@@ -203,22 +203,21 @@ export default function TaskSheet({ children, marLabelRef, navHeight = 72, isDes
           }} />
         </div>
         {/* Task content */}
-        <div ref={contentRef} style={{ padding: "0 6px" }}>
+        <div ref={contentRef}>
           {children}
         </div>
-        {/* Bottom fade gradient — inside sheet, fixed to bottom */}
-        <div style={{
-          position: "sticky",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          height: 80,
-          background: "linear-gradient(to bottom, transparent, #0a0a0a)",
-          pointerEvents: "none",
-          marginTop: -80,
-          zIndex: 2,
-        }} />
       </div>
+      {/* Bottom fade gradient — fixed overlay, not inside scroll */}
+      <div style={{
+        position: "fixed",
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: 80,
+        background: "linear-gradient(to bottom, transparent, #0a0a0a)",
+        pointerEvents: "none",
+        zIndex: 11,
+      }} />
     </>
   );
 }
