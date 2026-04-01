@@ -20,7 +20,9 @@ function clamp(v: number, min: number, max: number): number {
 
 export default function TaskSheet({ children, marLabelRef, navHeight = 72, isDesktop }: TaskSheetProps) {
   const sheetRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const gradientRef = useRef<HTMLDivElement>(null);
   const snapsRef = useRef({ FULL: 0, HALF: 200, CLOSED: 500 });
   const currentTopRef = useRef(0);
   const currentSnapRef = useRef(0);
@@ -94,7 +96,13 @@ export default function TaskSheet({ children, marLabelRef, navHeight = 72, isDes
     content.style.opacity = `${(1 - closedT).toFixed(3)}`;
 
     // Allow scroll in FULL and HALF views
-    sheet.style.overflowY = top <= HALF + 10 ? "auto" : "hidden";
+    if (scrollRef.current) {
+      scrollRef.current.style.overflowY = top <= HALF + 10 ? "auto" : "hidden";
+    }
+    // Fade gradient with content
+    if (gradientRef.current) {
+      gradientRef.current.style.opacity = `${(1 - closedT).toFixed(3)}`;
+    }
 
     currentTopRef.current = top;
   };
@@ -201,9 +209,7 @@ export default function TaskSheet({ children, marLabelRef, navHeight = 72, isDes
           borderBottom: "none",
           borderRadius: 0,
           zIndex: 10,
-          overflowY: "auto",
-          overflowX: "hidden",
-          WebkitOverflowScrolling: "touch" as any,
+          overflow: "hidden",
           willChange: "top, left, right, border-radius",
         }}
         onTouchStart={onStart}
@@ -214,32 +220,41 @@ export default function TaskSheet({ children, marLabelRef, navHeight = 72, isDes
         onMouseUp={onEnd}
         onMouseLeave={onEnd}
       >
-        {/* Handle bar */}
-        <div style={{ cursor: "grab", touchAction: "none", padding: "6px 24px 10px" }}>
-          <div className="task-sheet-handle">
-            <div style={{
-              width: 36,
-              height: 4,
-              borderRadius: 2,
-              background: "rgba(255,255,255,0.2)",
-            }} />
+        {/* Inner scroll container */}
+        <div
+          ref={scrollRef}
+          style={{
+            height: "100%",
+            overflowY: "auto",
+            overflowX: "hidden",
+            WebkitOverflowScrolling: "touch" as any,
+          }}
+        >
+          {/* Handle bar */}
+          <div style={{ cursor: "grab", touchAction: "none", padding: "6px 24px 10px" }}>
+            <div className="task-sheet-handle">
+              <div style={{
+                width: 36,
+                height: 4,
+                borderRadius: 2,
+                background: "rgba(255,255,255,0.2)",
+              }} />
+            </div>
+          </div>
+          {/* Task content */}
+          <div ref={contentRef} style={{ padding: "0 24px", paddingBottom: "calc(100px + env(safe-area-inset-bottom, 0px))" }}>
+            {children}
           </div>
         </div>
-        {/* Task content */}
-        <div ref={contentRef} style={{ padding: "0 24px", paddingBottom: "calc(100px + env(safe-area-inset-bottom, 0px))" }}>
-          {children}
-        </div>
-        {/* Bottom fade gradient — inside sheet, pinned to bottom */}
-        <div style={{
-          position: "sticky",
+        {/* Bottom gradient — outside scroll, inside sheet shell */}
+        <div ref={gradientRef} style={{
+          position: "absolute",
           bottom: 0,
           left: 0,
           right: 0,
           height: 80,
-          marginTop: -80,
           background: "linear-gradient(to bottom, transparent, #0a0a0a)",
           pointerEvents: "none",
-          zIndex: 2,
         }} />
       </div>
     </>
