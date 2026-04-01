@@ -114,8 +114,23 @@ export default function TaskSheet({ children, marLabelRef, navHeight = 72, isDes
   };
 
   // Touch/mouse handlers — direct port from prototype
+  const MARGIN_PX = 24;
+
   const onStart = (e: React.TouchEvent | React.MouseEvent) => {
     if ((e.target as HTMLElement).closest(".nav-fixed")) return;
+
+    // Check if touch is in content area (between side margins) — if so, let scroll handle it
+    const sheet = sheetRef.current;
+    if (sheet) {
+      const t = "touches" in e ? e.touches[0] : e;
+      const rect = sheet.getBoundingClientRect();
+      const touchX = t.clientX - rect.left;
+      const touchY = t.clientY - rect.top;
+      const isInSideMargin = touchX < MARGIN_PX || touchX > (rect.width - MARGIN_PX);
+      const isInHandleZone = touchY < 44;
+      // Only drag from handle zone or side margins — content area scrolls
+      if (!isInHandleZone && !isInSideMargin) return;
+    }
 
     draggingRef.current = true;
     const sheet = sheetRef.current;
@@ -183,18 +198,16 @@ export default function TaskSheet({ children, marLabelRef, navHeight = 72, isDes
           WebkitOverflowScrolling: "touch" as any,
           willChange: "top, left, right, border-radius",
         }}
+        onTouchStart={onStart}
+        onTouchMove={onMove}
+        onTouchEnd={onEnd}
+        onMouseDown={onStart}
+        onMouseMove={onMove}
+        onMouseUp={onEnd}
+        onMouseLeave={onEnd}
       >
-        {/* Drag zone — top 44px of sheet */}
-        <div
-          onTouchStart={onStart}
-          onTouchMove={onMove}
-          onTouchEnd={onEnd}
-          onMouseDown={onStart}
-          onMouseMove={onMove}
-          onMouseUp={onEnd}
-          onMouseLeave={onEnd}
-          style={{ cursor: "grab", touchAction: "none", padding: "6px 24px 10px" }}
-        >
+        {/* Handle bar */}
+        <div style={{ cursor: "grab", touchAction: "none", padding: "6px 24px 10px" }}>
           <div className="task-sheet-handle">
             <div style={{
               width: 36,
