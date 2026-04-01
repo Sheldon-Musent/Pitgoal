@@ -1073,7 +1073,7 @@ const getTypeLabel = (typeId: string): string => {
                             }, 500);
                           }}
                           style={{
-                            width: 64, height: 64, flexShrink: 0, borderRadius: "50%",
+                            width: 72, height: 72, flexShrink: 0, borderRadius: "50%",
                             display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
                             cursor: "pointer",
                             background: isSel ? "#FFD000" : "transparent",
