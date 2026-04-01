@@ -159,6 +159,7 @@ export default function Home() {
   const monthScrollRef = useRef<HTMLDivElement>(null);
   const marLabelRef = useRef<HTMLDivElement>(null);
   const taskSheetRef = useRef<{ snapTo: (idx: number) => void }>(null);
+  const weekCalRef = useRef<{ scrollToToday: () => void }>(null);
   const suggestTimer = useRef<any>(null);
   const today = useMemo(() => new Date(), []);
 
@@ -1002,7 +1003,13 @@ const getTypeLabel = (typeId: string): string => {
               <div
                 key={v}
                 className="tap"
-                onClick={() => { setCalView(v); if (taskSheetRef.current) taskSheetRef.current.snapTo(2); }}
+                onClick={() => {
+                  setCalView(v);
+                  if (taskSheetRef.current) taskSheetRef.current.snapTo(2);
+                  if (v === "W" && weekCalRef.current) {
+                    setTimeout(() => weekCalRef.current?.scrollToToday(), 50);
+                  }
+                }}
                 style={{
                   width: 36,
                   height: 36,
@@ -1024,6 +1031,7 @@ const getTypeLabel = (typeId: string): string => {
 
           {calView === "W" && (
             <WeekCalendar
+              ref={weekCalRef}
               tasks={tasks}
               templates={templates}
               history={history}
