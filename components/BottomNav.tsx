@@ -252,7 +252,7 @@ export default function BottomNav({ active, onChange, onAdd, expanded, onExpand 
                 flexDirection: "row",
                 alignItems: "center",
                 justifyContent: "center",
-                gap: 6,
+                gap: expanded ? 6 : 0,
                 cursor: "pointer",
                 position: "relative",
                 zIndex: 1,
