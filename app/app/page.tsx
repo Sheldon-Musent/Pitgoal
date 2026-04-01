@@ -999,7 +999,7 @@ const getTypeLabel = (typeId: string): string => {
           <TaskSheet marLabelRef={marLabelRef} isDesktop={isDesktop} navHeight={72} stickyHeader={
             <>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "4px 0 0" }}>
-                <div style={{ width: "100%", padding: "0 24px", position: "relative" }}>
+                <div style={{ width: "100%", padding: "0 24px", position: "relative", overflow: "hidden" }}>
                   <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: 40, background: "linear-gradient(to right, rgba(28,28,30,0.85), transparent)", borderRadius: "50px 0 0 50px", zIndex: 2, pointerEvents: "none" }} />
                   <div style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 40, background: "linear-gradient(to left, rgba(28,28,30,0.85), transparent)", borderRadius: "0 50px 50px 0", zIndex: 2, pointerEvents: "none" }} />
                   <div
