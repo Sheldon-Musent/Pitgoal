@@ -211,6 +211,7 @@ export default function BottomNav({ active, onChange, onAdd, expanded, onExpand 
           transform: "translateZ(0)",
           maxWidth: expanded ? "calc(100vw - 56px)" : "calc(100vw - 80px)",
           overflow: "hidden",
+          transition: "none",
         }}
       >
         {/* Yellow highlight (absolute positioned) */}
@@ -249,7 +250,7 @@ export default function BottomNav({ active, onChange, onAdd, expanded, onExpand 
                 width: expanded ? "auto" : 50,
                 paddingLeft: expanded ? 14 : 0,
                 paddingRight: expanded ? 14 : 0,
-                transition: "width 0.3s ease, padding 0.3s ease",
+                transition: "none",
                 minWidth: 50,
               }}
             >
@@ -261,9 +262,10 @@ export default function BottomNav({ active, onChange, onAdd, expanded, onExpand 
                 lineHeight: 1,
                 overflow: "hidden",
                 whiteSpace: "nowrap",
-                width: expanded ? "auto" : 0,
+                maxWidth: expanded ? 80 : 0,
                 opacity: expanded ? 1 : 0,
-                transition: "width 0.3s ease, opacity 0.3s ease",
+                transition: "max-width 0.25s ease, opacity 0.2s ease",
+                willChange: "max-width, opacity",
               }}>
                 {TAB_LABELS[tab.id]}
               </span>
@@ -281,8 +283,8 @@ export default function BottomNav({ active, onChange, onAdd, expanded, onExpand 
           tabIndex={0}
           onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onAdd?.(); }}
           style={{
-            width: expanded ? 36 : 50,
-            height: expanded ? 36 : 50,
+            width: 50,
+            height: 50,
             borderRadius: "50%",
             background: "var(--accent)",
             display: "flex",
@@ -290,13 +292,13 @@ export default function BottomNav({ active, onChange, onAdd, expanded, onExpand 
             justifyContent: "center",
             cursor: "pointer",
             flexShrink: 0,
-            transition: "width 0.3s ease, height 0.3s ease",
+            transition: "transform 0.25s ease",
             willChange: "transform",
-            WebkitTransform: "translateZ(0)",
-            transform: "translateZ(0)",
+            WebkitTransform: expanded ? "scale(0.72)" : "scale(1)",
+            transform: expanded ? "scale(0.72)" : "scale(1)",
           }}
         >
-          <svg width={expanded ? "16" : "22"} height={expanded ? "16" : "22"} viewBox="0 0 24 24" fill="none" stroke="var(--fill-title, #0a0a0a)" strokeWidth="2.5" strokeLinecap="round" style={{ transition: "width 0.3s ease, height 0.3s ease" }}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--fill-title, #0a0a0a)" strokeWidth="2.5" strokeLinecap="round">
             <line x1="12" y1="5" x2="12" y2="19" />
             <line x1="5" y1="12" x2="19" y2="12" />
           </svg>
