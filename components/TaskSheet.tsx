@@ -3,6 +3,7 @@ import React, { useRef, useEffect } from "react";
 
 interface TaskSheetProps {
   children: React.ReactNode;
+  stickyHeader?: React.ReactNode;
   marLabelRef: React.RefObject<HTMLDivElement | null>;
   navHeight?: number;
   isDesktop: boolean;
@@ -18,7 +19,7 @@ function clamp(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v));
 }
 
-export default function TaskSheet({ children, marLabelRef, navHeight = 72, isDesktop }: TaskSheetProps) {
+export default function TaskSheet({ children, stickyHeader, marLabelRef, navHeight = 72, isDesktop }: TaskSheetProps) {
   const sheetRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -242,6 +243,10 @@ export default function TaskSheet({ children, marLabelRef, navHeight = 72, isDes
               }} />
             </div>
           </div>
+          {/* Sticky header (date strip + MAR label) */}
+          {stickyHeader && (
+            <div className="task-sheet-sticky-header">{stickyHeader}</div>
+          )}
           {/* Task content */}
           <div ref={contentRef} style={{ padding: "0 24px", paddingBottom: "calc(100px + env(safe-area-inset-bottom, 0px))" }}>
             {children}

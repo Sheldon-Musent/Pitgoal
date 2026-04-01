@@ -980,6 +980,7 @@ const getTypeLabel = (typeId: string): string => {
 
 
           {/* ═══ SECTION A: 3 Stat Cards ═══ */}
+          <div ref={marLabelRef}>
           <StatCards
             energy={energy}
             tasksDone={tasksDoneCount + restsDoneCount}
@@ -990,162 +991,115 @@ const getTypeLabel = (typeId: string): string => {
             isCharging={isSleeping || (activeTask?.type === "rest")}
             isDesktop={isDesktop}
           />
+          </div>
 
-          {/* ═══ SECTION B: Scrollable Date Strip ═══ */}
-          <div style={{ marginBottom: 8, marginTop: 24, display: "flex", flexDirection: "column", alignItems: "center" }}>
-            {/* Edge dim wrapper */}
-            <div style={{ maxWidth: "85%", width: "100%", position: "relative" }}>
-              {/* Left dim */}
-              <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: 40, background: "linear-gradient(to right, rgba(10,10,10,0.85), transparent)", borderRadius: "50px 0 0 50px", zIndex: 2, pointerEvents: "none" }} />
-              {/* Right dim */}
-              <div style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 40, background: "linear-gradient(to left, rgba(10,10,10,0.85), transparent)", borderRadius: "0 50px 50px 0", zIndex: 2, pointerEvents: "none" }} />
-              {/* Scrollable strip */}
-              <div
-                ref={dateStripScrollRef}
-                className="no-scrollbar"
-                style={{
-                  background: "rgba(28,28,30,0.35)",
-                  backdropFilter: "blur(15px) saturate(180%)",
-                  WebkitBackdropFilter: "blur(15px) saturate(180%)",
-                  borderRadius: 50,
-                  padding: 5,
-                  display: "flex",
-                  gap: 0,
-                  overflowX: "auto",
-                  WebkitOverflowScrolling: "touch" as any,
-                }}
-              >
-                {/* Left spacer — lets first dates reach center */}
-                <div style={{ flexShrink: 0, width: "calc(50% - 28px)" }} />
-                {allDates.map((d, idx) => {
-                  const isT = isSameDay(d, today);
-                  const isSel = isSameDay(d, selectedDate);
-                  return (
-                    <div
-                      key={d.getTime()}
-                      data-didx={idx}
-                      onClick={() => {
-                        const now = Date.now();
-                        if (now - lastDateTapRef.current < 300) {
-                          // Clear any pending snap timer from the first tap
-                          if (dateSnapTimer.current) {
-                            clearTimeout(dateSnapTimer.current);
-                            dateSnapTimer.current = null;
-                          }
-                          const todayDate = new Date();
-                          todayDate.setHours(0, 0, 0, 0);
-                          setSelectedDate(todayDate);
-                          setViewMonth(todayDate.getMonth());
-                          setViewYear(todayDate.getFullYear());
-                          lastDateTapRef.current = 0;
-                          // Scroll to today cell directly
-                          setTimeout(() => {
-                            const ctr = dateStripScrollRef.current;
-                            const todayIdx = allDates.findIndex(dd => isSameDay(dd, todayDate));
-                            const cell = ctr?.querySelector(`[data-didx="${todayIdx}"]`) as HTMLElement;
-                            if (cell && ctr) {
-                              const target = Math.max(0, cell.offsetLeft - ctr.offsetWidth / 2 + cell.offsetWidth / 2);
-                              const start = ctr.scrollLeft;
-                              const diff = target - start;
-                              if (Math.abs(diff) < 1) return;
-                              const startTime = performance.now();
-                              const ease = (t: number) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-                              const step = (now: number) => {
-                                const elapsed = now - startTime;
-                                const progress = Math.min(elapsed / 300, 1);
-                                ctr.scrollLeft = start + diff * ease(progress);
-                                if (progress < 1) requestAnimationFrame(step);
-                              };
-                              requestAnimationFrame(step);
+          {/* Spacer — date strip moved into sheet */}
+          <div style={{ marginTop: 8 }} />
+
+          <TaskSheet marLabelRef={marLabelRef} isDesktop={isDesktop} navHeight={72} stickyHeader={
+            <>
+              {/* Date strip */}
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "0 0 0" }}>
+                <div style={{ maxWidth: "85%", width: "100%", position: "relative" }}>
+                  <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: 40, background: "linear-gradient(to right, rgba(28,28,30,0.85), transparent)", borderRadius: "50px 0 0 50px", zIndex: 2, pointerEvents: "none" }} />
+                  <div style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 40, background: "linear-gradient(to left, rgba(28,28,30,0.85), transparent)", borderRadius: "0 50px 50px 0", zIndex: 2, pointerEvents: "none" }} />
+                  <div
+                    ref={dateStripScrollRef}
+                    className="no-scrollbar"
+                    style={{
+                      background: "rgba(28,28,30,0.35)",
+                      backdropFilter: "blur(15px) saturate(180%)",
+                      WebkitBackdropFilter: "blur(15px) saturate(180%)",
+                      borderRadius: 50,
+                      padding: 5,
+                      display: "flex",
+                      gap: 0,
+                      overflowX: "auto",
+                      WebkitOverflowScrolling: "touch" as any,
+                    }}
+                  >
+                    <div style={{ flexShrink: 0, width: "calc(50% - 28px)" }} />
+                    {allDates.map((d, idx) => {
+                      const isT = isSameDay(d, today);
+                      const isSel = isSameDay(d, selectedDate);
+                      return (
+                        <div
+                          key={d.getTime()}
+                          data-didx={idx}
+                          onClick={() => {
+                            const now = Date.now();
+                            if (now - lastDateTapRef.current < 300) {
+                              if (dateSnapTimer.current) { clearTimeout(dateSnapTimer.current); dateSnapTimer.current = null; }
+                              const todayDate = new Date();
+                              todayDate.setHours(0, 0, 0, 0);
+                              setSelectedDate(todayDate);
+                              setViewMonth(todayDate.getMonth());
+                              setViewYear(todayDate.getFullYear());
+                              lastDateTapRef.current = 0;
+                              setTimeout(() => {
+                                const ctr = dateStripScrollRef.current;
+                                const todayIdx = allDates.findIndex(dd => isSameDay(dd, todayDate));
+                                const cell = ctr?.querySelector(`[data-didx="${todayIdx}"]`) as HTMLElement;
+                                if (cell && ctr) {
+                                  const target = Math.max(0, cell.offsetLeft - ctr.offsetWidth / 2 + cell.offsetWidth / 2);
+                                  const start = ctr.scrollLeft;
+                                  const diff = target - start;
+                                  if (Math.abs(diff) < 1) return;
+                                  const startTime = performance.now();
+                                  const ease = (t: number) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+                                  const step = (now: number) => { const elapsed = now - startTime; const progress = Math.min(elapsed / 300, 1); ctr.scrollLeft = start + diff * ease(progress); if (progress < 1) requestAnimationFrame(step); };
+                                  requestAnimationFrame(step);
+                                }
+                              }, 50);
+                              return;
                             }
-                          }, 50);
-                          return;
-                        }
-                        lastDateTapRef.current = now;
-                        setSelectedDate(new Date(d));
-                        setViewMonth(d.getMonth());
-                        setViewYear(d.getFullYear());
-                        // Delayed snap: highlight instantly, scroll to center after 0.5s
-                        if (dateSnapTimer.current) clearTimeout(dateSnapTimer.current);
-                        dateSnapTimer.current = setTimeout(() => {
-                          const ctr = dateStripScrollRef.current;
-                          const cell = ctr?.querySelector(`[data-didx="${idx}"]`) as HTMLElement;
-                          if (cell && ctr) {
-                            const target = Math.max(0, cell.offsetLeft - ctr.offsetWidth / 2 + cell.offsetWidth / 2);
-                            const start = ctr.scrollLeft;
-                            const diff = target - start;
-                            if (Math.abs(diff) < 1) return;
-                            const startTime = performance.now();
-                            const ease = (t: number) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-                            const step = (now: number) => {
-                              const elapsed = now - startTime;
-                              const progress = Math.min(elapsed / 300, 1);
-                              ctr.scrollLeft = start + diff * ease(progress);
-                              if (progress < 1) requestAnimationFrame(step);
-                            };
-                            requestAnimationFrame(step);
-                          }
-                        }, 500);
-                      }}
-                      style={{
-                        width: 56,
-                        height: 56,
-                        flexShrink: 0,
-                        borderRadius: "50%",
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        cursor: "pointer",
-                        background: isSel ? "#FFD000" : "transparent",
-                        transition: "background 0.2s",
-                        position: "relative",
-                      }}
-                    >
-                      <div style={{ fontSize: 18, fontWeight: 700, color: isSel ? "#0a0a0a" : "var(--t5)", lineHeight: 1.2 }}>{d.getDate()}</div>
-                      <div style={{ fontSize: 9, fontWeight: 500, color: isSel ? "rgba(0,0,0,0.5)" : "var(--t5)", fontFamily: MONO }}>{DAYS[d.getDay()]}</div>
-                      {isT && !isSel && (
-                        <div style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--accent)", position: "absolute", bottom: 4, left: "50%", transform: "translateX(-50%)" }} />
-                      )}
-                    </div>
-                  );
-                })}
-                {/* Right spacer — lets last dates reach center */}
-                <div style={{ flexShrink: 0, width: "calc(50% - 28px)" }} />
-              </div>
-            </div>
-            {/* Month label */}
-            <div ref={marLabelRef} className="tap" onClick={() => setMonthPickerOpen(!monthPickerOpen)} style={{ textAlign: "center", marginTop: 8, cursor: "pointer" }}>
-              <span style={{ fontSize: 10, color: "var(--t5)", fontFamily: MONO, letterSpacing: 1, fontWeight: 600 }}>{MONTHS_SHORT[selectedDate.getMonth()]} {selectedDate.getFullYear()} ▾</span>
-            </div>
-            {/* Month picker overlay — centered fixed modal */}
-            {monthPickerOpen && (
-              <div onClick={() => setMonthPickerOpen(false)} style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 100, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", animation: "monthFadeIn 0.2s ease" }}>
-                <div ref={monthScrollRef} onClick={(e) => e.stopPropagation()} style={{ background: "rgba(28,28,30,0.65)", backdropFilter: "blur(30px) saturate(180%)", WebkitBackdropFilter: "blur(30px) saturate(180%)", border: "none", borderRadius: 20, padding: 20, width: 320, maxWidth: "calc(100% - 48px)" }}>
-                  {/* Year navigation */}
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, padding: "0 4px" }}>
-                    <div className="tap" onClick={() => setViewYear(y => Math.max(2024, y - 1))} style={{ width: 32, height: 32, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", background: "rgba(255,255,255,0.06)" }}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" strokeWidth="2" strokeLinecap="round"><polyline points="15 18 9 12 15 6" /></svg>
-                    </div>
-                    <span style={{ fontSize: 16, fontWeight: 700, color: "var(--t1)", fontFamily: MONO }}>{viewYear}</span>
-                    <div className="tap" onClick={() => setViewYear(y => Math.min(2030, y + 1))} style={{ width: 32, height: 32, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", background: "rgba(255,255,255,0.06)" }}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6" /></svg>
-                    </div>
-                  </div>
-                  {/* Month grid — 4x3 */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
-                    {MONTHS_SHORT.map((m, i) => {
-                      const isCur = i === today.getMonth() && viewYear === today.getFullYear();
-                      const isSel = i === viewMonth;
-                      return <div key={m} data-active={isSel ? "true" : "false"} className="tap" onClick={() => pickMonth(i)} style={{ padding: "10px 0", textAlign: "center", borderRadius: 50, fontSize: 11, fontFamily: MONO, fontWeight: 600, cursor: "pointer", background: isSel ? "#FFD000" : isCur ? "rgba(255,208,0,0.1)" : "rgba(255,255,255,0.04)", color: isSel ? "#0a0a0a" : isCur ? "var(--accent)" : "var(--t4)", transition: "all 0.15s" }}>{m}</div>;
+                            lastDateTapRef.current = now;
+                            setSelectedDate(new Date(d));
+                            setViewMonth(d.getMonth());
+                            setViewYear(d.getFullYear());
+                            if (dateSnapTimer.current) clearTimeout(dateSnapTimer.current);
+                            dateSnapTimer.current = setTimeout(() => {
+                              const ctr = dateStripScrollRef.current;
+                              const cell = ctr?.querySelector(`[data-didx="${idx}"]`) as HTMLElement;
+                              if (cell && ctr) {
+                                const target = Math.max(0, cell.offsetLeft - ctr.offsetWidth / 2 + cell.offsetWidth / 2);
+                                const start = ctr.scrollLeft;
+                                const diff = target - start;
+                                if (Math.abs(diff) < 1) return;
+                                const startTime = performance.now();
+                                const ease = (t: number) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+                                const step = (now: number) => { const elapsed = now - startTime; const progress = Math.min(elapsed / 300, 1); ctr.scrollLeft = start + diff * ease(progress); if (progress < 1) requestAnimationFrame(step); };
+                                requestAnimationFrame(step);
+                              }
+                            }, 500);
+                          }}
+                          style={{
+                            width: 56, height: 56, flexShrink: 0, borderRadius: "50%",
+                            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                            cursor: "pointer",
+                            background: isSel ? "#FFD000" : "transparent",
+                            transition: "background 0.2s",
+                            position: "relative",
+                          }}
+                        >
+                          <div style={{ fontSize: 18, fontWeight: 700, color: isSel ? "#0a0a0a" : "var(--t5)", lineHeight: 1.2 }}>{d.getDate()}</div>
+                          <div style={{ fontSize: 9, fontWeight: 500, color: isSel ? "rgba(0,0,0,0.5)" : "var(--t5)", fontFamily: MONO }}>{DAYS[d.getDay()]}</div>
+                          {isT && !isSel && (
+                            <div style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--accent)", position: "absolute", bottom: 4, left: "50%", transform: "translateX(-50%)" }} />
+                          )}
+                        </div>
+                      );
                     })}
+                    <div style={{ flexShrink: 0, width: "calc(50% - 28px)" }} />
                   </div>
                 </div>
               </div>
-            )}
-          </div>
-
-          <TaskSheet marLabelRef={marLabelRef} navHeight={72} isDesktop={isDesktop}>
+              {/* MAR 2026 label */}
+              <div className="tap" onClick={() => setMonthPickerOpen(!monthPickerOpen)} style={{ textAlign: "center", marginTop: 8, cursor: "pointer" }}>
+                <span style={{ fontSize: 10, color: "var(--t5)", fontFamily: MONO, letterSpacing: 1, fontWeight: 600 }}>{MONTHS_SHORT[selectedDate.getMonth()]} {selectedDate.getFullYear()} ▾</span>
+              </div>
+            </>
+          }>
           {/* ═══ FILTER BAR — DATE + custom tags ═══ */}
           <div
             className="no-scrollbar"
@@ -1682,6 +1636,31 @@ const getTypeLabel = (typeId: string): string => {
             </>
           )}
           </TaskSheet>
+          {/* Month picker overlay — outside sheet so it renders as fixed overlay */}
+          {monthPickerOpen && (
+              <div onClick={() => setMonthPickerOpen(false)} style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 100, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", animation: "monthFadeIn 0.2s ease" }}>
+                <div ref={monthScrollRef} onClick={(e) => e.stopPropagation()} style={{ background: "rgba(28,28,30,0.65)", backdropFilter: "blur(30px) saturate(180%)", WebkitBackdropFilter: "blur(30px) saturate(180%)", border: "none", borderRadius: 20, padding: 20, width: 320, maxWidth: "calc(100% - 48px)" }}>
+                  {/* Year navigation */}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, padding: "0 4px" }}>
+                    <div className="tap" onClick={() => setViewYear(y => Math.max(2024, y - 1))} style={{ width: 32, height: 32, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", background: "rgba(255,255,255,0.06)" }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" strokeWidth="2" strokeLinecap="round"><polyline points="15 18 9 12 15 6" /></svg>
+                    </div>
+                    <span style={{ fontSize: 16, fontWeight: 700, color: "var(--t1)", fontFamily: MONO }}>{viewYear}</span>
+                    <div className="tap" onClick={() => setViewYear(y => Math.min(2030, y + 1))} style={{ width: 32, height: 32, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", background: "rgba(255,255,255,0.06)" }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6" /></svg>
+                    </div>
+                  </div>
+                  {/* Month grid — 4x3 */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
+                    {MONTHS_SHORT.map((m, i) => {
+                      const isCur = i === today.getMonth() && viewYear === today.getFullYear();
+                      const isSel = i === viewMonth;
+                      return <div key={m} data-active={isSel ? "true" : "false"} className="tap" onClick={() => pickMonth(i)} style={{ padding: "10px 0", textAlign: "center", borderRadius: 50, fontSize: 11, fontFamily: MONO, fontWeight: 600, cursor: "pointer", background: isSel ? "#FFD000" : isCur ? "rgba(255,208,0,0.1)" : "rgba(255,255,255,0.04)", color: isSel ? "#0a0a0a" : isCur ? "var(--accent)" : "var(--t4)", transition: "all 0.15s" }}>{m}</div>;
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
         </div>
       )}
 
