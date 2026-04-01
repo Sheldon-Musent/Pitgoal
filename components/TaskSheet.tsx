@@ -193,7 +193,7 @@ export default function TaskSheet({ children, marLabelRef, navHeight = 72, isDes
           onMouseMove={onMove}
           onMouseUp={onEnd}
           onMouseLeave={onEnd}
-          style={{ cursor: "grab", touchAction: "none" }}
+          style={{ cursor: "grab", touchAction: "none", padding: "6px 24px 10px" }}
         >
           <div className="task-sheet-handle">
             <div style={{
