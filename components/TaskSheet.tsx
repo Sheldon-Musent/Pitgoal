@@ -133,12 +133,11 @@ export default function TaskSheet({ children, marLabelRef, navHeight = 72, isDes
     }
 
     draggingRef.current = true;
-    const sheet = sheetRef.current;
     if (sheet) { sheet.style.transition = "none"; }
     if (contentRef.current) { contentRef.current.style.transition = "none"; }
 
-    const t = "touches" in e ? e.touches[0] : e;
-    startYRef.current = t.clientY;
+    const pt = "touches" in e ? e.touches[0] : e;
+    startYRef.current = pt.clientY;
     startTopRef.current = currentTopRef.current;
   };
 
