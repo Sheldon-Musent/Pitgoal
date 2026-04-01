@@ -76,7 +76,18 @@ const WeekCalendar = forwardRef<{ scrollToToday: () => void }, WeekCalendarProps
       });
     }, [weekDays, today, tasks, templates, history]);
 
-    const maxHrs = Math.max(...dayData.map(d => d.hrs), 1);
+    // Mock data fallback for visual testing — remove when real data flows
+    const hasRealData = dayData.some(d => d.hrs > 0);
+    const displayData = hasRealData ? dayData : [
+      { hrs: 2.5, taskCount: 2 },   // MON
+      { hrs: 4.0, taskCount: 3 },   // TUE
+      { hrs: 6.5, taskCount: 5 },   // WED (today)
+      { hrs: 3.5, taskCount: 3 },   // THU
+      { hrs: 1.5, taskCount: 2 },   // FRI
+      { hrs: 2.0, taskCount: 1 },   // SAT
+      { hrs: 0, taskCount: 0 },     // SUN
+    ];
+    const maxHrs = Math.max(...displayData.map(d => d.hrs), 1);
 
     useImperativeHandle(ref, () => ({
       scrollToToday: () => {}
@@ -91,7 +102,7 @@ const WeekCalendar = forwardRef<{ scrollToToday: () => void }, WeekCalendarProps
           const isToday = isSameDay(day, today);
           const isSel = isSameDay(day, selectedDate);
           const isFuture = day > today;
-          const { hrs } = dayData[i];
+          const { hrs } = displayData[i];
           const barPct = maxHrs > 0 ? hrs / maxHrs : 0;
 
           return (
