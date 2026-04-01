@@ -7,8 +7,6 @@ interface BottomNavProps {
   active: BottomTab;
   onChange: (tab: BottomTab) => void;
   onAdd?: () => void;
-  expanded: boolean;
-  onExpand?: (startCollapse?: boolean) => void;
 }
 
 const TAB_LABELS: Record<BottomTab, string> = {
@@ -40,8 +38,8 @@ const TABS: { id: BottomTab; icon: (active: boolean) => React.ReactNode }[] = [
         alt="Pit"
         style={{
           opacity: a ? 1 : 0.4,
-          filter: a ? 'none' : 'invert(1) brightness(0.6)',
-          transition: 'opacity 0.2s, filter 0.2s',
+          filter: a ? "none" : "invert(1) brightness(0.6)",
+          transition: "opacity 0.2s, filter 0.2s",
         }}
       />
     ),
@@ -72,15 +70,11 @@ const TABS: { id: BottomTab; icon: (active: boolean) => React.ReactNode }[] = [
   },
 ];
 
-export default function BottomNav({ active, onChange, onAdd, expanded, onExpand }: BottomNavProps) {
+export default function BottomNav({ active, onChange, onAdd }: BottomNavProps) {
   const pillRef = useRef<HTMLDivElement>(null);
   const cellRefs = useRef<(HTMLDivElement | null)[]>([]);
   const highlightRef = useRef<HTMLDivElement>(null);
-  const draggingRef = useRef(false);
-  const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
-  const isDragRef = useRef(false);
 
-  // Position the highlight on the active cell
   const updateHighlight = useCallback(() => {
     const pill = pillRef.current;
     const highlight = highlightRef.current;
@@ -94,76 +88,9 @@ export default function BottomNav({ active, onChange, onAdd, expanded, onExpand 
   }, [active]);
 
   useEffect(() => {
-    // Small delay to allow layout to settle after expand/collapse
     const t = setTimeout(updateHighlight, 20);
     return () => clearTimeout(t);
-  }, [active, expanded, updateHighlight]);
-
-  const getTabFromPointer = (clientX: number): BottomTab | null => {
-    for (let i = 0; i < TABS.length; i++) {
-      const cell = cellRefs.current[i];
-      if (!cell) continue;
-      const rect = cell.getBoundingClientRect();
-      if (clientX >= rect.left && clientX <= rect.right) return TABS[i].id;
-    }
-    return null;
-  };
-
-  const handlePointerDown = (e: React.PointerEvent) => {
-    const pill = pillRef.current;
-    if (!pill) return;
-    pill.setPointerCapture(e.pointerId);
-    draggingRef.current = true;
-    isDragRef.current = false;
-    pointerStartRef.current = { x: e.clientX, y: e.clientY };
-    // Select tab immediately on touch, but don't expand yet
-    const tab = getTabFromPointer(e.clientX);
-    if (tab) onChange(tab);
-  };
-
-  const handlePointerMove = (e: React.PointerEvent) => {
-    if (!draggingRef.current) return;
-    const start = pointerStartRef.current;
-    if (start) {
-      const dx = e.clientX - start.x;
-      const dy = e.clientY - start.y;
-      if (Math.sqrt(dx * dx + dy * dy) >= 10 && !isDragRef.current) {
-        isDragRef.current = true;
-        onExpand?.(false); // expand labels on drag start
-      }
-    }
-    if (isDragRef.current) {
-      const tab = getTabFromPointer(e.clientX);
-      if (tab) onChange(tab);
-    }
-  };
-
-  const handleRelease = (e: React.PointerEvent) => {
-    const pill = pillRef.current;
-    if (pill) pill.releasePointerCapture(e.pointerId);
-    draggingRef.current = false;
-    if (isDragRef.current) {
-      onExpand?.(true); // finger lifted after drag — start 1.5s collapse timer
-    }
-    isDragRef.current = false;
-    pointerStartRef.current = null;
-  };
-
-  // Attach touchend as fallback for mobile Safari
-  useEffect(() => {
-    const pill = pillRef.current;
-    if (!pill) return;
-    const onTouchEnd = () => {
-      draggingRef.current = false;
-      if (isDragRef.current) {
-        onExpand?.(true);
-      }
-      isDragRef.current = false;
-      pointerStartRef.current = null;
-    };
-    pill.addEventListener("touchend", onTouchEnd, { passive: true });
-    return () => pill.removeEventListener("touchend", onTouchEnd);
-  }, [onExpand]);
+  }, [active, updateHighlight]);
 
   return (
     <div
@@ -192,10 +119,6 @@ export default function BottomNav({ active, onChange, onAdd, expanded, onExpand 
       {/* Nav pill */}
       <div
         ref={pillRef}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handleRelease}
-        onPointerCancel={handleRelease}
         style={{
           display: "flex",
           alignItems: "center",
@@ -204,17 +127,14 @@ export default function BottomNav({ active, onChange, onAdd, expanded, onExpand 
           padding: 5,
           border: "none",
           position: "relative",
-          touchAction: "none",
           userSelect: "none",
           willChange: "transform",
           WebkitTransform: "translateZ(0)",
           transform: "translateZ(0)",
-          maxWidth: expanded ? "calc(100vw - 56px)" : "calc(100vw - 80px)",
           overflow: "hidden",
-          transition: "none",
         }}
       >
-        {/* Yellow highlight (absolute positioned) */}
+        {/* Yellow highlight */}
         <div
           ref={highlightRef}
           style={{
@@ -236,36 +156,30 @@ export default function BottomNav({ active, onChange, onAdd, expanded, onExpand 
             <div
               key={tab.id}
               ref={(el) => { cellRefs.current[idx] = el; }}
+              onClick={() => onChange(tab.id)}
               style={{
-                height: 50,
+                height: 44,
                 display: "flex",
-                flexDirection: "row",
+                flexDirection: "column",
                 alignItems: "center",
                 justifyContent: "center",
-                gap: expanded ? 6 : 0,
+                gap: 2,
                 cursor: "pointer",
                 position: "relative",
                 zIndex: 1,
                 borderRadius: 50,
-                width: expanded ? "auto" : 50,
-                paddingLeft: expanded ? 14 : 0,
-                paddingRight: expanded ? 14 : 0,
-                transition: "none",
-                minWidth: 50,
+                padding: "0 16px",
+                minWidth: 56,
               }}
             >
               <div style={{ flexShrink: 0 }}>{tab.icon(isActive)}</div>
               <span style={{
-                fontSize: 11,
+                fontSize: 9,
                 fontWeight: 600,
                 color: isActive ? "var(--fill-title, #0a0a0a)" : "var(--t4)",
                 lineHeight: 1,
-                overflow: "hidden",
                 whiteSpace: "nowrap",
-                maxWidth: expanded ? 80 : 0,
-                opacity: expanded ? 1 : 0,
-                transition: "max-width 0.25s ease, opacity 0.2s ease",
-                willChange: "max-width, opacity",
+                letterSpacing: 0.5,
               }}>
                 {TAB_LABELS[tab.id]}
               </span>
@@ -274,7 +188,7 @@ export default function BottomNav({ active, onChange, onAdd, expanded, onExpand 
         })}
       </div>
 
-      {/* Floating add button */}
+      {/* Add button */}
       {onAdd && (
         <div
           className="tap"
@@ -292,10 +206,9 @@ export default function BottomNav({ active, onChange, onAdd, expanded, onExpand 
             justifyContent: "center",
             cursor: "pointer",
             flexShrink: 0,
-            transition: "transform 0.25s ease",
             willChange: "transform",
-            WebkitTransform: expanded ? "scale(0.72)" : "scale(1)",
-            transform: expanded ? "scale(0.72)" : "scale(1)",
+            WebkitTransform: "translateZ(0)",
+            transform: "translateZ(0)",
           }}
         >
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--fill-title, #0a0a0a)" strokeWidth="2.5" strokeLinecap="round">
