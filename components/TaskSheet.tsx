@@ -8,7 +8,7 @@ interface TaskSheetProps {
   isDesktop: boolean;
 }
 
-const HANDLE_GAP = 25;
+const HANDLE_GAP = 35;
 
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * Math.min(1, Math.max(0, t));
@@ -87,7 +87,7 @@ export default function TaskSheet({ children, marLabelRef, navHeight = 72, isDes
     const bgA = lerp(0.85, 0, closedT);
     const borderA = lerp(0.1, 0, closedT);
 
-    sheet.style.top = `${top}px`;
+    sheet.style.transform = `translateY(${top}px)`;
     sheet.style.left = `${sideGap}px`;
     sheet.style.right = `${sideGap}px`;
     sheet.style.borderRadius = `${rad}px ${rad}px 0 0`;
@@ -124,7 +124,7 @@ export default function TaskSheet({ children, marLabelRef, navHeight = 72, isDes
     const content = contentRef.current;
     if (!sheet || !content) return;
     currentSnapRef.current = idx;
-    sheet.style.transition = "all 0.35s cubic-bezier(0.25, 1, 0.5, 1)";
+    sheet.style.transition = "transform 0.35s cubic-bezier(0.25, 1, 0.5, 1), left 0.35s cubic-bezier(0.25, 1, 0.5, 1), right 0.35s cubic-bezier(0.25, 1, 0.5, 1), border-radius 0.35s cubic-bezier(0.25, 1, 0.5, 1), background 0.35s cubic-bezier(0.25, 1, 0.5, 1), border-color 0.35s cubic-bezier(0.25, 1, 0.5, 1)";
     content.style.transition = "opacity 0.3s ease";
     const targets = [snapsRef.current.FULL, snapsRef.current.HALF, snapsRef.current.CLOSED];
     updateSheet(targets[idx]);
@@ -204,13 +204,14 @@ export default function TaskSheet({ children, marLabelRef, navHeight = 72, isDes
           right: 0,
           bottom: 0,
           top: 0,
+          transform: "translateY(0px)",
           background: "rgba(28,28,30,0)",
           border: "1px solid rgba(255,255,255,0)",
           borderBottom: "none",
           borderRadius: 0,
           zIndex: 10,
           overflow: "hidden",
-          willChange: "top, left, right, border-radius",
+          willChange: "transform, border-radius",
         }}
         onTouchStart={onStart}
         onTouchMove={onMove}
@@ -234,9 +235,9 @@ export default function TaskSheet({ children, marLabelRef, navHeight = 72, isDes
           <div style={{ cursor: "grab", touchAction: "none", padding: "6px 24px 10px" }}>
             <div className="task-sheet-handle">
               <div style={{
-                width: 36,
-                height: 4,
-                borderRadius: 2,
+                width: 46,
+                height: 5,
+                borderRadius: 3,
                 background: "rgba(255,255,255,0.2)",
               }} />
             </div>
