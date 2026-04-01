@@ -23,6 +23,7 @@ export default function TaskSheet({ children, stickyHeader, marLabelRef, navHeig
   const sheetRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const stickyHeaderRef = useRef<HTMLDivElement>(null);
   const gradientRef = useRef<HTMLDivElement>(null);
   const snapsRef = useRef({ FULL: 0, HALF: 200, CLOSED: 500 });
   const currentTopRef = useRef(0);
@@ -33,7 +34,7 @@ export default function TaskSheet({ children, stickyHeader, marLabelRef, navHeig
 
   // Desktop: just render children, no sheet
   if (isDesktop) {
-    return <div>{children}</div>;
+    return <div>{stickyHeader}{children}</div>;
   }
 
   // Measure snap points from viewport — same as prototype measures from phone frame
@@ -48,7 +49,7 @@ export default function TaskSheet({ children, stickyHeader, marLabelRef, navHeig
     let HALF = 200;
     if (marLabelRef.current) {
       const mRect = marLabelRef.current.getBoundingClientRect();
-      HALF = Math.round(mRect.bottom) + 4;
+      HALF = Math.round(mRect.bottom) + 20;
     }
 
     let CLOSED = window.innerHeight - navHeight - HANDLE_GAP;
@@ -96,6 +97,11 @@ export default function TaskSheet({ children, stickyHeader, marLabelRef, navHeig
     sheet.style.borderColor = `rgba(255,255,255,${borderA.toFixed(3)})`;
     content.style.opacity = `${(1 - closedT).toFixed(3)}`;
 
+    // Fade sticky header with content
+    if (stickyHeaderRef.current) {
+      stickyHeaderRef.current.style.opacity = `${(1 - closedT).toFixed(3)}`;
+    }
+
     // Allow scroll in FULL and HALF views
     if (scrollRef.current) {
       scrollRef.current.style.overflowY = top <= HALF + 10 ? "auto" : "hidden";
@@ -127,6 +133,7 @@ export default function TaskSheet({ children, stickyHeader, marLabelRef, navHeig
     currentSnapRef.current = idx;
     sheet.style.transition = "transform 0.35s cubic-bezier(0.25, 1, 0.5, 1), border-radius 0.35s cubic-bezier(0.25, 1, 0.5, 1), background 0.35s cubic-bezier(0.25, 1, 0.5, 1), border-color 0.35s cubic-bezier(0.25, 1, 0.5, 1)";
     content.style.transition = "opacity 0.3s ease";
+    if (stickyHeaderRef.current) { stickyHeaderRef.current.style.transition = "opacity 0.3s ease"; }
     const targets = [snapsRef.current.FULL, snapsRef.current.HALF, snapsRef.current.CLOSED];
     updateSheet(targets[idx]);
   };
@@ -153,6 +160,7 @@ export default function TaskSheet({ children, stickyHeader, marLabelRef, navHeig
     draggingRef.current = true;
     if (sheet) { sheet.style.transition = "none"; }
     if (contentRef.current) { contentRef.current.style.transition = "none"; }
+    if (stickyHeaderRef.current) { stickyHeaderRef.current.style.transition = "none"; }
 
     const pt = "touches" in e ? e.touches[0] : e;
     startYRef.current = pt.clientY;
@@ -245,7 +253,7 @@ export default function TaskSheet({ children, stickyHeader, marLabelRef, navHeig
           </div>
           {/* Sticky header (date strip + MAR label) */}
           {stickyHeader && (
-            <div className="task-sheet-sticky-header">{stickyHeader}</div>
+            <div ref={stickyHeaderRef} className="task-sheet-sticky-header">{stickyHeader}</div>
           )}
           {/* Task content */}
           <div ref={contentRef} style={{ padding: "0 24px", paddingBottom: "calc(100px + env(safe-area-inset-bottom, 0px))" }}>

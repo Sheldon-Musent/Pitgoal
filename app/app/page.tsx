@@ -998,8 +998,6 @@ const getTypeLabel = (typeId: string): string => {
 
           <TaskSheet marLabelRef={marLabelRef} isDesktop={isDesktop} navHeight={72} stickyHeader={
             <>
-              {/* Date strip + MAR label box */}
-              <div style={{ margin: "0 16px", padding: "8px 0 6px", background: "rgba(255,255,255,0.03)", borderRadius: 20, border: "1px solid rgba(255,255,255,0.05)" }}>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "0 0 0" }}>
                 <div style={{ maxWidth: "85%", width: "100%", position: "relative" }}>
                   <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: 40, background: "linear-gradient(to right, rgba(28,28,30,0.85), transparent)", borderRadius: "50px 0 0 50px", zIndex: 2, pointerEvents: "none" }} />
@@ -1096,9 +1094,8 @@ const getTypeLabel = (typeId: string): string => {
                 </div>
               </div>
               {/* MAR 2026 label */}
-              <div className="tap" onClick={() => setMonthPickerOpen(!monthPickerOpen)} style={{ textAlign: "center", marginTop: 6, paddingBottom: 2, cursor: "pointer" }}>
+              <div className="tap" onClick={() => setMonthPickerOpen(!monthPickerOpen)} style={{ textAlign: "center", marginTop: 8, cursor: "pointer" }}>
                 <span style={{ fontSize: 10, color: "var(--t5)", fontFamily: MONO, letterSpacing: 1, fontWeight: 600 }}>{MONTHS_SHORT[selectedDate.getMonth()]} {selectedDate.getFullYear()} ▾</span>
-              </div>
               </div>
             </>
           }>
