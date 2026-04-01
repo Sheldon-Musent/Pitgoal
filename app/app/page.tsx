@@ -157,6 +157,7 @@ export default function Home() {
   const swipeDelta = useRef<number>(0);
   const monthScrollRef = useRef<HTMLDivElement>(null);
   const marLabelRef = useRef<HTMLDivElement>(null);
+  const taskSheetRef = useRef<{ snapTo: (idx: number) => void }>(null);
   const suggestTimer = useRef<any>(null);
   const today = useMemo(() => new Date(), []);
 
@@ -995,12 +996,12 @@ const getTypeLabel = (typeId: string): string => {
           </div>
 
           {/* ═══ CALENDAR VIEW TOGGLE ═══ */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 20, marginTop: 14, marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, marginTop: 14, marginBottom: 16 }}>
             {(["W", "M", "Q", "Y"] as const).map((v) => (
               <div
                 key={v}
                 className="tap"
-                onClick={() => setCalView(v)}
+                onClick={() => { setCalView(v); if (taskSheetRef.current) taskSheetRef.current.snapTo(2); }}
                 style={{
                   width: 36,
                   height: 36,
@@ -1020,7 +1021,7 @@ const getTypeLabel = (typeId: string): string => {
             ))}
           </div>
 
-          <TaskSheet marLabelRef={marLabelRef} isDesktop={isDesktop} navHeight={72} stickyHeader={
+          <TaskSheet ref={taskSheetRef} marLabelRef={marLabelRef} isDesktop={isDesktop} navHeight={72} stickyHeader={
             <>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "4px 0 0" }}>
                 <div style={{ width: "100%", padding: "0 24px", position: "relative" }}>

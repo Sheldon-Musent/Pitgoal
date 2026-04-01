@@ -1,5 +1,5 @@
 "use client";
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useImperativeHandle, forwardRef } from "react";
 
 interface TaskSheetProps {
   children: React.ReactNode;
@@ -19,7 +19,7 @@ function clamp(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v));
 }
 
-export default function TaskSheet({ children, stickyHeader, marLabelRef, navHeight = 72, isDesktop }: TaskSheetProps) {
+const TaskSheet = forwardRef<{ snapTo: (idx: number) => void }, TaskSheetProps>(function TaskSheet({ children, stickyHeader, marLabelRef, navHeight = 72, isDesktop }, ref) {
   const sheetRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -31,6 +31,9 @@ export default function TaskSheet({ children, stickyHeader, marLabelRef, navHeig
   const draggingRef = useRef(false);
   const startYRef = useRef(0);
   const startTopRef = useRef(0);
+
+  // Expose snapTo to parent
+  useImperativeHandle(ref, () => ({ snapTo }));
 
   // Desktop: just render children, no sheet
   if (isDesktop) {
@@ -282,4 +285,6 @@ export default function TaskSheet({ children, stickyHeader, marLabelRef, navHeig
       </div>
     </>
   );
-}
+});
+
+export default TaskSheet;
