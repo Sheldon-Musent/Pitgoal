@@ -29,6 +29,7 @@ import DayTimeline from "../../components/DayTimeline";
 import ResizableLayout from "../../components/ResizableLayout";
 import StatCards, { waveValues, getChargingColor } from "../../components/StatCards";
 import TaskSheet from "../../components/TaskSheet";
+import WeekCalendar from "../../components/WeekCalendar";
 
 // ── Energy system constants ──
 const IDLE_RATE = 0.5;
@@ -1020,6 +1021,18 @@ const getTypeLabel = (typeId: string): string => {
               >{v}</div>
             ))}
           </div>
+
+          {calView === "W" && (
+            <WeekCalendar
+              tasks={tasks}
+              templates={templates}
+              history={history}
+              selectedDate={selectedDate}
+              onSelectDate={(d) => setSelectedDate(d)}
+              activeTask={activeTask}
+              getDisplayTimeMin={getDisplayTimeMin}
+            />
+          )}
 
           <TaskSheet ref={taskSheetRef} marLabelRef={marLabelRef} isDesktop={isDesktop} navHeight={72} stickyHeader={
             <>
