@@ -1092,10 +1092,10 @@ const getTypeLabel = (typeId: string): string => {
                     <div style={{ flexShrink: 0, width: "calc(50% - 28px)" }} />
                   </div>
                 </div>
-              </div>
               {/* MAR 2026 label */}
               <div className="tap" onClick={() => setMonthPickerOpen(!monthPickerOpen)} style={{ textAlign: "center", marginTop: 8, cursor: "pointer" }}>
                 <span style={{ fontSize: 10, color: "var(--t5)", fontFamily: MONO, letterSpacing: 1, fontWeight: 600 }}>{MONTHS_SHORT[selectedDate.getMonth()]} {selectedDate.getFullYear()} ▾</span>
+              </div>
               </div>
             </>
           }>
