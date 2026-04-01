@@ -229,18 +229,19 @@ export default function TaskSheet({ children, marLabelRef, navHeight = 72, isDes
         <div ref={contentRef} style={{ padding: "0 24px", paddingBottom: "calc(100px + env(safe-area-inset-bottom, 0px))" }}>
           {children}
         </div>
+        {/* Bottom fade gradient — inside sheet, pinned to bottom */}
+        <div style={{
+          position: "sticky",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: 80,
+          marginTop: -80,
+          background: "linear-gradient(to bottom, transparent, #0a0a0a)",
+          pointerEvents: "none",
+          zIndex: 2,
+        }} />
       </div>
-      {/* Bottom fade gradient — fixed overlay, not inside scroll */}
-      <div style={{
-        position: "fixed",
-        bottom: 0,
-        left: 0,
-        right: 0,
-        height: "calc(80px + env(safe-area-inset-bottom, 0px))",
-        background: "linear-gradient(to bottom, transparent, #0a0a0a)",
-        pointerEvents: "none",
-        zIndex: 11,
-      }} />
     </>
   );
 }
