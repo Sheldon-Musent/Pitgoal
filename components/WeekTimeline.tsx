@@ -295,7 +295,7 @@ const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
         }}>
         <div style={{
           display: "flex",
-          transform: `translateX(calc(50% - ${activeCenterX}px))`,
+          transform: `translateX(calc(50% - ${activeCenterX}px - ${TIME_COL / 2}px))`,
           transition: "transform 0.3s cubic-bezier(0.25, 0.1, 0.25, 1)",
           willChange: "transform",
           height: "100%",
