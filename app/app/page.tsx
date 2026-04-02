@@ -1080,8 +1080,8 @@ const getTypeLabel = (typeId: string): string => {
               {/* ═══ VIEW SWITCHER PILL ═══ */}
               <div
                 style={{
-                  position: "absolute", left: 4, top: 6, zIndex: 10,
-                  display: "flex", flexDirection: "column", alignItems: "center", gap: 5,
+                  position: "absolute", left: 4, top: 8, zIndex: 10,
+                  display: "flex", flexDirection: "column", alignItems: "center", gap: 0,
                   userSelect: "none", WebkitUserSelect: "none" as any,
                   touchAction: "none", cursor: "grab",
                 }}
@@ -1106,7 +1106,7 @@ const getTypeLabel = (typeId: string): string => {
                 }}
               >
                 <div style={{
-                  position: "relative", width: 42, height: 42, borderRadius: 12,
+                  position: "relative", width: 36, height: 36, borderRadius: 10,
                   overflow: "hidden", border: "1px solid rgba(255,255,255,0.13)",
                   display: "flex", alignItems: "center", justifyContent: "center",
                 }}>
@@ -1131,16 +1131,6 @@ const getTypeLabel = (typeId: string): string => {
                     transform: viewLetterAnim ? "translateY(-8px)" : "translateY(0)",
                     opacity: viewLetterAnim ? 0 : 1,
                   }}>{calView}</span>
-                </div>
-                {/* Dot indicators */}
-                <div style={{ display: "flex", gap: 3 }}>
-                  {(["W", "M", "Q", "Y"] as const).map((v) => (
-                    <div key={v} style={{
-                      width: 4, height: 4, borderRadius: "50%",
-                      background: calView === v ? "var(--accent)" : "rgba(255,255,255,0.12)",
-                      transition: "background 0.25s ease",
-                    }} />
-                  ))}
                 </div>
               </div>
 
