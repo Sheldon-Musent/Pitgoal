@@ -91,7 +91,7 @@ interface BlockInfo {
 const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
   function WeekTimeline({ tasks, templates, history, center, getDisplayTimeMin, activeTask, onUpdateDuration }, ref) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const dragRef = useRef<{ taskId: string; startY: number; startDur: number } | null>(null);
+  const dragRef = useRef<{ taskId: string; startY: number; startDur: number; startMin: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
 
   const today = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }, []);
@@ -213,11 +213,11 @@ const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
 
   const nowHour = nowMin / 60;
 
-  const onHandleStart = useCallback((e: any, taskId: string, startDur: number) => {
+  const onHandleStart = useCallback((e: any, taskId: string, startDur: number, startMin: number) => {
     e.preventDefault();
     e.stopPropagation();
     const y = e.clientY ?? e.touches?.[0]?.clientY;
-    dragRef.current = { taskId, startY: y, startDur };
+    dragRef.current = { taskId, startY: y, startDur, startMin };
     setIsDragging(true);
 
     const onMove = (ev: any) => {
@@ -225,7 +225,8 @@ const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
       const cy = ev.clientY ?? ev.touches?.[0]?.clientY;
       const dy = cy - dragRef.current.startY;
       const durDeltaMin = (dy / HOUR_H) * 60;
-      const newDur = Math.max(15, Math.round((dragRef.current.startDur + durDeltaMin) / 15) * 15);
+      const maxDur = (HOUR_END * 60) - dragRef.current.startMin;
+      const newDur = Math.max(15, Math.min(maxDur, Math.round((dragRef.current.startDur + durDeltaMin) / 15) * 15));
       onUpdateDuration(dragRef.current.taskId, newDur);
     };
 
@@ -393,8 +394,8 @@ const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
                         )}
                         {!isDone && b.isToday && (
                           <div
-                            onPointerDown={(e) => onHandleStart(e, b.id, b.durMin)}
-                            onTouchStart={(e) => onHandleStart(e, b.id, b.durMin)}
+                            onPointerDown={(e) => onHandleStart(e, b.id, b.durMin, b.startMin)}
+                            onTouchStart={(e) => onHandleStart(e, b.id, b.durMin, b.startMin)}
                             style={{
                               position: "absolute", bottom: 0, left: 8, right: 8,
                               height: 12, display: "flex", alignItems: "center", justifyContent: "center",
