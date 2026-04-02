@@ -25,13 +25,11 @@ const COL_GAP = 6;
 const getColW = (dist: number) => COL_WIDTHS[Math.min(dist, COL_WIDTHS.length - 1)];
 
 const fmtHour = (h: number): string => {
-  if (h === 0 || h === 24) return "12";
-  if (h < 12) return `${h}`;
-  if (h === 12) return "12";
-  return `${h - 12}`;
+  if (h === 0 || h === 24) return "12 AM";
+  if (h < 12) return `${h} AM`;
+  if (h === 12) return "12 PM";
+  return `${h - 12} PM`;
 };
-
-const fmtPeriod = (h: number): string => (h < 12 || h === 24) ? "AM" : "PM";
 
 const isSameDay = (a: Date, b: Date) =>
   a.getFullYear() === b.getFullYear() &&
@@ -260,27 +258,19 @@ const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
         position: "relative",
         height: TOTAL_HOURS * HOUR_H + TOP_PAD + 40,
       }}>
-        {/* Glass time pills (number) + AM/PM on right */}
+        {/* Glass time pills */}
         {Array.from({ length: TOTAL_HOURS }, (_, hi) => {
           const h = HOUR_START + hi;
           return (
-            <React.Fragment key={h}>
-              <div style={{
-                position: "absolute", top: hi * HOUR_H + TOP_PAD - 11,
-                left: 4, zIndex: 8, ...getGlassStyle(h),
-              }}>
-                <span style={{
-                  fontSize: 10, fontWeight: 600,
-                  color: skyTextColor(h), letterSpacing: -0.3,
-                }}>{fmtHour(h)}</span>
-              </div>
+            <div key={h} style={{
+              position: "absolute", top: hi * HOUR_H + TOP_PAD - 11,
+              left: 4, zIndex: 8, ...getGlassStyle(h),
+            }}>
               <span style={{
-                position: "absolute", top: hi * HOUR_H + TOP_PAD - 7,
-                right: 20, zIndex: 2,
-                fontSize: 9, fontWeight: 500, letterSpacing: 0.5,
-                color: skyTextColor(h),
-              }}>{fmtPeriod(h)}</span>
-            </React.Fragment>
+                fontSize: 10, fontWeight: 600,
+                color: skyTextColor(h), letterSpacing: -0.3,
+              }}>{fmtHour(h)}</span>
+            </div>
           );
         })}
 
