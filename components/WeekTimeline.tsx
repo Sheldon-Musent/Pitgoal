@@ -9,8 +9,8 @@ interface WeekTimelineProps {
   onUpdateDuration: (taskId: string, newDurationMin: number) => void;
 }
 
-const HOUR_START = 6;
-const HOUR_END = 22;
+const HOUR_START = 0;
+const HOUR_END = 24;
 const TOTAL_HOURS = HOUR_END - HOUR_START;
 const HOUR_H = 72;
 const TIME_COL = 70;
@@ -34,16 +34,39 @@ const typeBg = (task: Task): string => {
   return "rgba(255,208,0,0.1)";
 };
 
-const glassStyle: React.CSSProperties = {
+// Sky gradient colors by hour — mimics natural light
+const skyColor = (h: number): string => {
+  if (h >= 0 && h < 4) return "rgba(30,30,80,0.35)";
+  if (h >= 4 && h < 5) return "rgba(45,35,90,0.3)";
+  if (h >= 5 && h < 6) return "rgba(80,50,70,0.3)";
+  if (h >= 6 && h < 7) return "rgba(120,70,30,0.25)";
+  if (h >= 7 && h < 8) return "rgba(140,90,20,0.2)";
+  if (h >= 8 && h < 11) return "rgba(40,70,120,0.15)";
+  if (h >= 11 && h < 14) return "rgba(50,80,130,0.12)";
+  if (h >= 14 && h < 16) return "rgba(60,70,110,0.15)";
+  if (h >= 16 && h < 18) return "rgba(130,85,25,0.2)";
+  if (h >= 18 && h < 19) return "rgba(140,60,40,0.25)";
+  if (h >= 19 && h < 20) return "rgba(90,45,70,0.28)";
+  if (h >= 20 && h < 22) return "rgba(40,35,80,0.3)";
+  return "rgba(30,28,75,0.35)";
+};
+
+const skyTextColor = (h: number): string => {
+  if ((h >= 6 && h < 8) || (h >= 16 && h < 19)) return "rgba(255,220,150,0.4)";
+  if (h >= 0 && h < 5 || h >= 20) return "rgba(180,180,220,0.3)";
+  return "rgba(255,255,255,0.3)";
+};
+
+const getGlassStyle = (h: number): React.CSSProperties => ({
   display: "inline-flex",
   alignItems: "center",
   padding: "4px 10px",
   borderRadius: 8,
-  background: "rgba(255,255,255,0.04)",
+  background: skyColor(h),
   backdropFilter: "blur(12px) saturate(150%)",
   WebkitBackdropFilter: "blur(12px) saturate(150%)" as any,
   border: "1px solid rgba(255,255,255,0.06)",
-};
+});
 
 export default function WeekTimeline({ tasks, getDisplayTimeMin, activeTask, onUpdateDuration }: WeekTimelineProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -135,11 +158,11 @@ export default function WeekTimeline({ tasks, getDisplayTimeMin, activeTask, onU
               }} />
               <div style={{
                 position: "absolute", top: hi * HOUR_H - 11,
-                left: 4, zIndex: 3, ...glassStyle,
+                left: 4, zIndex: 3, ...getGlassStyle(h),
               }}>
                 <span style={{
                   fontSize: 11, fontWeight: 600,
-                  color: "rgba(255,255,255,0.3)",
+                  color: skyTextColor(h),
                   letterSpacing: -0.2,
                 }}>{fmtHour(h)}</span>
               </div>
@@ -228,7 +251,7 @@ export default function WeekTimeline({ tasks, getDisplayTimeMin, activeTask, onU
             top: (nowHour - HOUR_START) * HOUR_H,
             left: TIME_COL, right: 16,
             height: 2,
-            background: "var(--danger, #E24B4A)",
+            background: "linear-gradient(to right, var(--danger, #E24B4A) 0%, var(--danger, #E24B4A) 60%, transparent 100%)",
             borderRadius: 1,
             zIndex: 6,
             pointerEvents: "none",
@@ -239,7 +262,7 @@ export default function WeekTimeline({ tasks, getDisplayTimeMin, activeTask, onU
               width: 8, height: 8,
               borderRadius: "50%",
               background: "var(--danger, #E24B4A)",
-              boxShadow: "0 0 6px var(--danger, #E24B4A)",
+              boxShadow: "0 0 8px var(--danger, #E24B4A), 0 0 16px rgba(226,75,74,0.3)",
             }} />
           </div>
         )}
