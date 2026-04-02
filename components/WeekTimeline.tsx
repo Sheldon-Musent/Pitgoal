@@ -314,7 +314,7 @@ const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
                 <div style={{
                   position: "absolute", top: TOP_PAD, bottom: 0,
                   right: 0, width: 1,
-                  background: "rgba(255,255,255,0.03)",
+                  background: "rgba(255,255,255,0.02)",
                 }} />
 
                 {/* Task blocks */}
@@ -387,9 +387,11 @@ const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
                         top: top + 1, left: 3, right: 5,
                         height: Math.max(height - 2, 4),
                         borderRadius: isBeside ? 4 : 2,
-                        background: bg,
-                        borderLeft: `2px solid ${color}`,
-                        opacity: isDone ? 0.3 : 0.7,
+                        background: "transparent",
+                        border: "1px solid rgba(255,255,255,0.04)",
+                        borderLeftWidth: 2,
+                        borderLeftColor: color,
+                        opacity: isDone ? 0.15 : 0.25,
                       }} />
                     );
                   }
