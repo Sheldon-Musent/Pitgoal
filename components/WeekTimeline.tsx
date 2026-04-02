@@ -257,7 +257,7 @@ const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
     >
       <div style={{
         position: "relative",
-        height: TOTAL_HOURS * HOUR_H + TOP_PAD + HOUR_H,
+        height: TOTAL_HOURS * HOUR_H + TOP_PAD + 24,
       }}>
         {/* Glass time pills */}
         {Array.from({ length: TOTAL_HOURS }, (_, hi) => {
@@ -332,7 +332,7 @@ const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
               <div key={i} style={{
                 width: colW, flexShrink: 0,
                 position: "relative",
-                height: TOTAL_HOURS * HOUR_H + TOP_PAD + HOUR_H,
+                height: TOTAL_HOURS * HOUR_H + TOP_PAD + 24,
                 opacity,
                 overflow: "visible",
                 transition: "all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1)",
