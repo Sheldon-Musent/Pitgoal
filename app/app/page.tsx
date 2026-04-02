@@ -988,6 +988,59 @@ const getTypeLabel = (typeId: string): string => {
 
   const appContent = (
     <div className="app-content" style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", maxWidth: isDesktop ? "none" : 430, margin: isDesktop ? 0 : "0 auto", width: isDesktop ? "auto" : "100%" }}>
+    {/* ═══ MAGIC PLANNER BAR — independent, above scroll content ═══ */}
+    {bottomTab === "main" && (
+      <div style={{ flexShrink: 0, padding: "10px 44px 10px" }}>
+        <div style={{
+          display: "flex", alignItems: "center", gap: 8,
+          background: "rgba(255,255,255,0.06)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          borderRadius: 50, padding: "10px 16px",
+        }}>
+          <input
+            type="text"
+            value={magicPlannerInput}
+            onChange={(e) => setMagicPlannerInput(e.target.value)}
+            placeholder="Deep work 4h, gym 1h, read 30m..."
+            style={{
+              flex: 1, background: "transparent", border: "none", outline: "none",
+              color: "var(--t1)", fontSize: 13, fontWeight: 400,
+              fontFamily: "inherit",
+            }}
+          />
+          {/* Mic button */}
+          <div className="tap" style={{
+            width: 28, height: 28, borderRadius: "50%",
+            background: "rgba(255,255,255,0.06)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            flexShrink: 0, cursor: "pointer",
+          }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="2" strokeLinecap="round">
+              <rect x="9" y="1" width="6" height="12" rx="3"/>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+              <line x1="12" y1="19" x2="12" y2="23"/>
+            </svg>
+          </div>
+          {/* Send button */}
+          <div className="tap" onClick={() => {
+            if (!magicPlannerInput.trim()) return;
+            // TODO: parse natural language → create multiple tasks
+            setMagicPlannerInput("");
+          }} style={{
+            width: 28, height: 28, borderRadius: "50%",
+            background: magicPlannerInput.trim() ? "#FFD000" : "rgba(255,255,255,0.06)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            flexShrink: 0, cursor: "pointer",
+            transition: "background 0.2s ease",
+          }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={magicPlannerInput.trim() ? "#0a0a0a" : "rgba(255,255,255,0.35)"} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="5" y1="12" x2="19" y2="12"/>
+              <polyline points="12 5 19 12 12 19"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+    )}
     <div className="scroll-content" style={{ flex: 1, overflowY: (bottomTab === "main" && !isDesktop) ? "hidden" : "auto", overflowX: "hidden", WebkitOverflowScrolling: "touch" as any, paddingBottom: hasActivePopup ? 200 : 100, paddingTop: "env(safe-area-inset-top, 0px)", position: "relative", minHeight: 0 }}>
 
       {/* ── MAIN TAB ── */}
@@ -1009,57 +1062,7 @@ const getTypeLabel = (typeId: string): string => {
           />
           </div>
 
-          {/* ═══ MAGIC PLANNER BAR ═══ */}
-          <div style={{ marginTop: 14, marginBottom: 36, padding: "0 20px" }}>
-            <div style={{
-              display: "flex", alignItems: "center", gap: 8,
-              background: "rgba(255,255,255,0.06)",
-              border: "1px solid rgba(255,255,255,0.08)",
-              borderRadius: 50, padding: "10px 16px",
-            }}>
-              <input
-                type="text"
-                value={magicPlannerInput}
-                onChange={(e) => setMagicPlannerInput(e.target.value)}
-                placeholder="Deep work 4h, gym 1h, read 30m..."
-                style={{
-                  flex: 1, background: "transparent", border: "none", outline: "none",
-                  color: "var(--t1)", fontSize: 13, fontWeight: 400,
-                  fontFamily: "inherit",
-                }}
-              />
-              {/* Mic button */}
-              <div className="tap" style={{
-                width: 28, height: 28, borderRadius: "50%",
-                background: "rgba(255,255,255,0.06)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                flexShrink: 0, cursor: "pointer",
-              }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="2" strokeLinecap="round">
-                  <rect x="9" y="1" width="6" height="12" rx="3"/>
-                  <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                  <line x1="12" y1="19" x2="12" y2="23"/>
-                </svg>
-              </div>
-              {/* Send button */}
-              <div className="tap" onClick={() => {
-                if (!magicPlannerInput.trim()) return;
-                // TODO: parse natural language → create multiple tasks
-                setMagicPlannerInput("");
-              }} style={{
-                width: 28, height: 28, borderRadius: "50%",
-                background: magicPlannerInput.trim() ? "#FFD000" : "rgba(255,255,255,0.06)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                flexShrink: 0, cursor: "pointer",
-                transition: "background 0.2s ease",
-              }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={magicPlannerInput.trim() ? "#0a0a0a" : "rgba(255,255,255,0.35)"} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="5" y1="12" x2="19" y2="12"/>
-                  <polyline points="12 5 19 12 12 19"/>
-                </svg>
-              </div>
-            </div>
-          </div>
+
 
           {calView === "W" && (
             <>
