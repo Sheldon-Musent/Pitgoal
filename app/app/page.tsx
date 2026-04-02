@@ -110,6 +110,7 @@ export default function Home() {
   const [statSortNewest, setStatSortNewest] = useState(true);
   const [filterMode, setFilterMode] = useState<string>("all");
   const [calView, setCalView] = useState<"W" | "M" | "Q" | "Y">("W");
+  const [weekCalCenter, setWeekCalCenter] = useState<number>(-1);
   const [deleteMode, setDeleteMode] = useState(false);
   const longPressTimer = useRef<any>(null);
   const [confirmSkipId, setConfirmSkipId] = useState<string | null>(null);
@@ -161,6 +162,7 @@ export default function Home() {
   const marLabelRef = useRef<HTMLDivElement>(null);
   const taskSheetRef = useRef<{ snapTo: (idx: number) => void }>(null);
   const weekCalRef = useRef<{ scrollToToday: () => void }>(null);
+  const weekTimelineRef = useRef<{ scrollToNow: () => void }>(null);
   const suggestTimer = useRef<any>(null);
   const today = useMemo(() => new Date(), []);
 
@@ -433,6 +435,7 @@ export default function Home() {
     return () => { window.removeEventListener("scroll", handleScroll); clearTimeout(navScrollTimer.current); };
   }, [expandNav]);
 
+  useEffect(() => { if (weekCalCenter === -1) { const d = new Date(); const day = d.getDay(); setWeekCalCenter(day === 0 ? 6 : day - 1); } }, [weekCalCenter]);
   useEffect(() => { const fn = () => { if (document.visibilityState === "visible") { const n = new Date(); setViewMonth(n.getMonth()); setViewYear(n.getFullYear()); } }; document.addEventListener("visibilitychange", fn); return () => document.removeEventListener("visibilitychange", fn); }, []);
   useEffect(() => { if (monthPickerOpen && monthScrollRef.current) { const el = monthScrollRef.current.querySelector('[data-active="true"]'); if (el) (el as HTMLElement).scrollIntoView({ block: "center", behavior: "auto" }); } }, [monthPickerOpen]);
 
@@ -1048,9 +1051,16 @@ const getTypeLabel = (typeId: string): string => {
                 onSelectDate={(d) => setSelectedDate(d)}
                 activeTask={activeTask}
                 getDisplayTimeMin={getDisplayTimeMin}
+                center={weekCalCenter}
+                onCenterChange={setWeekCalCenter}
+                onDoubleTapToday={() => weekTimelineRef.current?.scrollToNow()}
               />
               <WeekTimeline
+                ref={weekTimelineRef}
                 tasks={tasks}
+                templates={templates}
+                history={history}
+                center={weekCalCenter}
                 getDisplayTimeMin={getDisplayTimeMin}
                 activeTask={activeTask}
                 onUpdateDuration={handleUpdateDuration}

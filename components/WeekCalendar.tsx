@@ -11,6 +11,9 @@ interface WeekCalendarProps {
   onSelectDate: (d: Date) => void;
   activeTask: any;
   getDisplayTimeMin: (task: any) => number;
+  center?: number;
+  onCenterChange?: (idx: number) => void;
+  onDoubleTapToday?: () => void;
 }
 
 const getWeekStart = (date: Date): Date => {
@@ -43,7 +46,7 @@ const getS = (key: string, dist: number): number =>
   SPEC[key][Math.min(dist, SPEC[key].length - 1)];
 
 const WeekCalendar = forwardRef<{ scrollToToday: () => void }, WeekCalendarProps>(
-  function WeekCalendar({ tasks, templates, history, selectedDate, onSelectDate }, ref) {
+  function WeekCalendar({ tasks, templates, history, selectedDate, onSelectDate, center: propCenter, onCenterChange, onDoubleTapToday }, ref) {
 
     const today = useMemo(() => {
       const d = new Date();
@@ -61,7 +64,16 @@ const WeekCalendar = forwardRef<{ scrollToToday: () => void }, WeekCalendarProps
     }, [today]);
 
     const todayIdx = useMemo(() => weekDays.findIndex(d => isSameDay(d, today)), [weekDays, today]);
-    const [center, setCenter] = useState(todayIdx >= 0 ? todayIdx : 0);
+
+    const isControlled = typeof propCenter === "number" && propCenter >= 0;
+    const [internalCenter, setInternalCenter] = useState(todayIdx >= 0 ? todayIdx : 0);
+    const center = isControlled ? propCenter : internalCenter;
+    const setCenter = useCallback((idx: number) => {
+      setInternalCenter(idx);
+      if (onCenterChange) onCenterChange(idx);
+    }, [onCenterChange]);
+
+    const lastTapRef = useRef(0);
 
     const dayHours = useMemo(() => {
       return weekDays.map((day) => {
@@ -103,7 +115,7 @@ const WeekCalendar = forwardRef<{ scrollToToday: () => void }, WeekCalendarProps
         setCenter(next);
         onSelectDate(new Date(weekDays[next]));
       }
-    }, [center, weekDays, onSelectDate]);
+    }, [center, weekDays, onSelectDate, setCenter]);
 
     useImperativeHandle(ref, () => ({
       scrollToToday: () => {
@@ -146,7 +158,16 @@ const WeekCalendar = forwardRef<{ scrollToToday: () => void }, WeekCalendarProps
               <div
                 key={i}
                 className="tap"
-                onClick={() => { setCenter(i); onSelectDate(new Date(day)); }}
+                onClick={() => {
+                  const now = Date.now();
+                  const isDoubleTap = i === center && isToday && (now - lastTapRef.current < 300);
+                  lastTapRef.current = now;
+                  setCenter(i);
+                  onSelectDate(new Date(day));
+                  if (isDoubleTap && onDoubleTapToday) {
+                    onDoubleTapToday();
+                  }
+                }}
                 style={{
                   display: "flex", flexDirection: "column",
                   alignItems: "center", gap: 2,

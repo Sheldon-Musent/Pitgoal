@@ -1,9 +1,13 @@
 "use client";
-import React, { useRef, useEffect, useCallback, useState } from "react";
-import type { Task } from "../lib/types";
+import React, { useRef, useEffect, useCallback, useState, useMemo, forwardRef, useImperativeHandle } from "react";
+import { dateKey } from "../lib/utils";
+import type { Task, Template, DayHistory } from "../lib/types";
 
 interface WeekTimelineProps {
   tasks: Task[];
+  templates: Template[];
+  history: Record<string, DayHistory>;
+  center: number;
   getDisplayTimeMin: (task: any) => number;
   activeTask: any;
   onUpdateDuration: (taskId: string, newDurationMin: number) => void;
@@ -13,8 +17,11 @@ const HOUR_START = 0;
 const HOUR_END = 24;
 const TOTAL_HOURS = HOUR_END - HOUR_START;
 const HOUR_H = 72;
-const TIME_COL = 70;
+const TIME_COL = 64;
 const TOP_PAD = 16;
+
+const COL_WIDTHS = [80, 60, 44, 32];
+const getColW = (dist: number) => COL_WIDTHS[Math.min(dist, COL_WIDTHS.length - 1)];
 
 const fmtHour = (h: number): string => {
   if (h === 0 || h === 24) return "12 AM";
@@ -23,19 +30,20 @@ const fmtHour = (h: number): string => {
   return `${h - 12} PM`;
 };
 
-const typeColor = (task: Task): string => {
-  const t = (task as any).customType || task.type || "work";
-  if (t === "rest") return "var(--rest, #6b8a7a)";
-  return "var(--accent, #FFD000)";
+const isSameDay = (a: Date, b: Date) =>
+  a.getFullYear() === b.getFullYear() &&
+  a.getMonth() === b.getMonth() &&
+  a.getDate() === b.getDate();
+
+const getWeekStart = (date: Date): Date => {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
 };
 
-const typeBg = (task: Task): string => {
-  const t = (task as any).customType || task.type || "work";
-  if (t === "rest") return "rgba(107,138,122,0.15)";
-  return "rgba(255,208,0,0.1)";
-};
-
-// Sky gradient colors by hour — mimics natural light
 const skyColor = (h: number): string => {
   if (h >= 0 && h < 4) return "rgba(30,30,80,0.35)";
   if (h >= 4 && h < 5) return "rgba(45,35,90,0.3)";
@@ -69,21 +77,110 @@ const getGlassStyle = (h: number): React.CSSProperties => ({
   border: "1px solid rgba(255,255,255,0.06)",
 });
 
-export default function WeekTimeline({ tasks, getDisplayTimeMin, activeTask, onUpdateDuration }: WeekTimelineProps) {
+interface BlockInfo {
+  name: string;
+  startMin: number;
+  durMin: number;
+  type: string;
+  status: string;
+  id: string;
+  isToday: boolean;
+}
+
+const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
+  function WeekTimeline({ tasks, templates, history, center, getDisplayTimeMin, activeTask, onUpdateDuration }, ref) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ taskId: string; startY: number; startDur: number } | null>(null);
+
+  const today = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }, []);
+
+  const weekDays = useMemo(() => {
+    const start = getWeekStart(today);
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      return d;
+    });
+  }, [today]);
+
+  const weekBlocks = useMemo(() => {
+    return weekDays.map((day) => {
+      const isToday = isSameDay(day, today);
+      const isFuture = day.getTime() > today.getTime();
+
+      if (isToday) {
+        return tasks.filter(t => t.status !== "skipped").map(t => ({
+          name: t.name,
+          startMin: getDisplayTimeMin(t),
+          durMin: t.duration || 60,
+          type: (t as any).customType || t.type || "work",
+          status: t.status || "pending",
+          id: t.id,
+          isToday: true,
+        }));
+      }
+
+      if (!isFuture) {
+        const key = dateKey(day);
+        const h = history[key];
+        if (h && h.log) {
+          return h.log.map((entry, ei) => {
+            const [hh, mm] = (entry.startTime || "0:0").split(":").map(Number);
+            return {
+              name: entry.name,
+              startMin: (hh || 0) * 60 + (mm || 0),
+              durMin: entry.duration || 60,
+              type: entry.type || "work",
+              status: "done",
+              id: `hist-${ei}`,
+              isToday: false,
+            };
+          });
+        }
+        return [];
+      }
+
+      const dow = day.getDay();
+      const matching = templates.filter(t => t.days.length === 0 || t.days.includes(dow));
+      return matching.map((t, ti) => ({
+        name: t.name,
+        startMin: t.timeMin || 0,
+        durMin: t.duration || 60,
+        type: t.type || "work",
+        status: "pending",
+        id: `tmpl-${ti}`,
+        isToday: false,
+      }));
+    });
+  }, [weekDays, today, tasks, templates, history, getDisplayTimeMin]);
+
+  // Column layout aligned with picker
+  const colWidths = weekDays.map((_, i) => getColW(Math.abs(i - center)));
+  let activeCenterX = 0;
+  for (let i = 0; i < center; i++) activeCenterX += colWidths[i];
+  activeCenterX += colWidths[center] / 2;
 
   // Auto-scroll to current time on mount
   useEffect(() => {
     if (scrollRef.current) {
       const now = new Date();
       const nowHour = now.getHours() + now.getMinutes() / 60;
-      const offset = (nowHour - HOUR_START) * HOUR_H - 120;
+      const offset = (nowHour - HOUR_START) * HOUR_H + TOP_PAD - 120;
       scrollRef.current.scrollTop = Math.max(0, offset);
     }
   }, []);
 
-  // Now line position (updates every minute)
+  useImperativeHandle(ref, () => ({
+    scrollToNow: () => {
+      if (scrollRef.current) {
+        const now = new Date();
+        const nowH = now.getHours() + now.getMinutes() / 60;
+        const offset = (nowH - HOUR_START) * HOUR_H + TOP_PAD - 120;
+        scrollRef.current.scrollTo({ top: Math.max(0, offset), behavior: "smooth" });
+      }
+    }
+  }));
+
   const [nowMin, setNowMin] = useState(() => {
     const n = new Date();
     return n.getHours() * 60 + n.getMinutes();
@@ -99,12 +196,11 @@ export default function WeekTimeline({ tasks, getDisplayTimeMin, activeTask, onU
 
   const nowHour = nowMin / 60;
 
-  // Drag handle
-  const onHandleStart = useCallback((e: any, task: Task) => {
+  const onHandleStart = useCallback((e: any, taskId: string, startDur: number) => {
     e.preventDefault();
     e.stopPropagation();
     const y = e.clientY ?? e.touches?.[0]?.clientY;
-    dragRef.current = { taskId: task.id, startY: y, startDur: task.duration || 60 };
+    dragRef.current = { taskId, startY: y, startDur };
 
     const onMove = (ev: any) => {
       if (!dragRef.current) return;
@@ -134,140 +230,177 @@ export default function WeekTimeline({ tasks, getDisplayTimeMin, activeTask, onU
       ref={scrollRef}
       className="no-scrollbar"
       style={{
-        flex: 1,
-        overflowY: "auto",
-        overflowX: "hidden",
+        flex: 1, overflowY: "auto", overflowX: "hidden",
         WebkitOverflowScrolling: "touch" as any,
-        position: "relative",
-        minHeight: 0,
+        position: "relative", minHeight: 0,
       }}
     >
       <div style={{
         position: "relative",
         height: TOTAL_HOURS * HOUR_H + TOP_PAD + 40,
-        padding: "0 16px",
       }}>
-        {/* Glass time pills + gridlines */}
+        {/* Glass time pills */}
         {Array.from({ length: TOTAL_HOURS }, (_, hi) => {
           const h = HOUR_START + hi;
           return (
-            <div key={h}>
-              <div style={{
-                position: "absolute", top: hi * HOUR_H + TOP_PAD,
-                left: TIME_COL, right: 60,
-                height: 1, background: "rgba(255,255,255,0.035)",
-              }} />
-              <div style={{
-                position: "absolute", top: hi * HOUR_H + TOP_PAD - 11,
-                left: 4, zIndex: 3, ...getGlassStyle(h),
-              }}>
-                <span style={{
-                  fontSize: 11, fontWeight: 600,
-                  color: skyTextColor(h),
-                  letterSpacing: -0.2,
-                }}>{fmtHour(h)}</span>
-              </div>
-            </div>
-          );
-        })}
-
-        {/* Task blocks with drag handles */}
-        {tasks.filter(t => t.status !== "skipped").map((task) => {
-          const timeMin = getDisplayTimeMin(task);
-          const startHour = timeMin / 60;
-          const durHours = (task.duration || 60) / 60;
-          const top = (startHour - HOUR_START) * HOUR_H + TOP_PAD;
-          const height = durHours * HOUR_H;
-          const isDone = task.status === "done";
-          const isActive = task.id === activeTask?.id;
-          const color = typeColor(task);
-
-          if (top + height < 0 || top > TOTAL_HOURS * HOUR_H) return null;
-
-          return (
-            <div key={task.id} style={{
-              position: "absolute",
-              top: top + 2, left: TIME_COL, right: 60,
-              height: height - 4, minHeight: 32,
-              borderRadius: 10,
-              background: typeBg(task),
-              backdropFilter: "blur(8px)",
-              WebkitBackdropFilter: "blur(8px)" as any,
-              borderLeft: `3px solid ${color}`,
-              border: isActive ? `1px solid rgba(255,208,0,0.25)` : `1px solid rgba(255,255,255,0.04)`,
-              borderLeftWidth: 3,
-              borderLeftColor: color,
-              padding: "8px 12px 16px",
-              display: "flex", flexDirection: "column",
-              justifyContent: "center",
-              opacity: isDone ? 0.35 : 1,
-              overflow: "visible",
+            <div key={h} style={{
+              position: "absolute", top: hi * HOUR_H + TOP_PAD - 11,
+              left: 4, zIndex: 8, ...getGlassStyle(h),
             }}>
               <span style={{
-                fontSize: 13, fontWeight: 600,
-                color: isDone ? "rgba(255,255,255,0.4)" : "var(--t1)",
-                textDecoration: isDone ? "line-through" : "none",
-                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-              }}>{task.name}</span>
-              {height > 48 && (
-                <span style={{
-                  fontSize: 10, color: "rgba(255,255,255,0.2)",
-                  marginTop: 3, display: "flex", alignItems: "center", gap: 6,
-                }}>
-                  {durHours >= 1 ? `${Math.floor(durHours)}h${(task.duration % 60) > 0 ? `${task.duration % 60}m` : ""}` : `${task.duration}m`}
-                  {isActive && (
-                    <span style={{ color: "var(--accent)", fontWeight: 700, fontSize: 9, letterSpacing: 1 }}>ACTIVE</span>
-                  )}
-                </span>
-              )}
-
-              {/* Drag handle */}
-              {!isDone && (
-                <div
-                  onPointerDown={(e) => onHandleStart(e, task)}
-                  onTouchStart={(e) => onHandleStart(e, task)}
-                  style={{
-                    position: "absolute",
-                    bottom: 0, left: 12, right: 12,
-                    height: 14,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    cursor: "ns-resize",
-                    touchAction: "none",
-                  }}
-                >
-                  <div style={{ display: "flex", flexDirection: "column", gap: 2, alignItems: "center" }}>
-                    <div style={{ width: 20, height: 1.5, borderRadius: 1, background: "rgba(255,255,255,0.12)" }} />
-                    <div style={{ width: 14, height: 1.5, borderRadius: 1, background: "rgba(255,255,255,0.08)" }} />
-                  </div>
-                </div>
-              )}
+                fontSize: 11, fontWeight: 600,
+                color: skyTextColor(h), letterSpacing: -0.2,
+              }}>{fmtHour(h)}</span>
             </div>
           );
         })}
 
-        {/* Now line */}
+        {/* Gridlines — full width of task area */}
+        {Array.from({ length: TOTAL_HOURS }, (_, hi) => (
+          <div key={`gl-${hi}`} style={{
+            position: "absolute", top: hi * HOUR_H + TOP_PAD,
+            left: TIME_COL, right: 16,
+            height: 1, background: "rgba(255,255,255,0.035)",
+          }} />
+        ))}
+
+        {/* Now line — full width */}
         {nowHour >= HOUR_START && nowHour <= HOUR_END && (
           <div style={{
             position: "absolute",
             top: (nowHour - HOUR_START) * HOUR_H + TOP_PAD,
-            left: TIME_COL, right: 60,
+            left: TIME_COL, right: 16,
             height: 2,
             background: "linear-gradient(to right, var(--danger, #E24B4A) 0%, var(--danger, #E24B4A) 60%, transparent 100%)",
-            borderRadius: 1,
-            zIndex: 6,
-            pointerEvents: "none",
+            borderRadius: 1, zIndex: 7, pointerEvents: "none",
           }}>
             <div style={{
-              position: "absolute",
-              left: -4, top: -3,
-              width: 8, height: 8,
-              borderRadius: "50%",
+              position: "absolute", left: -4, top: -3,
+              width: 8, height: 8, borderRadius: "50%",
               background: "var(--danger, #E24B4A)",
               boxShadow: "0 0 8px var(--danger, #E24B4A), 0 0 16px rgba(226,75,74,0.3)",
             }} />
           </div>
         )}
+
+        {/* Day columns — translateX aligned with picker */}
+        <div style={{
+          position: "absolute",
+          top: 0, bottom: 0,
+          left: TIME_COL,
+          display: "flex",
+          transform: `translateX(calc(50vw - ${TIME_COL}px - ${TIME_COL / 2}px - ${activeCenterX}px))`,
+          transition: "transform 0.3s cubic-bezier(0.25, 0.1, 0.25, 1)",
+          willChange: "transform",
+        }}>
+          {weekDays.map((day, i) => {
+            const dist = Math.abs(i - center);
+            const isCenter = i === center;
+            const isBeside = dist === 1;
+            const isDayToday = isSameDay(day, today);
+            const colW = getColW(dist);
+            const blocks = weekBlocks[i];
+            const opacity = isCenter ? 1 : isBeside ? 0.5 : dist === 2 ? 0.2 : 0.08;
+
+            return (
+              <div key={i} style={{
+                width: colW, flexShrink: 0,
+                position: "relative",
+                height: TOTAL_HOURS * HOUR_H + TOP_PAD + 40,
+                opacity,
+                transition: "all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1)",
+              }}>
+                {/* Day column separator */}
+                <div style={{
+                  position: "absolute", top: TOP_PAD, bottom: 0,
+                  right: 0, width: 1,
+                  background: "rgba(255,255,255,0.03)",
+                }} />
+
+                {/* Task blocks */}
+                {blocks.map((b) => {
+                  const startH = b.startMin / 60;
+                  const durH = b.durMin / 60;
+                  const top = (startH - HOUR_START) * HOUR_H + TOP_PAD;
+                  const height = durH * HOUR_H;
+                  const isDone = b.status === "done";
+                  const isActive = b.id === activeTask?.id;
+                  const color = b.type === "rest" ? "var(--rest, #6b8a7a)" : "var(--accent, #FFD000)";
+                  const bg = b.type === "rest" ? "rgba(107,138,122,0.15)" : "rgba(255,208,0,0.1)";
+
+                  if (isCenter) {
+                    return (
+                      <div key={b.id} style={{
+                        position: "absolute",
+                        top: top + 1, left: 2, right: 4,
+                        height: height - 2, minHeight: 28,
+                        borderRadius: 8,
+                        background: bg,
+                        backdropFilter: "blur(8px)",
+                        WebkitBackdropFilter: "blur(8px)" as any,
+                        borderLeft: `3px solid ${color}`,
+                        border: isActive ? `1px solid rgba(255,208,0,0.25)` : `1px solid rgba(255,255,255,0.04)`,
+                        borderLeftWidth: 3,
+                        borderLeftColor: color,
+                        padding: "6px 8px 14px",
+                        display: "flex", flexDirection: "column",
+                        justifyContent: "center",
+                        opacity: isDone ? 0.35 : 1,
+                        overflow: "visible",
+                      }}>
+                        <span style={{
+                          fontSize: 11, fontWeight: 600,
+                          color: isDone ? "rgba(255,255,255,0.4)" : "var(--t1)",
+                          textDecoration: isDone ? "line-through" : "none",
+                          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                        }}>{b.name}</span>
+                        {height > 44 && (
+                          <span style={{
+                            fontSize: 9, color: "rgba(255,255,255,0.2)", marginTop: 2,
+                          }}>
+                            {b.durMin >= 60 ? `${Math.floor(b.durMin / 60)}h${b.durMin % 60 > 0 ? `${b.durMin % 60}m` : ""}` : `${b.durMin}m`}
+                            {isActive && <span style={{ color: "var(--accent)", fontWeight: 700, marginLeft: 4, fontSize: 8, letterSpacing: 1 }}>ACTIVE</span>}
+                          </span>
+                        )}
+                        {!isDone && b.isToday && (
+                          <div
+                            onPointerDown={(e) => onHandleStart(e, b.id, b.durMin)}
+                            onTouchStart={(e) => onHandleStart(e, b.id, b.durMin)}
+                            style={{
+                              position: "absolute", bottom: 0, left: 8, right: 8,
+                              height: 12, display: "flex", alignItems: "center", justifyContent: "center",
+                              cursor: "ns-resize", touchAction: "none",
+                            }}
+                          >
+                            <div style={{ display: "flex", flexDirection: "column", gap: 2, alignItems: "center" }}>
+                              <div style={{ width: 18, height: 1.5, borderRadius: 1, background: "rgba(255,255,255,0.12)" }} />
+                              <div style={{ width: 12, height: 1.5, borderRadius: 1, background: "rgba(255,255,255,0.08)" }} />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  } else {
+                    return (
+                      <div key={b.id} style={{
+                        position: "absolute",
+                        top: top + 1, left: 3, right: 5,
+                        height: Math.max(height - 2, 4),
+                        borderRadius: isBeside ? 4 : 2,
+                        background: bg,
+                        borderLeft: `2px solid ${color}`,
+                        opacity: isDone ? 0.3 : 0.7,
+                      }} />
+                    );
+                  }
+                })}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
-}
+});
+
+export default WeekTimeline;
