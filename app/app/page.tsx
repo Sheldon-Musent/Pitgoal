@@ -298,8 +298,8 @@ export default function Home() {
   useEffect(() => {
     if (!loaded) return;
     setTasks(prev => {
-      if (prev.find(t => t.id === "test-drag")) return prev;
-      return [...prev, {
+      const without = prev.filter(t => t.id !== "test-drag");
+      return [...without, {
         id: "test-drag",
         name: "test calendar",
         time: "14:00",
