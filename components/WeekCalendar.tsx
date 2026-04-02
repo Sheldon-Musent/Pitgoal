@@ -51,6 +51,15 @@ const SPEC: Record<string, number[]> = {
 const getS = (key: string, dist: number): number =>
   SPEC[key][Math.min(dist, SPEC[key].length - 1)];
 
+const fmtDur = (hrs: number): string => {
+  if (hrs >= 1) {
+    const h = Math.floor(hrs);
+    const m = Math.round((hrs - h) * 60);
+    return m > 0 ? `${h}h${m}m` : `${h}h`;
+  }
+  return `${Math.round(hrs * 60)}m`;
+};
+
 const typeColor = (type: string): string => {
   if (type === "rest") return "var(--rest, #6b8a7a)";
   if (type === "urgent" || type === "work") return "var(--accent, #FFD000)";
@@ -324,14 +333,33 @@ const WeekCalendar = forwardRef<{ scrollToToday: () => void }, WeekCalendarProps
                         transition: "all 0.3s ease",
                       }}>
                         {blockF > 0 && h > 10 && (
-                          <span style={{
-                            fontSize: blockF,
-                            fontWeight: 600,
-                            color: t.type === "rest" ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.55)",
-                            whiteSpace: "nowrap",
+                          <div style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            width: "100%",
+                            gap: 4,
                             overflow: "hidden",
-                            textOverflow: "ellipsis",
-                          }}>{t.name}</span>
+                          }}>
+                            <span style={{
+                              fontSize: blockF,
+                              fontWeight: 600,
+                              color: t.type === "rest" ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.55)",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              flex: 1,
+                              minWidth: 0,
+                            }}>{t.name}</span>
+                            <span style={{
+                              fontSize: blockF - 1,
+                              fontWeight: 500,
+                              color: "rgba(255,255,255,0.25)",
+                              whiteSpace: "nowrap",
+                              flexShrink: 0,
+                              fontFamily: "monospace",
+                            }}>{fmtDur(t.dur)}</span>
+                          </div>
                         )}
                       </div>
                     );
