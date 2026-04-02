@@ -351,7 +351,7 @@ const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
                   const startH = b.startMin / 60;
                   const durH = b.durMin / 60;
                   const top = (startH - HOUR_START) * HOUR_H + TOP_PAD;
-                  const height = Math.min(durH * HOUR_H, 6 * HOUR_H);
+                  const height = durH * HOUR_H;
                   const isDone = b.status === "done";
                   const isActive = b.id === activeTask?.id;
                   const color = b.type === "rest" ? "var(--rest, #6b8a7a)" : "var(--accent, #FFD000)";
