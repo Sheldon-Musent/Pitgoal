@@ -34,7 +34,7 @@ const SPEC: Record<string, number[]> = {
   circle:      [36, 28, 22, 16],
   dateFont:    [15, 13, 10, 9],
   dayFont:     [10, 9, 8, 7],
-  opacity:     [1, 0.6, 0.22, 0.1],
+  opacity:     [1, 0.6, 0.28, 0.15],
   barWidth:    [28, 20, 14, 8],
   barHeight:   [3, 2.5, 2, 1.5],
 };

@@ -14,6 +14,7 @@ const HOUR_END = 24;
 const TOTAL_HOURS = HOUR_END - HOUR_START;
 const HOUR_H = 72;
 const TIME_COL = 70;
+const TOP_PAD = 16;
 
 const fmtHour = (h: number): string => {
   if (h === 0 || h === 24) return "12 AM";
@@ -143,7 +144,7 @@ export default function WeekTimeline({ tasks, getDisplayTimeMin, activeTask, onU
     >
       <div style={{
         position: "relative",
-        height: TOTAL_HOURS * HOUR_H + 40,
+        height: TOTAL_HOURS * HOUR_H + TOP_PAD + 40,
         padding: "0 16px",
       }}>
         {/* Glass time pills + gridlines */}
@@ -152,12 +153,12 @@ export default function WeekTimeline({ tasks, getDisplayTimeMin, activeTask, onU
           return (
             <div key={h}>
               <div style={{
-                position: "absolute", top: hi * HOUR_H,
-                left: TIME_COL, right: 16,
+                position: "absolute", top: hi * HOUR_H + TOP_PAD,
+                left: TIME_COL, right: 60,
                 height: 1, background: "rgba(255,255,255,0.035)",
               }} />
               <div style={{
-                position: "absolute", top: hi * HOUR_H - 11,
+                position: "absolute", top: hi * HOUR_H + TOP_PAD - 11,
                 left: 4, zIndex: 3, ...getGlassStyle(h),
               }}>
                 <span style={{
@@ -175,7 +176,7 @@ export default function WeekTimeline({ tasks, getDisplayTimeMin, activeTask, onU
           const timeMin = getDisplayTimeMin(task);
           const startHour = timeMin / 60;
           const durHours = (task.duration || 60) / 60;
-          const top = (startHour - HOUR_START) * HOUR_H;
+          const top = (startHour - HOUR_START) * HOUR_H + TOP_PAD;
           const height = durHours * HOUR_H;
           const isDone = task.status === "done";
           const isActive = task.id === activeTask?.id;
@@ -186,7 +187,7 @@ export default function WeekTimeline({ tasks, getDisplayTimeMin, activeTask, onU
           return (
             <div key={task.id} style={{
               position: "absolute",
-              top: top + 2, left: TIME_COL, right: 16,
+              top: top + 2, left: TIME_COL, right: 60,
               height: height - 4, minHeight: 32,
               borderRadius: 10,
               background: typeBg(task),
@@ -248,8 +249,8 @@ export default function WeekTimeline({ tasks, getDisplayTimeMin, activeTask, onU
         {nowHour >= HOUR_START && nowHour <= HOUR_END && (
           <div style={{
             position: "absolute",
-            top: (nowHour - HOUR_START) * HOUR_H,
-            left: TIME_COL, right: 16,
+            top: (nowHour - HOUR_START) * HOUR_H + TOP_PAD,
+            left: TIME_COL, right: 60,
             height: 2,
             background: "linear-gradient(to right, var(--danger, #E24B4A) 0%, var(--danger, #E24B4A) 60%, transparent 100%)",
             borderRadius: 1,
