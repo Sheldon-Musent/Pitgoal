@@ -39,13 +39,13 @@ const SPEC: Record<string, number[]> = {
   barWidth:    [32, 22, 14, 8],
   barHeight:   [3, 3, 2, 1.5],
   blockWidth:  [108, 62, 28, 16],
-  blockH:      [22, 12, 5, 3],
+  blockH:      [18, 10, 5, 3],
   blockGap:    [4, 3, 1.5, 1],
   blockRadius: [6, 4, 2, 1.5],
   blockFont:   [9, 7.5, 0, 0],
   blockBorder: [2.5, 2, 1, 1],
   maxBlocks:   [8, 5, 3, 2],
-  durScale:    [18, 8, 0, 0],
+  durScale:    [28, 10, 0, 0],
 };
 
 const getS = (key: string, dist: number): number =>
@@ -78,6 +78,8 @@ interface DayTaskBlock {
   name: string;
   dur: number;
   type: string;
+  timeMin: number;
+  status: string;
 }
 
 const WeekCalendar = forwardRef<{ scrollToToday: () => void }, WeekCalendarProps>(
@@ -118,6 +120,8 @@ const WeekCalendar = forwardRef<{ scrollToToday: () => void }, WeekCalendarProps
             name: t.name,
             dur: (t.duration || 60) / 60,
             type: (t as any).customType || t.type || "work",
+            timeMin: getDisplayTimeMin(t),
+            status: t.status || "pending",
           }));
           hrs = tasks.reduce((sum, t) => sum + (t.duration || 0), 0) / 60;
         } else if (!isFuture) {
@@ -128,6 +132,8 @@ const WeekCalendar = forwardRef<{ scrollToToday: () => void }, WeekCalendarProps
               name: entry.name,
               dur: (entry.duration || 0) / 60,
               type: entry.type || "work",
+              timeMin: 0,
+              status: "done",
             }));
             hrs = h.totalMin / 60;
           }
@@ -138,6 +144,8 @@ const WeekCalendar = forwardRef<{ scrollToToday: () => void }, WeekCalendarProps
             name: t.name,
             dur: (t.duration || 60) / 60,
             type: t.type || "work",
+            timeMin: t.timeMin || 0,
+            status: "pending",
           }));
           hrs = matching.reduce((sum, t) => sum + (t.duration || 0), 0) / 60;
         }
@@ -149,12 +157,12 @@ const WeekCalendar = forwardRef<{ scrollToToday: () => void }, WeekCalendarProps
     // Mock fallback
     const hasRealData = dayInfo.some(d => d.hrs > 0);
     const displayInfo = hasRealData ? dayInfo : [
-      { blocks: [{ name: "Sprint plan", dur: 1.5, type: "work" }, { name: "1:1", dur: 1, type: "work" }], hrs: 2.5 },
-      { blocks: [{ name: "Gym", dur: 1, type: "rest" }, { name: "Deep work", dur: 2.5, type: "work" }, { name: "Review", dur: 1, type: "work" }], hrs: 4.5 },
-      { blocks: [{ name: "Run", dur: 0.75, type: "rest" }, { name: "Pitgoal", dur: 3, type: "work" }, { name: "Lunch", dur: 0.75, type: "rest" }, { name: "Security+", dur: 2, type: "work" }, { name: "Emails", dur: 0.5, type: "work" }], hrs: 7 },
-      { blocks: [{ name: "Walk", dur: 0.5, type: "rest" }, { name: "Standup", dur: 0.5, type: "work" }, { name: "Code review", dur: 2, type: "work" }, { name: "Retro", dur: 1, type: "work" }], hrs: 4 },
-      { blocks: [{ name: "Yoga", dur: 1, type: "rest" }, { name: "Feature", dur: 2, type: "work" }], hrs: 3 },
-      { blocks: [{ name: "Hike", dur: 2, type: "rest" }], hrs: 2 },
+      { blocks: [{ name: "Sprint plan", dur: 1.5, type: "work", timeMin: 540, status: "done" }, { name: "1:1", dur: 1, type: "work", timeMin: 840, status: "pending" }], hrs: 2.5 },
+      { blocks: [{ name: "Gym", dur: 1, type: "rest", timeMin: 420, status: "done" }, { name: "Deep work", dur: 2.5, type: "work", timeMin: 540, status: "done" }, { name: "Review", dur: 1, type: "work", timeMin: 780, status: "done" }], hrs: 4.5 },
+      { blocks: [{ name: "Run", dur: 0.75, type: "rest", timeMin: 390, status: "done" }, { name: "Pitgoal", dur: 3, type: "work", timeMin: 480, status: "done" }, { name: "Lunch", dur: 0.75, type: "rest", timeMin: 720, status: "active" }, { name: "Security+", dur: 2, type: "work", timeMin: 840, status: "pending" }, { name: "Emails", dur: 0.5, type: "work", timeMin: 960, status: "pending" }], hrs: 7 },
+      { blocks: [{ name: "Walk", dur: 0.5, type: "rest", timeMin: 420, status: "pending" }, { name: "Standup", dur: 0.5, type: "work", timeMin: 540, status: "pending" }, { name: "Code review", dur: 2, type: "work", timeMin: 600, status: "pending" }, { name: "Retro", dur: 1, type: "work", timeMin: 840, status: "pending" }], hrs: 4 },
+      { blocks: [{ name: "Yoga", dur: 1, type: "rest", timeMin: 480, status: "pending" }, { name: "Feature", dur: 2, type: "work", timeMin: 600, status: "pending" }], hrs: 3 },
+      { blocks: [{ name: "Hike", dur: 2, type: "rest", timeMin: 600, status: "pending" }], hrs: 2 },
       { blocks: [], hrs: 0 },
     ];
 
@@ -313,6 +321,7 @@ const WeekCalendar = forwardRef<{ scrollToToday: () => void }, WeekCalendarProps
                   marginTop: isCenter ? 4 : isBeside ? 3 : 2,
                   width: blockW,
                   transition: "all 0.3s ease",
+                  position: "relative",
                 }}>
                   {blocks.slice(0, maxBlocks).map((t, ti) => {
                     const color = typeColor(t.type);
@@ -333,37 +342,59 @@ const WeekCalendar = forwardRef<{ scrollToToday: () => void }, WeekCalendarProps
                         transition: "all 0.3s ease",
                       }}>
                         {blockF > 0 && h > 10 && (
-                          <div style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            width: "100%",
-                            gap: 4,
+                          <span style={{
+                            fontSize: blockF,
+                            fontWeight: 600,
+                            color: t.type === "rest" ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.55)",
+                            whiteSpace: "nowrap",
                             overflow: "hidden",
-                          }}>
-                            <span style={{
-                              fontSize: blockF,
-                              fontWeight: 600,
-                              color: t.type === "rest" ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.55)",
-                              whiteSpace: "nowrap",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              flex: 1,
-                              minWidth: 0,
-                            }}>{t.name}</span>
-                            <span style={{
-                              fontSize: blockF - 1,
-                              fontWeight: 500,
-                              color: "rgba(255,255,255,0.25)",
-                              whiteSpace: "nowrap",
-                              flexShrink: 0,
-                              fontFamily: "monospace",
-                            }}>{fmtDur(t.dur)}</span>
-                          </div>
+                            textOverflow: "ellipsis",
+                            display: "block",
+                            lineHeight: 1.2,
+                          }}>{t.name}</span>
                         )}
                       </div>
                     );
                   })}
+                  {/* Now line — center column, today only */}
+                  {isCenter && isToday && (() => {
+                    const now = new Date();
+                    const nowMin = now.getHours() * 60 + now.getMinutes();
+                    const sorted = blocks.slice(0, maxBlocks);
+                    let nowIdx = sorted.findIndex(t =>
+                      t.status === "pending" && t.timeMin > nowMin
+                    );
+                    if (nowIdx === -1) nowIdx = sorted.length;
+                    let topPx = 0;
+                    for (let j = 0; j < nowIdx; j++) {
+                      const bh = durScale > 0 ? Math.max(blockH, sorted[j].dur * durScale) : blockH;
+                      topPx += bh + blockGap;
+                    }
+                    topPx -= blockGap / 2;
+
+                    return (
+                      <div style={{
+                        position: "absolute",
+                        top: topPx,
+                        left: -2,
+                        right: -2,
+                        height: 2,
+                        background: "var(--danger, #E24B4A)",
+                        borderRadius: 1,
+                        zIndex: 2,
+                      }}>
+                        <div style={{
+                          position: "absolute",
+                          left: -3,
+                          top: -2.5,
+                          width: 7,
+                          height: 7,
+                          borderRadius: "50%",
+                          background: "var(--danger, #E24B4A)",
+                        }} />
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
             </div>
