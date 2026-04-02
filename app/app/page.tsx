@@ -111,21 +111,7 @@ export default function Home() {
   const [filterMode, setFilterMode] = useState<string>("all");
   const [calView, setCalView] = useState<"W" | "M" | "Q" | "Y">("W");
   const [magicPlannerInput, setMagicPlannerInput] = useState("");
-  const [viewLetterAnim, setViewLetterAnim] = useState(false);
-  const viewDragStartY = useRef(0);
-  const viewDragActive = useRef(false);
-  const viewDragMoved = useRef(false);
   const [weekCalCenter, setWeekCalCenter] = useState<number>(-1);
-  const CAL_VIEWS: ("W" | "M" | "Q" | "Y")[] = ["W", "M", "Q", "Y"];
-  const cycleCalView = useCallback((dir: 1 | -1) => {
-    setCalView(prev => {
-      const idx = CAL_VIEWS.indexOf(prev);
-      const next = ((idx + dir) % 4 + 4) % 4;
-      return CAL_VIEWS[next];
-    });
-    setViewLetterAnim(true);
-    setTimeout(() => setViewLetterAnim(false), 200);
-  }, []);
   const [deleteMode, setDeleteMode] = useState(false);
   const longPressTimer = useRef<any>(null);
   const [confirmSkipId, setConfirmSkipId] = useState<string | null>(null);
@@ -1076,64 +1062,7 @@ const getTypeLabel = (typeId: string): string => {
           </div>
 
           {calView === "W" && (
-            <div style={{ position: "relative" }}>
-              {/* ═══ VIEW SWITCHER PILL ═══ */}
-              <div
-                style={{
-                  position: "absolute", left: 4, top: 9, zIndex: 10,
-                  display: "flex", flexDirection: "column", alignItems: "center", gap: 0,
-                  userSelect: "none", WebkitUserSelect: "none" as any,
-                  touchAction: "none", cursor: "grab",
-                }}
-                onClick={() => cycleCalView(1)}
-                onTouchStart={(e) => {
-                  viewDragStartY.current = e.touches[0].clientY;
-                  viewDragActive.current = true;
-                  viewDragMoved.current = false;
-                }}
-                onTouchMove={(e) => {
-                  if (!viewDragActive.current) return;
-                  const dy = e.touches[0].clientY - viewDragStartY.current;
-                  if (Math.abs(dy) > 30) {
-                    viewDragMoved.current = true;
-                    cycleCalView(dy < 0 ? 1 : -1);
-                    viewDragStartY.current = e.touches[0].clientY;
-                  }
-                }}
-                onTouchEnd={(e) => {
-                  if (viewDragMoved.current) { e.preventDefault(); }
-                  viewDragActive.current = false;
-                }}
-              >
-                <div style={{
-                  position: "relative", width: 36, height: 36, borderRadius: 10,
-                  overflow: "hidden", border: "1px solid rgba(255,255,255,0.13)",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                }}>
-                  {/* Sunrise gradient */}
-                  <div style={{
-                    position: "absolute", inset: 0,
-                    background: "linear-gradient(135deg, rgba(255,120,40,0.4) 0%, rgba(255,170,50,0.3) 35%, rgba(255,210,70,0.2) 65%, rgba(255,235,130,0.1) 100%)",
-                    zIndex: 0,
-                  }} />
-                  {/* Glass frost */}
-                  <div style={{
-                    position: "absolute", inset: 0,
-                    background: "rgba(255,255,255,0.05)",
-                    backdropFilter: "blur(10px) saturate(140%)",
-                    WebkitBackdropFilter: "blur(10px) saturate(140%)" as any,
-                    zIndex: 1,
-                  }} />
-                  <span style={{
-                    fontSize: 15, fontWeight: 800, color: "var(--accent)",
-                    zIndex: 2, position: "relative",
-                    transition: "transform 0.2s ease, opacity 0.2s ease",
-                    transform: viewLetterAnim ? "translateY(-8px)" : "translateY(0)",
-                    opacity: viewLetterAnim ? 0 : 1,
-                  }}>{calView}</span>
-                </div>
-              </div>
-
+            <>
               <WeekCalendar
                 ref={weekCalRef}
                 tasks={tasks}
@@ -1146,6 +1075,8 @@ const getTypeLabel = (typeId: string): string => {
                 center={weekCalCenter}
                 onCenterChange={setWeekCalCenter}
                 onDoubleTapToday={() => weekTimelineRef.current?.scrollToNow()}
+                calView={calView}
+                onCalViewChange={(v) => setCalView(v as any)}
               />
               <WeekTimeline
                 ref={weekTimelineRef}
@@ -1157,7 +1088,7 @@ const getTypeLabel = (typeId: string): string => {
                 activeTask={activeTask}
                 onUpdateDuration={handleUpdateDuration}
               />
-            </div>
+            </>
           )}
 
           <TaskSheet ref={taskSheetRef} marLabelRef={marLabelRef} isDesktop={isDesktop} navHeight={72} stickyHeader={

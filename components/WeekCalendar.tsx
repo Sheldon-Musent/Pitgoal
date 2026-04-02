@@ -14,6 +14,8 @@ interface WeekCalendarProps {
   center?: number;
   onCenterChange?: (idx: number) => void;
   onDoubleTapToday?: () => void;
+  calView?: string;
+  onCalViewChange?: (v: string) => void;
 }
 
 const getWeekStart = (date: Date): Date => {
@@ -49,7 +51,7 @@ const getS = (key: string, dist: number): number =>
 const COL_GAP = 6;
 
 const WeekCalendar = forwardRef<{ scrollToToday: () => void }, WeekCalendarProps>(
-  function WeekCalendar({ tasks, templates, history, selectedDate, onSelectDate, center: propCenter, onCenterChange, onDoubleTapToday }, ref) {
+  function WeekCalendar({ tasks, templates, history, selectedDate, onSelectDate, center: propCenter, onCenterChange, onDoubleTapToday, calView, onCalViewChange }, ref) {
 
     const today = useMemo(() => {
       const d = new Date();
@@ -77,6 +79,21 @@ const WeekCalendar = forwardRef<{ scrollToToday: () => void }, WeekCalendarProps
     }, [onCenterChange]);
 
     const lastTapRef = useRef(0);
+
+    // View switcher drag state
+    const CAL_VIEWS = ["W", "M", "Q", "Y"];
+    const [viewLetterAnim, setViewLetterAnim] = useState(false);
+    const viewDragStartY = useRef(0);
+    const viewDragActive = useRef(false);
+    const viewDragMoved = useRef(false);
+    const cycleCalView = useCallback((dir: 1 | -1) => {
+      if (!onCalViewChange || !calView) return;
+      const idx = CAL_VIEWS.indexOf(calView);
+      const next = ((idx + dir) % 4 + 4) % 4;
+      onCalViewChange(CAL_VIEWS[next]);
+      setViewLetterAnim(true);
+      setTimeout(() => setViewLetterAnim(false), 200);
+    }, [calView, onCalViewChange]);
 
     const dayHours = useMemo(() => {
       return weekDays.map((day) => {
@@ -136,7 +153,62 @@ const WeekCalendar = forwardRef<{ scrollToToday: () => void }, WeekCalendarProps
     activeCenter += colWidths[center] / 2;
 
     return (
-      <div style={{ overflow: "hidden", padding: "4px 0 8px" }}>
+      <div style={{ overflow: "hidden", padding: "4px 0 8px", position: "relative" }}>
+        {/* View switcher pill */}
+        {calView && onCalViewChange && (
+          <div
+            style={{
+              position: "absolute", left: 4, top: 4, zIndex: 10,
+              userSelect: "none", WebkitUserSelect: "none" as any,
+              touchAction: "none", cursor: "grab",
+            }}
+            onClick={() => cycleCalView(1)}
+            onTouchStart={(e) => {
+              viewDragStartY.current = e.touches[0].clientY;
+              viewDragActive.current = true;
+              viewDragMoved.current = false;
+            }}
+            onTouchMove={(e) => {
+              if (!viewDragActive.current) return;
+              const dy = e.touches[0].clientY - viewDragStartY.current;
+              if (Math.abs(dy) > 30) {
+                viewDragMoved.current = true;
+                cycleCalView(dy < 0 ? 1 : -1);
+                viewDragStartY.current = e.touches[0].clientY;
+              }
+            }}
+            onTouchEnd={(e) => {
+              if (viewDragMoved.current) e.preventDefault();
+              viewDragActive.current = false;
+            }}
+          >
+            <div style={{
+              position: "relative", width: 36, height: 36, borderRadius: 10,
+              overflow: "hidden", border: "1px solid rgba(255,255,255,0.13)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <div style={{
+                position: "absolute", inset: 0,
+                background: "linear-gradient(135deg, rgba(255,120,40,0.4) 0%, rgba(255,170,50,0.3) 35%, rgba(255,210,70,0.2) 65%, rgba(255,235,130,0.1) 100%)",
+                zIndex: 0,
+              }} />
+              <div style={{
+                position: "absolute", inset: 0,
+                background: "rgba(255,255,255,0.05)",
+                backdropFilter: "blur(10px) saturate(140%)",
+                WebkitBackdropFilter: "blur(10px) saturate(140%)" as any,
+                zIndex: 1,
+              }} />
+              <span style={{
+                fontSize: 15, fontWeight: 800, color: "var(--accent)",
+                zIndex: 2, position: "relative",
+                transition: "transform 0.2s ease, opacity 0.2s ease",
+                transform: viewLetterAnim ? "translateY(-8px)" : "translateY(0)",
+                opacity: viewLetterAnim ? 0 : 1,
+              }}>{calView}</span>
+            </div>
+          </div>
+        )}
         <div
           onTouchStart={onTouchStart}
           onTouchEnd={onTouchEnd}
