@@ -21,6 +21,7 @@ const TIME_COL = 64;
 const TOP_PAD = 16;
 
 const COL_WIDTHS = [140, 60, 36, 26];
+const COL_GAP = 6;
 const getColW = (dist: number) => COL_WIDTHS[Math.min(dist, COL_WIDTHS.length - 1)];
 
 const fmtHour = (h: number): string => {
@@ -155,10 +156,25 @@ const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
     });
   }, [weekDays, today, tasks, templates, history, getDisplayTimeMin]);
 
+  // Mock blocks for empty beside columns (visual testing)
+  const MOCK_BESIDE: BlockInfo[] = [
+    { name: "Morning routine", startMin: 420, durMin: 60, type: "rest", status: "done", id: "mock-1", isToday: false },
+    { name: "Deep work", startMin: 540, durMin: 150, type: "work", status: "done", id: "mock-2", isToday: false },
+    { name: "Afternoon task", startMin: 840, durMin: 90, type: "work", status: "pending", id: "mock-3", isToday: false },
+  ];
+
+  const weekBlocksWithMocks = useMemo(() => {
+    return weekBlocks.map((blocks, i) => {
+      const dist = Math.abs(i - center);
+      if (dist === 1 && blocks.length === 0) return MOCK_BESIDE;
+      return blocks;
+    });
+  }, [weekBlocks, center]);
+
   // Column layout aligned with picker
   const colWidths = weekDays.map((_, i) => getColW(Math.abs(i - center)));
   let activeCenterX = 0;
-  for (let i = 0; i < center; i++) activeCenterX += colWidths[i];
+  for (let i = 0; i < center; i++) activeCenterX += colWidths[i] + COL_GAP;
   activeCenterX += colWidths[center] / 2;
 
   // Auto-scroll to current time on mount
@@ -296,6 +312,7 @@ const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
         }}>
         <div style={{
           display: "flex",
+          gap: COL_GAP,
           transform: `translateX(calc(50% - ${activeCenterX}px - ${TIME_COL / 2}px))`,
           transition: "transform 0.3s cubic-bezier(0.25, 0.1, 0.25, 1)",
           willChange: "transform",
@@ -307,7 +324,7 @@ const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
             const isBeside = dist === 1;
             const isDayToday = isSameDay(day, today);
             const colW = getColW(dist);
-            const blocks = weekBlocks[i];
+            const blocks = weekBlocksWithMocks[i];
             const opacity = isCenter ? 1 : isBeside ? 0.5 : dist === 2 ? 0.2 : 0.08;
 
             return (
@@ -393,7 +410,17 @@ const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
                       </div>
                     );
                   } else {
-                    return null;
+                    // Colored bar — no text, no drag
+                    return (
+                      <div key={b.id} style={{
+                        position: "absolute",
+                        top: top + 1, left: 4, right: 6,
+                        height: Math.max(height - 2, 6),
+                        borderRadius: 4,
+                        background: bg,
+                        borderLeft: `2px solid ${color}`,
+                      }} />
+                    );
                   }
                 })}
               </div>

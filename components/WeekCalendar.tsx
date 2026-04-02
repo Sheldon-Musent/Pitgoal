@@ -45,6 +45,8 @@ const SPEC: Record<string, number[]> = {
 const getS = (key: string, dist: number): number =>
   SPEC[key][Math.min(dist, SPEC[key].length - 1)];
 
+const COL_GAP = 6;
+
 const WeekCalendar = forwardRef<{ scrollToToday: () => void }, WeekCalendarProps>(
   function WeekCalendar({ tasks, templates, history, selectedDate, onSelectDate, center: propCenter, onCenterChange, onDoubleTapToday }, ref) {
 
@@ -129,7 +131,7 @@ const WeekCalendar = forwardRef<{ scrollToToday: () => void }, WeekCalendarProps
 
     const colWidths = weekDays.map((_, i) => getS("colWidth", Math.abs(i - center)));
     let activeCenter = 0;
-    for (let i = 0; i < center; i++) activeCenter += colWidths[i];
+    for (let i = 0; i < center; i++) activeCenter += colWidths[i] + COL_GAP;
     activeCenter += colWidths[center] / 2;
 
     return (
@@ -140,6 +142,7 @@ const WeekCalendar = forwardRef<{ scrollToToday: () => void }, WeekCalendarProps
           style={{
             display: "flex",
             alignItems: "flex-start",
+            gap: COL_GAP,
             touchAction: "pan-y",
             cursor: "grab",
             transform: `translateX(calc(50% - ${activeCenter}px))`,
