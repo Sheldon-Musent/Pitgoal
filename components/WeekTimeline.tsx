@@ -273,7 +273,7 @@ const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
           <div style={{
             position: "absolute",
             top: (nowHour - HOUR_START) * HOUR_H + TOP_PAD,
-            left: 4, right: 16,
+            left: TIME_COL, right: 16,
             height: 2,
             background: "linear-gradient(to right, var(--danger, #E24B4A) 0%, var(--danger, #E24B4A) 60%, transparent 100%)",
             borderRadius: 1, zIndex: 7, pointerEvents: "none",
@@ -393,19 +393,7 @@ const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
                       </div>
                     );
                   } else {
-                    return (
-                      <div key={b.id} style={{
-                        position: "absolute",
-                        top: top + 1, left: 3, right: 5,
-                        height: Math.max(height - 2, 4),
-                        borderRadius: isBeside ? 4 : 2,
-                        background: "transparent",
-                        border: "1px solid rgba(255,255,255,0.04)",
-                        borderLeftWidth: 2,
-                        borderLeftColor: color,
-                        opacity: isDone ? 0.15 : 0.25,
-                      }} />
-                    );
+                    return null;
                   }
                 })}
               </div>

@@ -160,13 +160,19 @@ const WeekCalendar = forwardRef<{ scrollToToday: () => void }, WeekCalendarProps
                 className="tap"
                 onClick={() => {
                   const now = Date.now();
-                  const isDoubleTap = i === center && isToday && (now - lastTapRef.current < 300);
+                  const isDoubleTap = now - lastTapRef.current < 300;
                   lastTapRef.current = now;
+                  if (isDoubleTap) {
+                    const todayI = weekDays.findIndex(d => isSameDay(d, today));
+                    if (todayI >= 0) {
+                      setCenter(todayI);
+                      onSelectDate(new Date(weekDays[todayI]));
+                    }
+                    if (onDoubleTapToday) onDoubleTapToday();
+                    return;
+                  }
                   setCenter(i);
                   onSelectDate(new Date(day));
-                  if (isDoubleTap && onDoubleTapToday) {
-                    onDoubleTapToday();
-                  }
                 }}
                 style={{
                   display: "flex", flexDirection: "column",
