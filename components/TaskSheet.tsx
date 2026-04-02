@@ -52,7 +52,7 @@ const TaskSheet = forwardRef<{ snapTo: (idx: number) => void }, TaskSheetProps>(
     let HALF = 200;
     if (marLabelRef.current) {
       const mRect = marLabelRef.current.getBoundingClientRect();
-      HALF = Math.round(mRect.bottom) + 120;
+      HALF = Math.round(mRect.bottom) + 70;
     }
 
     let CLOSED = window.innerHeight - navHeight - HANDLE_GAP;
