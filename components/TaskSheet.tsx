@@ -98,6 +98,9 @@ const TaskSheet = forwardRef<{ snapTo: (idx: number) => void }, TaskSheetProps>(
     sheet.style.borderRadius = `${rad}px ${rad}px 0 0`;
     sheet.style.background = `rgba(28,28,30,${bgA.toFixed(3)})`;
     sheet.style.borderColor = `rgba(255,255,255,${borderA.toFixed(3)})`;
+    const blurPx = lerp(30, 0, closedT);
+    sheet.style.backdropFilter = `blur(${blurPx.toFixed(1)}px) saturate(180%)`;
+    (sheet.style as any).WebkitBackdropFilter = `blur(${blurPx.toFixed(1)}px) saturate(180%)`;
     content.style.opacity = `${(1 - closedT).toFixed(3)}`;
 
     // Fade sticky header with content

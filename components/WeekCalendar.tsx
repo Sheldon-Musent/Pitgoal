@@ -1,5 +1,5 @@
 "use client";
-import React, { useMemo, forwardRef, useImperativeHandle } from "react";
+import React, { useState, useRef, useMemo, useCallback, forwardRef, useImperativeHandle } from "react";
 import { dateKey } from "../lib/utils";
 import type { Task, Template, DayHistory } from "../lib/types";
 
@@ -29,8 +29,50 @@ const isSameDay = (a: Date, b: Date) =>
 
 const DAY_LETTERS = ["M", "T", "W", "T", "F", "S", "S"];
 
+// Distance-based specs: [center, ±1, ±2, ±3]
+const SPEC: Record<string, number[]> = {
+  colWidth:    [88, 68, 44, 32],
+  circle:      [38, 30, 22, 16],
+  dateFont:    [16, 14, 10, 9],
+  dayFont:     [11, 10, 8, 7],
+  opacity:     [1, 0.65, 0.25, 0.12],
+  barWidth:    [28, 22, 14, 8],
+  barHeight:   [3, 3, 2, 1.5],
+  blockWidth:  [64, 46, 24, 16],
+  blockH:      [16, 10, 5, 3],
+  blockGap:    [3, 2.5, 1.5, 1],
+  blockRadius: [5, 4, 2, 1.5],
+  blockFont:   [8.5, 7, 0, 0],
+  blockBorder: [2.5, 2, 1, 1],
+  maxBlocks:   [8, 5, 3, 2],
+  durScale:    [14, 6, 0, 0],
+};
+
+const getS = (key: string, dist: number): number =>
+  SPEC[key][Math.min(dist, SPEC[key].length - 1)];
+
+const typeColor = (type: string): string => {
+  if (type === "rest") return "var(--rest, #6b8a7a)";
+  if (type === "urgent" || type === "work") return "var(--accent, #FFD000)";
+  if (type === "life") return "#f59e0b";
+  return "var(--accent, #FFD000)";
+};
+
+const typeBg = (type: string, bright: boolean): string => {
+  const a = bright ? 0.35 : 0.2;
+  if (type === "rest") return `rgba(107,138,122,${a})`;
+  if (type === "life") return `rgba(245,158,11,${a})`;
+  return `rgba(255,208,0,${a})`;
+};
+
+interface DayTaskBlock {
+  name: string;
+  dur: number;
+  type: string;
+}
+
 const WeekCalendar = forwardRef<{ scrollToToday: () => void }, WeekCalendarProps>(
-  function WeekCalendar({ tasks, templates, history, selectedDate, onSelectDate }, ref) {
+  function WeekCalendar({ tasks, templates, history, selectedDate, onSelectDate, getDisplayTimeMin }, ref) {
 
     const today = useMemo(() => {
       const d = new Date();
@@ -47,116 +89,248 @@ const WeekCalendar = forwardRef<{ scrollToToday: () => void }, WeekCalendarProps
       });
     }, [today]);
 
-    const dayData = useMemo(() => {
+    const todayIdx = useMemo(() => {
+      return weekDays.findIndex(d => isSameDay(d, today));
+    }, [weekDays, today]);
+
+    const [center, setCenter] = useState(todayIdx >= 0 ? todayIdx : 0);
+
+    // Build task blocks + hours per day
+    const dayInfo = useMemo(() => {
       return weekDays.map((day) => {
         const isToday = isSameDay(day, today);
-        const isFuture = day > today;
+        const isFuture = day.getTime() > today.getTime();
+
+        let blocks: DayTaskBlock[] = [];
+        let hrs = 0;
 
         if (isToday) {
-          const hrs = tasks.reduce((sum, t) => sum + (t.duration || 0), 0) / 60;
-          return { hrs, taskCount: tasks.length };
-        }
-
-        if (!isFuture) {
+          blocks = tasks.map(t => ({
+            name: t.name,
+            dur: (t.duration || 60) / 60,
+            type: (t as any).customType || t.type || "work",
+          }));
+          hrs = tasks.reduce((sum, t) => sum + (t.duration || 0), 0) / 60;
+        } else if (!isFuture) {
           const key = dateKey(day);
           const h = history[key];
-          if (h) {
-            return { hrs: h.totalMin / 60, taskCount: h.tasks };
+          if (h && h.log) {
+            blocks = h.log.map(entry => ({
+              name: entry.name,
+              dur: (entry.duration || 0) / 60,
+              type: entry.type || "work",
+            }));
+            hrs = h.totalMin / 60;
           }
-        }
-
-        if (isFuture) {
+        } else {
           const dow = day.getDay();
           const matching = templates.filter(t => t.days.length === 0 || t.days.includes(dow));
-          const hrs = matching.reduce((sum, t) => sum + (t.duration || 0), 0) / 60;
-          return { hrs, taskCount: matching.length };
+          blocks = matching.map(t => ({
+            name: t.name,
+            dur: (t.duration || 60) / 60,
+            type: t.type || "work",
+          }));
+          hrs = matching.reduce((sum, t) => sum + (t.duration || 0), 0) / 60;
         }
 
-        return { hrs: 0, taskCount: 0 };
+        return { blocks, hrs };
       });
     }, [weekDays, today, tasks, templates, history]);
 
-    // Mock data fallback for visual testing — remove when real data flows
-    const hasRealData = dayData.some(d => d.hrs > 0);
-    const displayData = hasRealData ? dayData : [
-      { hrs: 2.5, taskCount: 2 },   // MON
-      { hrs: 4.0, taskCount: 3 },   // TUE
-      { hrs: 6.5, taskCount: 5 },   // WED (today)
-      { hrs: 3.5, taskCount: 3 },   // THU
-      { hrs: 1.5, taskCount: 2 },   // FRI
-      { hrs: 2.0, taskCount: 1 },   // SAT
-      { hrs: 0, taskCount: 0 },     // SUN
+    // Mock fallback
+    const hasRealData = dayInfo.some(d => d.hrs > 0);
+    const displayInfo = hasRealData ? dayInfo : [
+      { blocks: [{ name: "Sprint plan", dur: 1.5, type: "work" }, { name: "1:1", dur: 1, type: "work" }], hrs: 2.5 },
+      { blocks: [{ name: "Gym", dur: 1, type: "rest" }, { name: "Deep work", dur: 2.5, type: "work" }, { name: "Review", dur: 1, type: "work" }], hrs: 4.5 },
+      { blocks: [{ name: "Run", dur: 0.75, type: "rest" }, { name: "Pitgoal", dur: 3, type: "work" }, { name: "Lunch", dur: 0.75, type: "rest" }, { name: "Security+", dur: 2, type: "work" }, { name: "Emails", dur: 0.5, type: "work" }], hrs: 7 },
+      { blocks: [{ name: "Walk", dur: 0.5, type: "rest" }, { name: "Standup", dur: 0.5, type: "work" }, { name: "Code review", dur: 2, type: "work" }, { name: "Retro", dur: 1, type: "work" }], hrs: 4 },
+      { blocks: [{ name: "Yoga", dur: 1, type: "rest" }, { name: "Feature", dur: 2, type: "work" }], hrs: 3 },
+      { blocks: [{ name: "Hike", dur: 2, type: "rest" }], hrs: 2 },
+      { blocks: [], hrs: 0 },
     ];
-    const maxHrs = Math.max(...displayData.map(d => d.hrs), 1);
 
+    const maxHrs = Math.max(...displayInfo.map(d => d.hrs), 1);
+
+    // Swipe handling
+    const startXRef = useRef(0);
+    const isDragging = useRef(false);
+
+    const onTouchStart = useCallback((e: React.TouchEvent) => {
+      startXRef.current = e.touches[0].clientX;
+      isDragging.current = true;
+    }, []);
+
+    const onTouchEnd = useCallback((e: React.TouchEvent) => {
+      if (!isDragging.current) return;
+      isDragging.current = false;
+      const dx = e.changedTouches[0].clientX - startXRef.current;
+      if (dx < -35 && center < 6) {
+        const next = center + 1;
+        setCenter(next);
+        onSelectDate(new Date(weekDays[next]));
+      } else if (dx > 35 && center > 0) {
+        const next = center - 1;
+        setCenter(next);
+        onSelectDate(new Date(weekDays[next]));
+      }
+    }, [center, weekDays, onSelectDate]);
+
+    // scrollToToday resets center
     useImperativeHandle(ref, () => ({
-      scrollToToday: () => {}
+      scrollToToday: () => {
+        const idx = weekDays.findIndex(d => isSameDay(d, today));
+        if (idx >= 0) {
+          setCenter(idx);
+          onSelectDate(new Date(weekDays[idx]));
+        }
+      }
     }));
 
     return (
-      <div style={{
-        display: "flex", justifyContent: "space-between",
-        padding: "0 28px",
-      }}>
+      <div
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "flex-start",
+          padding: "0 4px",
+          touchAction: "pan-y",
+          cursor: "grab",
+        }}
+      >
         {weekDays.map((day, i) => {
+          const dist = Math.abs(i - center);
+          const isCenter = i === center;
           const isToday = isSameDay(day, today);
-          const isSel = isSameDay(day, selectedDate);
-          const isFuture = day > today;
-          const { hrs } = displayData[i];
+          const isFuture = day.getTime() > today.getTime();
+          const isBeside = dist === 1;
+
+          const { blocks, hrs } = displayInfo[i];
           const barPct = maxHrs > 0 ? hrs / maxHrs : 0;
+
+          const colW = getS("colWidth", dist);
+          const circleS = getS("circle", dist);
+          const dateF = getS("dateFont", dist);
+          const dayF = getS("dayFont", dist);
+          const op = getS("opacity", dist) * (isFuture && !isCenter ? 0.5 : 1);
+          const barW = getS("barWidth", dist);
+          const barH = getS("barHeight", dist);
+          const blockW = getS("blockWidth", dist);
+          const blockH = getS("blockH", dist);
+          const blockGap = getS("blockGap", dist);
+          const blockR = getS("blockRadius", dist);
+          const blockF = getS("blockFont", dist);
+          const blockBorder = getS("blockBorder", dist);
+          const maxBlocks = getS("maxBlocks", dist);
+          const durScale = getS("durScale", dist);
 
           return (
             <div
               key={i}
               className="tap"
-              onClick={() => onSelectDate(new Date(day))}
+              onClick={() => {
+                setCenter(i);
+                onSelectDate(new Date(day));
+              }}
               style={{
                 display: "flex", flexDirection: "column",
-                alignItems: "center", gap: 2,
+                alignItems: "center",
+                gap: 3,
+                width: colW,
+                flexShrink: 0,
+                opacity: op,
+                transition: "all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1)",
                 cursor: "pointer",
-                padding: "6px 0",
-                opacity: isFuture ? 0.3 : 1,
               }}
             >
               {/* Day letter */}
               <span style={{
-                fontSize: 10, fontWeight: 500,
-                color: isToday ? "var(--accent)" : "rgba(255,255,255,0.2)",
+                fontSize: dayF,
+                fontWeight: isCenter ? 700 : isBeside ? 600 : 400,
+                color: isToday && isCenter ? "var(--accent)" : isToday ? "rgba(255,208,0,0.6)" : "rgba(255,255,255,0.25)",
+                transition: "all 0.3s ease",
               }}>{DAY_LETTERS[i]}</span>
 
               {/* Date circle */}
               <div style={{
-                width: isToday ? 34 : 28,
-                height: isToday ? 34 : 28,
+                width: circleS, height: circleS,
                 borderRadius: "50%",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 background: isToday ? "var(--accent)" : "transparent",
-                border: isSel && !isToday ? "1.5px solid rgba(255,208,0,0.4)" : "1.5px solid transparent",
-                transition: "all 0.2s",
+                border: isCenter && !isToday ? "1.5px solid rgba(255,208,0,0.35)" : "1.5px solid transparent",
+                transition: "all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1)",
               }}>
                 <span style={{
-                  fontSize: isToday ? 15 : 13,
-                  fontWeight: isToday ? 800 : 400,
-                  color: isToday ? "#0a0a0a" : isSel ? "var(--t1)" : "var(--t3)",
+                  fontSize: dateF,
+                  fontWeight: isCenter ? 800 : isBeside ? 600 : 400,
+                  color: isToday ? "#0a0a0a" : isCenter ? "var(--t1)" : isBeside ? "rgba(255,255,255,0.55)" : "var(--t3)",
+                  transition: "all 0.3s ease",
                 }}>{day.getDate()}</span>
               </div>
 
               {/* Effort bar */}
               <div style={{
-                width: 20, height: 3, borderRadius: 2,
+                width: barW, height: barH,
+                borderRadius: 2,
                 background: "rgba(255,255,255,0.04)",
                 overflow: "hidden",
-                marginTop: 3,
+                transition: "all 0.3s ease",
               }}>
                 {hrs > 0 && (
                   <div style={{
                     width: `${barPct * 100}%`,
                     height: "100%",
                     borderRadius: 2,
-                    background: isToday ? "var(--accent)" : "rgba(255,208,0,0.4)",
+                    background: isToday && isCenter ? "var(--accent)" : "rgba(255,208,0,0.35)",
+                    transition: "width 0.3s ease",
                   }} />
                 )}
               </div>
+
+              {/* Task blocks */}
+              {blocks.length > 0 && (
+                <div style={{
+                  display: "flex", flexDirection: "column",
+                  alignItems: "center",
+                  gap: blockGap,
+                  marginTop: isCenter ? 4 : isBeside ? 3 : 2,
+                  width: blockW,
+                  transition: "all 0.3s ease",
+                }}>
+                  {blocks.slice(0, maxBlocks).map((t, ti) => {
+                    const color = typeColor(t.type);
+                    const bg = typeBg(t.type, isCenter || isBeside);
+                    const h = durScale > 0 ? Math.max(blockH, t.dur * durScale) : blockH;
+
+                    return (
+                      <div key={ti} style={{
+                        width: "100%",
+                        height: h,
+                        borderRadius: blockR,
+                        background: bg,
+                        borderLeft: `${blockBorder}px solid ${color}`,
+                        display: "flex",
+                        alignItems: "center",
+                        padding: blockF > 0 ? "0 5px" : 0,
+                        overflow: "hidden",
+                        transition: "all 0.3s ease",
+                      }}>
+                        {blockF > 0 && h > 10 && (
+                          <span style={{
+                            fontSize: blockF,
+                            fontWeight: 600,
+                            color: t.type === "rest" ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.55)",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}>{t.name}</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           );
         })}
