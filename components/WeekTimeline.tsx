@@ -69,8 +69,8 @@ const skyTextColor = (h: number): string => {
 const getGlassStyle = (h: number): React.CSSProperties => ({
   display: "inline-flex",
   alignItems: "center",
-  padding: "4px 10px",
-  borderRadius: 8,
+  padding: "3px 7px",
+  borderRadius: 6,
   background: skyColor(h),
   backdropFilter: "blur(12px) saturate(150%)",
   WebkitBackdropFilter: "blur(12px) saturate(150%)" as any,
@@ -251,8 +251,8 @@ const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
               left: 4, zIndex: 8, ...getGlassStyle(h),
             }}>
               <span style={{
-                fontSize: 11, fontWeight: 600,
-                color: skyTextColor(h), letterSpacing: -0.2,
+                fontSize: 10, fontWeight: 600,
+                color: skyTextColor(h), letterSpacing: -0.3,
               }}>{fmtHour(h)}</span>
             </div>
           );
@@ -262,8 +262,9 @@ const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
         {Array.from({ length: TOTAL_HOURS }, (_, hi) => (
           <div key={`gl-${hi}`} style={{
             position: "absolute", top: hi * HOUR_H + TOP_PAD,
-            left: TIME_COL, right: 16,
+            left: 4, right: 16,
             height: 1, background: "rgba(255,255,255,0.035)",
+            zIndex: 1,
           }} />
         ))}
 
@@ -272,7 +273,7 @@ const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
           <div style={{
             position: "absolute",
             top: (nowHour - HOUR_START) * HOUR_H + TOP_PAD,
-            left: TIME_COL, right: 16,
+            left: 4, right: 16,
             height: 2,
             background: "linear-gradient(to right, var(--danger, #E24B4A) 0%, var(--danger, #E24B4A) 60%, transparent 100%)",
             borderRadius: 1, zIndex: 7, pointerEvents: "none",
