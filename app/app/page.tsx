@@ -30,6 +30,7 @@ import ResizableLayout from "../../components/ResizableLayout";
 import StatCards, { waveValues, getChargingColor } from "../../components/StatCards";
 import TaskSheet from "../../components/TaskSheet";
 import WeekCalendar from "../../components/WeekCalendar";
+import WeekTimeline from "../../components/WeekTimeline";
 
 // ── Energy system constants ──
 const IDLE_RATE = 0.5;
@@ -723,6 +724,13 @@ const getTypeLabel = (typeId: string): string => {
     if (updated) startTask(updated);
   };
 
+  // ═══ UPDATE TASK DURATION (from timeline drag) ═══
+  const handleUpdateDuration = useCallback((taskId: string, newDurationMin: number) => {
+    const u = tasks.map(t => t.id === taskId ? { ...t, duration: newDurationMin, planned_duration: newDurationMin } : t);
+    setTasks(u);
+    save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom);
+  }, [tasks, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom, save]);
+
   // ═══ HANDLE DIRECT DONE (never started — charge full duration) ═══
   const handleDirectDone = (task: Task) => {
     const durationMinutes = task.duration || 60;
@@ -980,7 +988,7 @@ const getTypeLabel = (typeId: string): string => {
 
       {/* ── MAIN TAB ── */}
       {bottomTab === "main" && (
-        <div style={{ padding: "24px 24px 0" }}>
+        <div style={{ padding: "24px 24px 0", display: calView === "W" ? "flex" : "block", flexDirection: "column", height: calView === "W" ? "100%" : "auto" }}>
 
 
           {/* ═══ SECTION A: 3 Stat Cards ═══ */}
@@ -1030,16 +1038,24 @@ const getTypeLabel = (typeId: string): string => {
           </div>
 
           {calView === "W" && (
-            <WeekCalendar
-              ref={weekCalRef}
-              tasks={tasks}
-              templates={templates}
-              history={history}
-              selectedDate={selectedDate}
-              onSelectDate={(d) => setSelectedDate(d)}
-              activeTask={activeTask}
-              getDisplayTimeMin={getDisplayTimeMin}
-            />
+            <>
+              <WeekCalendar
+                ref={weekCalRef}
+                tasks={tasks}
+                templates={templates}
+                history={history}
+                selectedDate={selectedDate}
+                onSelectDate={(d) => setSelectedDate(d)}
+                activeTask={activeTask}
+                getDisplayTimeMin={getDisplayTimeMin}
+              />
+              <WeekTimeline
+                tasks={tasks}
+                getDisplayTimeMin={getDisplayTimeMin}
+                activeTask={activeTask}
+                onUpdateDuration={handleUpdateDuration}
+              />
+            </>
           )}
 
           <TaskSheet ref={taskSheetRef} marLabelRef={marLabelRef} isDesktop={isDesktop} navHeight={72} stickyHeader={
