@@ -186,21 +186,27 @@ const WeekCalendar = forwardRef<{ scrollToToday: () => void }, WeekCalendarProps
       }
     }));
 
+    const colWidths = weekDays.map((_, i) => getS("colWidth", Math.abs(i - center)));
+    let activeCenter = 0;
+    for (let i = 0; i < center; i++) activeCenter += colWidths[i];
+    activeCenter += colWidths[center] / 2;
+
     return (
-      <div
-        onTouchStart={onTouchStart}
-        onTouchEnd={onTouchEnd}
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "flex-start",
-          padding: "4px 0px 16px",
-          touchAction: "pan-y",
-          cursor: "grab",
-          minHeight: 160,
-        }}
-      >
-        {weekDays.map((day, i) => {
+      <div style={{ overflow: "hidden", padding: "4px 0 16px", minHeight: 160 }}>
+        <div
+          onTouchStart={onTouchStart}
+          onTouchEnd={onTouchEnd}
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            touchAction: "pan-y",
+            cursor: "grab",
+            transform: `translateX(calc(50% - ${activeCenter}px))`,
+            transition: "transform 0.3s cubic-bezier(0.25, 0.1, 0.25, 1)",
+            willChange: "transform",
+          }}
+        >
+          {weekDays.map((day, i) => {
           const dist = Math.abs(i - center);
           const isCenter = i === center;
           const isToday = isSameDay(day, today);
@@ -335,6 +341,7 @@ const WeekCalendar = forwardRef<{ scrollToToday: () => void }, WeekCalendarProps
             </div>
           );
         })}
+        </div>
       </div>
     );
   }
