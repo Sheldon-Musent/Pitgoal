@@ -747,7 +747,13 @@ const getTypeLabel = (typeId: string): string => {
 
   // ═══ UPDATE TASK DURATION (from timeline drag) ═══
   const handleUpdateDuration = useCallback((taskId: string, newDurationMin: number) => {
-    const u = tasks.map(t => t.id === taskId ? { ...t, duration: newDurationMin, planned_duration: newDurationMin } : t);
+    const u = tasks.map(t => {
+      if (t.id !== taskId) return t;
+      const startMin = getDisplayTimeMin(t);
+      const maxDur = (24 * 60) - startMin;
+      const clamped = Math.max(15, Math.min(maxDur, newDurationMin));
+      return { ...t, duration: clamped, planned_duration: clamped };
+    });
     setTasks(u);
     save(u, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom);
   }, [tasks, dayLog, energyUsed, energyCharged, activeTask, customGroups, pausedTask, switchingFrom, save]);
