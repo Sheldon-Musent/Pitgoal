@@ -294,6 +294,23 @@ export default function Home() {
     try { localStorage.setItem("pitgoal-filter-tags", JSON.stringify(tags)); } catch {};
   };
 
+  // TEMPORARY: fake task for drag testing — remove later
+  useEffect(() => {
+    if (!loaded) return;
+    setTasks(prev => {
+      if (prev.find(t => t.id === "test-drag")) return prev;
+      return [...prev, {
+        id: "test-drag",
+        name: "test calendar",
+        time: "14:00",
+        duration: 120,
+        type: "work",
+        status: "pending",
+        planned_duration: 120,
+      } as Task];
+    });
+  }, [loaded]);
+
   // ═══ NOTIFICATIONS ═══
   useEffect(() => { if (!loaded) return; const s = getPermissionStatus(); if (s === "granted") initNotifications().then(ok => setNotifEnabled(ok)); else if (s === "default") { const t = setTimeout(() => setNotifBanner(true), 3000); return () => clearTimeout(t); } }, [loaded]);
   useEffect(() => { if (notifEnabled) scheduleTaskNotifications(tasks); }, [tasks, notifEnabled]);
@@ -1010,12 +1027,12 @@ const getTypeLabel = (typeId: string): string => {
           </div>
 
           {/* ═══ MAGIC PLANNER BAR ═══ */}
-          <div style={{ marginTop: 8, marginBottom: 10, padding: "0 20px" }}>
+          <div style={{ marginTop: 8, marginBottom: 10, padding: "0 28px" }}>
             <div style={{
               display: "flex", alignItems: "center", gap: 8,
               background: "rgba(255,255,255,0.06)",
               border: "1px solid rgba(255,255,255,0.08)",
-              borderRadius: 50, padding: "8px 14px",
+              borderRadius: 50, padding: "10px 14px",
             }}>
               <input
                 type="text"
