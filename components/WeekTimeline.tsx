@@ -287,11 +287,15 @@ const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
         <div style={{
           position: "absolute",
           top: 0, bottom: 0,
-          left: TIME_COL,
+          left: TIME_COL, right: 0,
+          overflow: "hidden",
+        }}>
+        <div style={{
           display: "flex",
-          transform: `translateX(calc(50vw - ${TIME_COL}px - ${TIME_COL / 2}px - ${activeCenterX}px))`,
+          transform: `translateX(calc(50% - ${activeCenterX}px))`,
           transition: "transform 0.3s cubic-bezier(0.25, 0.1, 0.25, 1)",
           willChange: "transform",
+          height: "100%",
         }}>
           {weekDays.map((day, i) => {
             const dist = Math.abs(i - center);
@@ -308,6 +312,7 @@ const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
                 position: "relative",
                 height: TOTAL_HOURS * HOUR_H + TOP_PAD + 40,
                 opacity,
+                overflow: "visible",
                 transition: "all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1)",
               }}>
                 {/* Day column separator */}
@@ -332,7 +337,7 @@ const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
                     return (
                       <div key={b.id} style={{
                         position: "absolute",
-                        top: top + 1, left: 2, right: 4,
+                        top: top + 1, left: 2, right: -40,
                         height: height - 2, minHeight: 28,
                         borderRadius: 8,
                         background: bg,
@@ -399,6 +404,7 @@ const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
               </div>
             );
           })}
+        </div>
         </div>
       </div>
     </div>
