@@ -31,6 +31,7 @@ const isSameDay = (a: Date, b: Date) =>
   a.getDate() === b.getDate();
 
 const DAY_LETTERS = ["M", "T", "W", "T", "F", "S", "S"];
+const DAY_NAMES = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 
 const SPEC: Record<string, number[]> = {
   colWidth:    [140, 60, 36, 26],
@@ -186,41 +187,54 @@ const WeekCalendar = forwardRef<{ scrollToToday: () => void }, WeekCalendarProps
                   cursor: "pointer",
                 }}
               >
-                <span style={{
-                  fontSize: getS("dayFont", dist),
-                  fontWeight: isCenter ? 700 : isBeside ? 600 : 400,
-                  color: isToday && isCenter ? "var(--accent)" : isToday ? "rgba(255,208,0,0.5)" : "rgba(255,255,255,0.2)",
-                  transition: "all 0.3s ease",
-                }}>{DAY_LETTERS[i]}</span>
-
-                <div style={{
-                  width: getS("circle", dist), height: getS("circle", dist),
-                  borderRadius: "50%",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  background: isToday ? "var(--accent)" : "transparent",
-                  border: isCenter && !isToday ? "1.5px solid rgba(255,208,0,0.3)" : "1.5px solid transparent",
-                  transition: "all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1)",
-                }}>
-                  <span style={{
-                    fontSize: getS("dateFont", dist),
-                    fontWeight: isCenter ? 800 : isBeside ? 600 : 400,
-                    color: isToday ? "#0a0a0a" : isCenter ? "var(--t1)" : isBeside ? "rgba(255,255,255,0.5)" : "var(--t3)",
-                    transition: "all 0.3s ease",
-                  }}>{day.getDate()}</span>
-                </div>
-
-                <div style={{
-                  width: getS("barWidth", dist), height: getS("barHeight", dist),
-                  borderRadius: 2, background: "rgba(255,255,255,0.04)",
-                  overflow: "hidden", transition: "all 0.3s ease",
-                }}>
-                  {displayHours[i] > 0 && (
+                {isCenter ? (
+                  /* ── Center: horizontal glass pill with sunrise gradient ── */
+                  <div style={{
+                    position: "relative", display: "inline-flex", alignItems: "center",
+                    gap: 8, padding: "6px 18px", borderRadius: 12, overflow: "hidden",
+                    border: "1px solid rgba(255,255,255,0.13)",
+                    transition: "all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1)",
+                  }}>
+                    {/* Sunrise gradient — contained inside glass rect */}
                     <div style={{
-                      width: `${(displayHours[i] / maxHrs) * 100}%`, height: "100%", borderRadius: 2,
-                      background: isToday && isCenter ? "var(--accent)" : "rgba(255,208,0,0.3)",
+                      position: "absolute", inset: 0,
+                      background: "linear-gradient(135deg, rgba(255,120,40,0.4) 0%, rgba(255,170,50,0.3) 35%, rgba(255,210,70,0.2) 65%, rgba(255,235,130,0.1) 100%)",
+                      zIndex: 0,
                     }} />
-                  )}
-                </div>
+                    {/* Glass frost layer */}
+                    <div style={{
+                      position: "absolute", inset: 0,
+                      background: "rgba(255,255,255,0.05)",
+                      backdropFilter: "blur(10px) saturate(140%)",
+                      WebkitBackdropFilter: "blur(10px) saturate(140%)" as any,
+                      zIndex: 1,
+                    }} />
+                    <span style={{
+                      fontSize: 13, fontWeight: 700, color: "var(--accent)",
+                      letterSpacing: 0.5, zIndex: 2, position: "relative",
+                    }}>{DAY_NAMES[i]}</span>
+                    <span style={{
+                      fontSize: 16, fontWeight: 800, color: "var(--accent)",
+                      zIndex: 2, position: "relative",
+                    }}>{day.getDate()}</span>
+                  </div>
+                ) : (
+                  /* ── Non-center: vertical letter + number, no circle, no bar ── */
+                  <>
+                    <span style={{
+                      fontSize: getS("dayFont", dist),
+                      fontWeight: isBeside ? 600 : 400,
+                      color: isToday ? "rgba(255,208,0,0.5)" : "rgba(255,255,255,0.2)",
+                      transition: "all 0.3s ease",
+                    }}>{DAY_LETTERS[i]}</span>
+                    <span style={{
+                      fontSize: getS("dateFont", dist),
+                      fontWeight: isBeside ? 600 : 400,
+                      color: isToday ? "var(--accent)" : isBeside ? "rgba(255,255,255,0.5)" : "var(--t3)",
+                      transition: "all 0.3s ease",
+                    }}>{day.getDate()}</span>
+                  </>
+                )}
               </div>
             );
           })}

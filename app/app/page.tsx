@@ -110,6 +110,7 @@ export default function Home() {
   const [statSortNewest, setStatSortNewest] = useState(true);
   const [filterMode, setFilterMode] = useState<string>("all");
   const [calView, setCalView] = useState<"W" | "M" | "Q" | "Y">("W");
+  const [magicPlannerInput, setMagicPlannerInput] = useState("");
   const [weekCalCenter, setWeekCalCenter] = useState<number>(-1);
   const [deleteMode, setDeleteMode] = useState(false);
   const longPressTimer = useRef<any>(null);
@@ -1008,36 +1009,56 @@ const getTypeLabel = (typeId: string): string => {
           />
           </div>
 
-          {/* ═══ CALENDAR VIEW TOGGLE ═══ */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, marginTop: 14, marginBottom: 16 }}>
-            {(["W", "M", "Q", "Y"] as const).map((v) => (
-              <div
-                key={v}
-                className="tap"
-                onClick={() => {
-                  setCalView(v);
-                  if (taskSheetRef.current) taskSheetRef.current.snapTo(2);
-                  if (v === "W" && weekCalRef.current) {
-                    setTimeout(() => weekCalRef.current?.scrollToToday(), 50);
-                  }
-                }}
+          {/* ═══ MAGIC PLANNER BAR ═══ */}
+          <div style={{ marginTop: 14, marginBottom: 16, padding: "0 4px" }}>
+            <div style={{
+              display: "flex", alignItems: "center", gap: 8,
+              background: "rgba(255,255,255,0.06)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              borderRadius: 50, padding: "10px 16px",
+            }}>
+              <input
+                type="text"
+                value={magicPlannerInput}
+                onChange={(e) => setMagicPlannerInput(e.target.value)}
+                placeholder="Deep work 4h, gym 1h, read 30m..."
                 style={{
-                  width: 36,
-                  height: 36,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 13,
-                  fontWeight: 700,
-                  letterSpacing: 0,
-                  color: calView === v ? "#0a0a0a" : "rgba(255,255,255,0.2)",
-                  borderRadius: 50,
-                  cursor: "pointer",
-                  background: calView === v ? "#FFD000" : "transparent",
-                  transition: "background 0.25s ease, color 0.25s ease",
+                  flex: 1, background: "transparent", border: "none", outline: "none",
+                  color: "var(--t1)", fontSize: 13, fontWeight: 400,
+                  fontFamily: "inherit",
                 }}
-              >{v}</div>
-            ))}
+              />
+              {/* Mic button */}
+              <div className="tap" style={{
+                width: 28, height: 28, borderRadius: "50%",
+                background: "rgba(255,255,255,0.06)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                flexShrink: 0, cursor: "pointer",
+              }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="2" strokeLinecap="round">
+                  <rect x="9" y="1" width="6" height="12" rx="3"/>
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                  <line x1="12" y1="19" x2="12" y2="23"/>
+                </svg>
+              </div>
+              {/* Send button */}
+              <div className="tap" onClick={() => {
+                if (!magicPlannerInput.trim()) return;
+                // TODO: parse natural language → create multiple tasks
+                setMagicPlannerInput("");
+              }} style={{
+                width: 28, height: 28, borderRadius: "50%",
+                background: magicPlannerInput.trim() ? "#FFD000" : "rgba(255,255,255,0.06)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                flexShrink: 0, cursor: "pointer",
+                transition: "background 0.2s ease",
+              }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={magicPlannerInput.trim() ? "#0a0a0a" : "rgba(255,255,255,0.35)"} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="5" y1="12" x2="19" y2="12"/>
+                  <polyline points="12 5 19 12 12 19"/>
+                </svg>
+              </div>
+            </div>
           </div>
 
           {calView === "W" && (
