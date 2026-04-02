@@ -31,21 +31,21 @@ const DAY_LETTERS = ["M", "T", "W", "T", "F", "S", "S"];
 
 // Distance-based specs: [center, ±1, ±2, ±3]
 const SPEC: Record<string, number[]> = {
-  colWidth:    [88, 68, 44, 32],
+  colWidth:    [120, 76, 44, 32],
   circle:      [38, 30, 22, 16],
   dateFont:    [16, 14, 10, 9],
   dayFont:     [11, 10, 8, 7],
   opacity:     [1, 0.65, 0.25, 0.12],
-  barWidth:    [28, 22, 14, 8],
+  barWidth:    [32, 22, 14, 8],
   barHeight:   [3, 3, 2, 1.5],
-  blockWidth:  [64, 46, 24, 16],
-  blockH:      [16, 10, 5, 3],
-  blockGap:    [3, 2.5, 1.5, 1],
-  blockRadius: [5, 4, 2, 1.5],
-  blockFont:   [8.5, 7, 0, 0],
+  blockWidth:  [108, 62, 28, 16],
+  blockH:      [22, 12, 5, 3],
+  blockGap:    [4, 3, 1.5, 1],
+  blockRadius: [6, 4, 2, 1.5],
+  blockFont:   [9, 7.5, 0, 0],
   blockBorder: [2.5, 2, 1, 1],
   maxBlocks:   [8, 5, 3, 2],
-  durScale:    [14, 6, 0, 0],
+  durScale:    [18, 8, 0, 0],
 };
 
 const getS = (key: string, dist: number): number =>
@@ -194,9 +194,10 @@ const WeekCalendar = forwardRef<{ scrollToToday: () => void }, WeekCalendarProps
           display: "flex",
           justifyContent: "center",
           alignItems: "flex-start",
-          padding: "0 4px",
+          padding: "4px 0px 16px",
           touchAction: "pan-y",
           cursor: "grab",
+          minHeight: 160,
         }}
       >
         {weekDays.map((day, i) => {

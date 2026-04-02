@@ -235,7 +235,7 @@ const TaskSheet = forwardRef<{ snapTo: (idx: number) => void }, TaskSheetProps>(
           borderRadius: 0,
           zIndex: 10,
           overflow: "hidden",
-          willChange: "transform, border-radius",
+          willChange: "transform, border-radius, backdrop-filter",
         }}
         onTouchStart={onStart}
         onTouchMove={onMove}
