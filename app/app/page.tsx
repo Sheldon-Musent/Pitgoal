@@ -303,10 +303,15 @@ export default function Home() {
         id: "test-drag",
         name: "test calendar",
         time: "14:00",
+        timeMin: 840,
         duration: 120,
         type: "work",
         status: "pending",
         planned_duration: 120,
+        actual_duration: null,
+        urgent: false,
+        adjustedTimeMin: null,
+        skippedAt: null,
       } as Task];
     });
   }, [loaded]);
@@ -1033,7 +1038,7 @@ const getTypeLabel = (typeId: string): string => {
           </div>
 
           {/* ═══ MAGIC PLANNER BAR ═══ */}
-          <div style={{ marginTop: 15, marginBottom: 6, padding: "0 40px" }}>
+          <div style={{ marginTop: 10, marginBottom: 6, padding: "0 40px" }}>
             <div style={{
               display: "flex", alignItems: "center", gap: 8,
               background: "rgba(255,255,255,0.06)",
