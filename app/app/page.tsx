@@ -1010,7 +1010,7 @@ const getTypeLabel = (typeId: string): string => {
           </div>
 
           {/* ═══ MAGIC PLANNER BAR ═══ */}
-          <div style={{ marginTop: 10, marginBottom: 10, padding: "0 20px" }}>
+          <div style={{ marginTop: 8, marginBottom: 10, padding: "0 20px" }}>
             <div style={{
               display: "flex", alignItems: "center", gap: 8,
               background: "rgba(255,255,255,0.06)",
