@@ -1080,7 +1080,7 @@ const getTypeLabel = (typeId: string): string => {
               {/* ═══ VIEW SWITCHER PILL ═══ */}
               <div
                 style={{
-                  position: "absolute", left: 4, top: 8, zIndex: 10,
+                  position: "absolute", left: 4, top: 12, zIndex: 10,
                   display: "flex", flexDirection: "column", alignItems: "center", gap: 0,
                   userSelect: "none", WebkitUserSelect: "none" as any,
                   touchAction: "none", cursor: "grab",
