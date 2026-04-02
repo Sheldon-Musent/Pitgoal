@@ -91,6 +91,7 @@ const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
   function WeekTimeline({ tasks, templates, history, center, getDisplayTimeMin, activeTask, onUpdateDuration }, ref) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ taskId: string; startY: number; startDur: number } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const today = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }, []);
 
@@ -201,6 +202,7 @@ const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
     e.stopPropagation();
     const y = e.clientY ?? e.touches?.[0]?.clientY;
     dragRef.current = { taskId, startY: y, startDur };
+    setIsDragging(true);
 
     const onMove = (ev: any) => {
       if (!dragRef.current) return;
@@ -213,6 +215,7 @@ const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
 
     const onUp = () => {
       dragRef.current = null;
+      setIsDragging(false);
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("touchmove", onMove);
@@ -315,11 +318,14 @@ const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
                 overflow: "visible",
                 transition: "all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1)",
               }}>
-                {/* Day column separator */}
+                {/* Day column separator — visible only during drag */}
                 <div style={{
                   position: "absolute", top: TOP_PAD, bottom: 0,
                   right: 0, width: 1,
-                  background: "rgba(255,255,255,0.02)",
+                  background: "rgba(255,255,255,0.06)",
+                  opacity: isDragging ? 1 : 0,
+                  transition: "opacity 0.2s ease",
+                  pointerEvents: "none",
                 }} />
 
                 {/* Task blocks */}
