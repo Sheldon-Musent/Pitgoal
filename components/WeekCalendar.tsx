@@ -33,7 +33,7 @@ const isSameDay = (a: Date, b: Date) =>
 const DAY_LETTERS = ["M", "T", "W", "T", "F", "S", "S"];
 
 const SPEC: Record<string, number[]> = {
-  colWidth:    [80, 60, 44, 32],
+  colWidth:    [140, 60, 36, 26],
   circle:      [36, 28, 22, 16],
   dateFont:    [15, 13, 10, 9],
   dayFont:     [10, 9, 8, 7],

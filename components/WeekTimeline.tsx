@@ -20,7 +20,7 @@ const HOUR_H = 72;
 const TIME_COL = 64;
 const TOP_PAD = 16;
 
-const COL_WIDTHS = [80, 60, 44, 32];
+const COL_WIDTHS = [140, 60, 36, 26];
 const getColW = (dist: number) => COL_WIDTHS[Math.min(dist, COL_WIDTHS.length - 1)];
 
 const fmtHour = (h: number): string => {
@@ -343,7 +343,7 @@ const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
                     return (
                       <div key={b.id} style={{
                         position: "absolute",
-                        top: top + 1, left: 2, right: -40,
+                        top: top + 1, left: 2, right: 4,
                         height: height - 2, minHeight: 28,
                         borderRadius: 8,
                         background: bg,
