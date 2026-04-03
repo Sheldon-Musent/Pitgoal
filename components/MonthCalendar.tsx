@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useRef, useMemo, useCallback, useEffect } from "react";
+import React, { useState, useRef, useMemo, useCallback, useEffect, forwardRef, useImperativeHandle } from "react";
 import { dateKey } from "../lib/utils";
 import type { Task, Template, DayHistory } from "../lib/types";
 
@@ -9,16 +9,14 @@ interface MonthCalendarProps {
   history: Record<string, DayHistory>;
   selectedDate: Date;
   onSelectDate: (d: Date) => void;
-  calView: string;
   onCalViewChange: (v: string) => void;
   getDisplayTimeMin: (task: any) => number;
+  onDisplayChange?: (info: { month: number; year: number }) => void;
 }
 
 const MONTHS_FULL = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const MONTHS_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const DAY_LETTERS = ["M", "T", "W", "T", "F", "S", "S"];
-const CAL_VIEWS = ["W", "M", "Q", "Y"];
-
 const isSameDay = (a: Date, b: Date) =>
   a.getFullYear() === b.getFullYear() &&
   a.getMonth() === b.getMonth() &&
@@ -85,34 +83,6 @@ function getDayDots(
   return { taskCount: Math.min(tc, 3), restCount: Math.min(rc, 1) };
 }
 
-// ── Sunrise glass pill (reusable) ──
-function SunrisePill({ children, style, onClick }: {
-  children: React.ReactNode;
-  style?: React.CSSProperties;
-  onClick?: () => void;
-}) {
-  return (
-    <div onClick={onClick} style={{
-      position: "relative", display: "inline-flex", alignItems: "center",
-      borderRadius: 10, overflow: "hidden",
-      border: "1px solid rgba(255,255,255,0.1)",
-      cursor: "pointer", ...style,
-    }}>
-      <div style={{
-        position: "absolute", inset: 0,
-        background: "linear-gradient(135deg, rgba(255,120,40,0.35) 0%, rgba(255,170,50,0.25) 40%, rgba(255,210,70,0.15) 70%, rgba(255,235,130,0.08) 100%)",
-      }} />
-      <div style={{
-        position: "absolute", inset: 0,
-        background: "rgba(255,255,255,0.04)",
-        backdropFilter: "blur(10px) saturate(140%)",
-        WebkitBackdropFilter: "blur(10px) saturate(140%)" as any,
-      }} />
-      {children}
-    </div>
-  );
-}
-
 // ── Task dots row ──
 function DayDots({ taskCount, restCount }: { taskCount: number; restCount: number }) {
   if (taskCount === 0 && restCount === 0) return null;
@@ -129,10 +99,11 @@ function DayDots({ taskCount, restCount }: { taskCount: number; restCount: numbe
 }
 
 // ═══ MAIN COMPONENT ═══
-export default function MonthCalendar({
-  tasks, templates, history, selectedDate, onSelectDate,
-  calView, onCalViewChange, getDisplayTimeMin,
-}: MonthCalendarProps) {
+const MonthCalendar = forwardRef<{ openDropdown: () => void }, MonthCalendarProps>(
+  function MonthCalendar({
+    tasks, templates, history, selectedDate, onSelectDate,
+    onCalViewChange, getDisplayTimeMin, onDisplayChange,
+  }, ref) {
   const today = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }, []);
 
   // Displayed month (what the header shows)
@@ -145,22 +116,7 @@ export default function MonthCalendar({
 
   // Scroll ref
   const scrollRef = useRef<HTMLDivElement>(null);
-  const headerRef = useRef<HTMLDivElement>(null);
   const scrollTimer = useRef<any>(null);
-
-  // View switcher
-  const [viewLetterAnim, setViewLetterAnim] = useState(false);
-  const viewDragStartY = useRef(0);
-  const viewDragActive = useRef(false);
-  const viewDragMoved = useRef(false);
-
-  const cycleCalView = useCallback((dir: 1 | -1) => {
-    const idx = CAL_VIEWS.indexOf(calView);
-    const next = ((idx + dir) % 4 + 4) % 4;
-    onCalViewChange(CAL_VIEWS[next]);
-    setViewLetterAnim(true);
-    setTimeout(() => setViewLetterAnim(false), 200);
-  }, [calView, onCalViewChange]);
 
   // Generate months to render (current ±1 previous, +4 forward)
   const monthPages = useMemo(() => {
@@ -213,20 +169,21 @@ export default function MonthCalendar({
     }, 80);
   }, [displayMonth, displayYear]);
 
-  // Dropdown position
-  const [boxTop, setBoxTop] = useState(0);
+  // Notify parent of display month/year changes
+  useEffect(() => {
+    onDisplayChange?.({ month: displayMonth, year: displayYear });
+  }, [displayMonth, displayYear, onDisplayChange]);
+
+  // Expose openDropdown to parent via ref
+  useImperativeHandle(ref, () => ({
+    openDropdown: () => {
+      setDdYear(displayYear);
+      setDdOpen(true);
+    },
+  }));
+
   const openDropdown = () => {
     setDdYear(displayYear);
-    if (headerRef.current) {
-      const phone = headerRef.current.closest<HTMLElement>("[data-main-content]");
-      if (phone) {
-        const hr = headerRef.current.getBoundingClientRect();
-        const pr = phone.getBoundingClientRect();
-        setBoxTop(hr.bottom - pr.top + 4);
-      } else {
-        setBoxTop(headerRef.current.offsetTop + headerRef.current.offsetHeight + 4);
-      }
-    }
     setDdOpen(true);
   };
   const closeDropdown = () => setDdOpen(false);
@@ -244,65 +201,6 @@ export default function MonthCalendar({
 
   return (
     <div data-main-content style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden", position: "relative" }}>
-
-      {/* ── Header: view pill + month pill ── */}
-      <div ref={headerRef} style={{
-        padding: "0 16px 8px", display: "flex", alignItems: "center",
-        justifyContent: "space-between", flexShrink: 0, zIndex: 20, position: "relative",
-      }}>
-        {/* View switcher pill */}
-        <SunrisePill
-          style={{ padding: "5px 10px" }}
-          onClick={() => cycleCalView(1)}
-        >
-          <div
-            style={{
-              position: "absolute", inset: 0, zIndex: 5,
-              touchAction: "none", cursor: "grab",
-            }}
-            onTouchStart={(e) => {
-              viewDragStartY.current = e.touches[0].clientY;
-              viewDragActive.current = true;
-              viewDragMoved.current = false;
-            }}
-            onTouchMove={(e) => {
-              if (!viewDragActive.current) return;
-              const dy = e.touches[0].clientY - viewDragStartY.current;
-              if (Math.abs(dy) > 30) {
-                viewDragMoved.current = true;
-                cycleCalView(dy < 0 ? 1 : -1);
-                viewDragActive.current = false;
-              }
-            }}
-            onTouchEnd={() => { viewDragActive.current = false; }}
-          />
-          <span style={{
-            position: "relative", zIndex: 2, fontSize: 12, fontWeight: 700,
-            color: "var(--accent, #FFD000)", letterSpacing: 0.5,
-            transition: "transform 0.2s, opacity 0.2s",
-            transform: viewLetterAnim ? "translateY(-8px)" : "translateY(0)",
-            opacity: viewLetterAnim ? 0 : 1,
-          }}>{calView}</span>
-        </SunrisePill>
-
-        {/* Month header pill */}
-        <SunrisePill style={{ padding: "6px 16px", gap: 8 }} onClick={openDropdown}>
-          <span style={{ position: "relative", zIndex: 2, fontSize: 15, fontWeight: 700, color: "var(--accent, #FFD000)", letterSpacing: 0.3 }}>
-            {MONTHS_FULL[displayMonth]}
-          </span>
-          <span style={{ position: "relative", zIndex: 2, fontSize: 12, fontWeight: 500, color: "rgba(255,208,0,0.4)" }}>
-            {displayYear}
-          </span>
-          <span style={{
-            position: "relative", zIndex: 2, fontSize: 11,
-            color: "rgba(255,208,0,0.5)", marginLeft: 3,
-            display: "inline-block", transition: "transform 0.25s",
-            transform: ddOpen ? "rotate(180deg)" : "none",
-          }}>▾</span>
-        </SunrisePill>
-
-        <div style={{ width: 28 }} />
-      </div>
 
       {/* ── Day headers: M T W T F S S ── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", padding: "6px 16px", flexShrink: 0 }}>
@@ -416,7 +314,7 @@ export default function MonthCalendar({
 
           {/* Glass box — positioned below header */}
           <div style={{
-            position: "absolute", left: 16, right: 16, top: boxTop,
+            position: "absolute", left: 16, right: 16, top: 8,
             borderRadius: 18, overflow: "hidden",
             border: "1px solid rgba(255,255,255,0.1)",
           }}>
@@ -448,9 +346,15 @@ export default function MonthCalendar({
                 >‹</div>
 
                 {/* Year pill (sunrise glass) */}
-                <SunrisePill style={{ padding: "4px 14px", borderRadius: 8 }}>
-                  <span style={{ position: "relative", zIndex: 2, fontSize: 15, fontWeight: 700, color: "var(--accent, #FFD000)", letterSpacing: 0.5 }}>{ddYear}</span>
-                </SunrisePill>
+                <div style={{
+                  position: "relative", display: "inline-flex", alignItems: "center",
+                  padding: "4px 14px", borderRadius: 8, overflow: "hidden",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                }}>
+                  <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg, rgba(255,120,40,0.25) 0%, rgba(255,170,50,0.15) 50%, rgba(255,235,130,0.06) 100%)" }} />
+                  <div style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.03)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" as any }} />
+                  <span style={{ position: "relative", zIndex: 1, fontSize: 15, fontWeight: 700, color: "var(--accent, #FFD000)", letterSpacing: 0.5 }}>{ddYear}</span>
+                </div>
 
                 <div
                   className="tap"
@@ -517,3 +421,6 @@ export default function MonthCalendar({
     </div>
   );
 }
+);
+
+export default MonthCalendar;

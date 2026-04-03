@@ -113,6 +113,8 @@ export default function Home() {
   const [calView, setCalView] = useState<"W" | "M" | "Q" | "Y">("W");
   const [magicPlannerInput, setMagicPlannerInput] = useState("");
   const [weekCalCenter, setWeekCalCenter] = useState<number>(-1);
+  const monthCalRef = useRef<{ openDropdown: () => void }>(null);
+  const [monthCalDisplay, setMonthCalDisplay] = useState({ month: new Date().getMonth(), year: new Date().getFullYear() });
   const [deleteMode, setDeleteMode] = useState(false);
   const longPressTimer = useRef<any>(null);
   const [confirmSkipId, setConfirmSkipId] = useState<string | null>(null);
@@ -1082,6 +1084,71 @@ const getTypeLabel = (typeId: string): string => {
             </div>
           </div>
 
+          {/* ═══ SHARED CALENDAR HEADER ═══ */}
+          <div style={{ padding: "0 16px 8px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0, position: "relative", zIndex: 20 }}>
+            {/* View switcher pill (sunrise glass) */}
+            <div
+              style={{
+                position: "relative", display: "inline-flex", alignItems: "center",
+                padding: "5px 10px", borderRadius: 10, overflow: "hidden",
+                border: "1px solid rgba(255,255,255,0.1)",
+                cursor: "pointer", touchAction: "none",
+                userSelect: "none", WebkitUserSelect: "none" as any,
+              }}
+              onClick={() => {
+                const vs = ["W", "M", "Q", "Y"];
+                const ci = vs.indexOf(calView);
+                setCalView(vs[(ci + 1) % 4] as any);
+              }}
+              onTouchStart={(e) => {
+                (e.currentTarget as any)._dragY = e.touches[0].clientY;
+                (e.currentTarget as any)._dragging = true;
+              }}
+              onTouchMove={(e) => {
+                const el = e.currentTarget as any;
+                if (!el._dragging) return;
+                const dy = e.touches[0].clientY - el._dragY;
+                if (Math.abs(dy) > 30) {
+                  const vs = ["W", "M", "Q", "Y"];
+                  const ci = vs.indexOf(calView);
+                  const next = dy < 0 ? (ci + 1) % 4 : (ci + 3) % 4;
+                  setCalView(vs[next] as any);
+                  el._dragging = false;
+                }
+              }}
+              onTouchEnd={(e) => { (e.currentTarget as any)._dragging = false; }}
+            >
+              <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg, rgba(255,120,40,0.4) 0%, rgba(255,170,50,0.3) 35%, rgba(255,210,70,0.2) 65%, rgba(255,235,130,0.1) 100%)" }} />
+              <div style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.05)", backdropFilter: "blur(10px) saturate(140%)", WebkitBackdropFilter: "blur(10px) saturate(140%)" as any }} />
+              <span style={{ position: "relative", zIndex: 2, fontSize: 12, fontWeight: 700, color: "var(--accent)", letterSpacing: 0.5 }}>{calView}</span>
+            </div>
+
+            {/* Month header pill — only in M view */}
+            {calView === "M" && (
+              <div
+                className="tap"
+                onClick={() => monthCalRef.current?.openDropdown()}
+                style={{
+                  position: "relative", display: "inline-flex", alignItems: "center",
+                  gap: 8, padding: "6px 16px", borderRadius: 12, overflow: "hidden",
+                  border: "1px solid rgba(255,255,255,0.1)", cursor: "pointer",
+                }}
+              >
+                <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg, rgba(255,120,40,0.3) 0%, rgba(255,170,50,0.2) 40%, rgba(255,210,70,0.12) 70%, rgba(255,235,130,0.06) 100%)" }} />
+                <div style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.03)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" as any }} />
+                <span style={{ position: "relative", zIndex: 2, fontSize: 15, fontWeight: 700, color: "var(--accent)", letterSpacing: 0.3 }}>
+                  {["January","February","March","April","May","June","July","August","September","October","November","December"][monthCalDisplay.month]}
+                </span>
+                <span style={{ position: "relative", zIndex: 2, fontSize: 12, fontWeight: 500, color: "rgba(255,208,0,0.4)" }}>
+                  {monthCalDisplay.year}
+                </span>
+                <span style={{ position: "relative", zIndex: 2, fontSize: 11, color: "rgba(255,208,0,0.5)", marginLeft: 3 }}>▾</span>
+              </div>
+            )}
+
+            <div style={{ width: 28 }} />
+          </div>
+
           {calView === "W" && (
             <>
               <WeekCalendar
@@ -1096,8 +1163,6 @@ const getTypeLabel = (typeId: string): string => {
                 center={weekCalCenter}
                 onCenterChange={setWeekCalCenter}
                 onDoubleTapToday={() => weekTimelineRef.current?.scrollToNow()}
-                calView={calView}
-                onCalViewChange={(v) => setCalView(v as any)}
               />
               <WeekTimeline
                 ref={weekTimelineRef}
@@ -1114,14 +1179,15 @@ const getTypeLabel = (typeId: string): string => {
 
           {calView === "M" && (
             <MonthCalendar
+              ref={monthCalRef}
               tasks={tasks}
               templates={templates}
               history={history}
               selectedDate={selectedDate}
               onSelectDate={(d) => setSelectedDate(d)}
-              calView={calView}
               onCalViewChange={(v) => setCalView(v as any)}
               getDisplayTimeMin={getDisplayTimeMin}
+              onDisplayChange={setMonthCalDisplay}
             />
           )}
 
