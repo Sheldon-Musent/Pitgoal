@@ -220,29 +220,9 @@ const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
     dragRef.current = { taskId, startY: y, startDur, startMin };
     setIsDragging(true);
 
-    let autoScrollRaf = 0;
-    let lastPointerY = y;
-
-    const autoScroll = () => {
-      if (!dragRef.current || !scrollRef.current) return;
-      const rect = scrollRef.current.getBoundingClientRect();
-      const EDGE = 60;
-      const SPEED = 5;
-      if (lastPointerY > rect.bottom - EDGE) {
-        const intensity = Math.min((lastPointerY - (rect.bottom - EDGE)) / EDGE, 1);
-        scrollRef.current.scrollTop += SPEED * intensity;
-      } else if (lastPointerY < rect.top + EDGE) {
-        const intensity = Math.min(((rect.top + EDGE) - lastPointerY) / EDGE, 1);
-        scrollRef.current.scrollTop -= SPEED * intensity;
-      }
-      autoScrollRaf = requestAnimationFrame(autoScroll);
-    };
-    autoScrollRaf = requestAnimationFrame(autoScroll);
-
     const onMove = (ev: any) => {
       if (!dragRef.current) return;
       const cy = ev.clientY ?? ev.touches?.[0]?.clientY;
-      lastPointerY = cy;
       const dy = cy - dragRef.current.startY;
       const durDeltaMin = (dy / HOUR_H) * 60;
       const maxDur = (HOUR_END * 60) - dragRef.current.startMin;
@@ -251,7 +231,6 @@ const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
     };
 
     const onUp = () => {
-      cancelAnimationFrame(autoScrollRaf);
       dragRef.current = null;
       setIsDragging(false);
       window.removeEventListener("pointermove", onMove);
