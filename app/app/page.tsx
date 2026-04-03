@@ -1085,7 +1085,7 @@ const getTypeLabel = (typeId: string): string => {
           </div>
 
           {/* ═══ SHARED CALENDAR HEADER ═══ */}
-          <div style={{ padding: "0 16px 8px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0, position: "relative", zIndex: 20 }}>
+          <div style={calView === "W" ? { position: "relative", height: 0, zIndex: 20 } : { padding: "0 16px 8px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0, position: "relative", zIndex: 20 }}>
             {/* View switcher pill (sunrise glass) */}
             <div
               style={{
@@ -1093,6 +1093,7 @@ const getTypeLabel = (typeId: string): string => {
                 padding: "5px 10px", borderRadius: 10, overflow: "hidden",
                 border: "1px solid rgba(255,255,255,0.1)",
                 cursor: "pointer", touchAction: "none",
+                ...(calView === "W" ? { position: "absolute" as any, left: 20, top: 4 } : {}),
                 userSelect: "none", WebkitUserSelect: "none" as any,
               }}
               onClick={() => {
