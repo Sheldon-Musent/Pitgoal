@@ -32,14 +32,6 @@ const TaskSheet = forwardRef<{ snapTo: (idx: number) => void }, TaskSheetProps>(
   const startYRef = useRef(0);
   const startTopRef = useRef(0);
 
-  // Expose snapTo to parent
-  useImperativeHandle(ref, () => ({ snapTo }));
-
-  // Desktop: just render children, no sheet
-  if (isDesktop) {
-    return <div>{stickyHeader}{children}</div>;
-  }
-
   // Measure snap points from viewport — same as prototype measures from phone frame
   const measure = () => {
     // Get safe area inset for iOS PWA (notch)
@@ -206,8 +198,12 @@ const TaskSheet = forwardRef<{ snapTo: (idx: number) => void }, TaskSheetProps>(
     snapTo(nearest(target));
   };
 
+  // Expose snapTo to parent
+  useImperativeHandle(ref, () => ({ snapTo }));
+
   // Measure on mount + resize
   useEffect(() => {
+    if (isDesktop) return;
     const timer = setTimeout(() => {
       measure();
       snapTo(1);
@@ -215,7 +211,11 @@ const TaskSheet = forwardRef<{ snapTo: (idx: number) => void }, TaskSheetProps>(
     const onResize = () => { measure(); snapTo(currentSnapRef.current); };
     window.addEventListener("resize", onResize);
     return () => { clearTimeout(timer); window.removeEventListener("resize", onResize); };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isDesktop]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (isDesktop) {
+    return <div>{stickyHeader}{children}</div>;
+  }
 
   return (
     <>
