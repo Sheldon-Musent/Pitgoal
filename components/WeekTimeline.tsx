@@ -246,11 +246,11 @@ const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
   }, [onUpdateDuration]);
 
   return (
-    <div style={{ flex: 1, position: "relative", minHeight: 0, overflow: "hidden", marginTop: -36, zIndex: 2 }}>
+    <div style={{ flex: 1, position: "relative", minHeight: 0, overflow: "hidden", marginTop: -20, zIndex: 2 }}>
     {/* Top fade gradient — dissolves behind week picker */}
     <div style={{
-      position: "absolute", top: 0, left: 0, right: 0, height: 28,
-      background: "linear-gradient(to bottom, var(--bg, #0a0a0a) 20%, transparent 100%)",
+      position: "absolute", top: 0, left: 0, right: 0, height: 56,
+      background: "linear-gradient(to bottom, var(--bg, #0a0a0a) 40%, transparent 100%)",
       zIndex: 9, pointerEvents: "none",
     }} />
     {/* Bottom fade gradient — dissolves before nav */}
