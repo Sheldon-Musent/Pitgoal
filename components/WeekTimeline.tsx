@@ -18,7 +18,7 @@ const HOUR_END = 24;
 const TOTAL_HOURS = HOUR_END - HOUR_START;
 const HOUR_H = 72;
 const TIME_COL = 64;
-const TOP_PAD = 48;
+const TOP_PAD = 16;
 
 const COL_WIDTHS = [140, 60, 36, 26];
 const COL_GAP = 6;
@@ -246,31 +246,18 @@ const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
   }, [onUpdateDuration]);
 
   return (
-    <div style={{ flex: 1, position: "relative", minHeight: 0, overflow: "hidden", marginTop: -20, zIndex: 2 }}>
-    {/* Top fade gradient — dissolves behind week picker */}
-    <div style={{
-      position: "absolute", top: 0, left: 0, right: 0, height: 56,
-      background: "linear-gradient(to bottom, var(--bg, #0a0a0a) 40%, transparent 100%)",
-      zIndex: 9, pointerEvents: "none",
-    }} />
-    {/* Bottom fade gradient — dissolves before nav */}
-    <div style={{
-      position: "absolute", bottom: 0, left: 0, right: 0, height: 48,
-      background: "linear-gradient(to top, var(--bg, #0a0a0a) 30%, transparent 100%)",
-      zIndex: 9, pointerEvents: "none",
-    }} />
     <div
       ref={scrollRef}
       className="no-scrollbar"
       style={{
-        height: "100%", overflowY: "auto", overflowX: "hidden",
+        flex: 1, overflowY: "auto", overflowX: "hidden",
         WebkitOverflowScrolling: "touch" as any,
         position: "relative", minHeight: 0,
       }}
     >
       <div style={{
         position: "relative",
-        height: TOTAL_HOURS * HOUR_H + TOP_PAD + 24,
+        height: TOTAL_HOURS * HOUR_H + TOP_PAD + HOUR_H,
       }}>
         {/* Glass time pills */}
         {Array.from({ length: TOTAL_HOURS }, (_, hi) => {
@@ -345,7 +332,7 @@ const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
               <div key={i} style={{
                 width: colW, flexShrink: 0,
                 position: "relative",
-                height: TOTAL_HOURS * HOUR_H + TOP_PAD + 24,
+                height: TOTAL_HOURS * HOUR_H + TOP_PAD + HOUR_H,
                 opacity,
                 overflow: "visible",
                 transition: "all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1)",
@@ -443,7 +430,6 @@ const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
         </div>
         </div>
       </div>
-    </div>
     </div>
   );
 });
