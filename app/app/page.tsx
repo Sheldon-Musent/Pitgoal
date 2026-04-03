@@ -31,6 +31,7 @@ import StatCards, { waveValues, getChargingColor } from "../../components/StatCa
 import TaskSheet from "../../components/TaskSheet";
 import WeekCalendar from "../../components/WeekCalendar";
 import WeekTimeline from "../../components/WeekTimeline";
+import MonthCalendar from "../../components/MonthCalendar";
 
 // ── Energy system constants ──
 const IDLE_RATE = 0.5;
@@ -1015,7 +1016,7 @@ const getTypeLabel = (typeId: string): string => {
 
       {/* ── MAIN TAB ── */}
       {bottomTab === "main" && (
-        <div style={{ padding: "24px 24px 0", display: calView === "W" ? "flex" : "block", flexDirection: "column", height: calView === "W" ? "100%" : "auto" }}>
+        <div style={{ padding: "24px 24px 0", display: (calView === "W" || calView === "M") ? "flex" : "block", flexDirection: "column", height: (calView === "W" || calView === "M") ? "100%" : "auto" }}>
 
 
           {/* ═══ SECTION A: 3 Stat Cards ═══ */}
@@ -1109,6 +1110,19 @@ const getTypeLabel = (typeId: string): string => {
                 onUpdateDuration={handleUpdateDuration}
               />
             </>
+          )}
+
+          {calView === "M" && (
+            <MonthCalendar
+              tasks={tasks}
+              templates={templates}
+              history={history}
+              selectedDate={selectedDate}
+              onSelectDate={(d) => setSelectedDate(d)}
+              calView={calView}
+              onCalViewChange={(v) => setCalView(v as any)}
+              getDisplayTimeMin={getDisplayTimeMin}
+            />
           )}
 
           <TaskSheet ref={taskSheetRef} marLabelRef={marLabelRef} isDesktop={isDesktop} navHeight={72} stickyHeader={
