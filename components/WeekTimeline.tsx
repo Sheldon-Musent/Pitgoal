@@ -18,7 +18,7 @@ const HOUR_END = 24;
 const TOTAL_HOURS = HOUR_END - HOUR_START;
 const HOUR_H = 72;
 const TIME_COL = 64;
-const TOP_PAD = 16;
+const TOP_PAD = 48;
 
 const COL_WIDTHS = [140, 60, 36, 26];
 const COL_GAP = 6;
