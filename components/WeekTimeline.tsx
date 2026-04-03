@@ -246,11 +246,24 @@ const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
   }, [onUpdateDuration]);
 
   return (
+    <div style={{ flex: 1, position: "relative", minHeight: 0, overflow: "hidden" }}>
+    {/* Top fade gradient */}
+    <div style={{
+      position: "absolute", top: 0, left: 0, right: 0, height: 32,
+      background: "linear-gradient(to bottom, #0a0a0a, transparent)",
+      zIndex: 9, pointerEvents: "none",
+    }} />
+    {/* Bottom fade gradient */}
+    <div style={{
+      position: "absolute", bottom: 0, left: 0, right: 0, height: 40,
+      background: "linear-gradient(to top, #0a0a0a, transparent)",
+      zIndex: 9, pointerEvents: "none",
+    }} />
     <div
       ref={scrollRef}
       className="no-scrollbar"
       style={{
-        flex: 1, overflowY: "auto", overflowX: "hidden",
+        height: "100%", overflowY: "auto", overflowX: "hidden",
         WebkitOverflowScrolling: "touch" as any,
         position: "relative", minHeight: 0,
       }}
@@ -430,6 +443,7 @@ const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
         </div>
         </div>
       </div>
+    </div>
     </div>
   );
 });
