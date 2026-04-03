@@ -18,7 +18,7 @@ const HOUR_END = 24;
 const TOTAL_HOURS = HOUR_END - HOUR_START;
 const HOUR_H = 72;
 const TIME_COL = 64;
-const TOP_PAD = 16;
+const TOP_PAD = 48;
 
 const COL_WIDTHS = [140, 60, 36, 26];
 const COL_GAP = 6;
@@ -220,9 +220,29 @@ const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
     dragRef.current = { taskId, startY: y, startDur, startMin };
     setIsDragging(true);
 
+    let autoScrollRaf = 0;
+    let lastPointerY = y;
+
+    const autoScroll = () => {
+      if (!dragRef.current || !scrollRef.current) return;
+      const rect = scrollRef.current.getBoundingClientRect();
+      const EDGE = 60;
+      const SPEED = 5;
+      if (lastPointerY > rect.bottom - EDGE) {
+        const intensity = Math.min((lastPointerY - (rect.bottom - EDGE)) / EDGE, 1);
+        scrollRef.current.scrollTop += SPEED * intensity;
+      } else if (lastPointerY < rect.top + EDGE) {
+        const intensity = Math.min(((rect.top + EDGE) - lastPointerY) / EDGE, 1);
+        scrollRef.current.scrollTop -= SPEED * intensity;
+      }
+      autoScrollRaf = requestAnimationFrame(autoScroll);
+    };
+    autoScrollRaf = requestAnimationFrame(autoScroll);
+
     const onMove = (ev: any) => {
       if (!dragRef.current) return;
       const cy = ev.clientY ?? ev.touches?.[0]?.clientY;
+      lastPointerY = cy;
       const dy = cy - dragRef.current.startY;
       const durDeltaMin = (dy / HOUR_H) * 60;
       const maxDur = (HOUR_END * 60) - dragRef.current.startMin;
@@ -231,6 +251,7 @@ const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
     };
 
     const onUp = () => {
+      cancelAnimationFrame(autoScrollRaf);
       dragRef.current = null;
       setIsDragging(false);
       window.removeEventListener("pointermove", onMove);
@@ -246,18 +267,29 @@ const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
   }, [onUpdateDuration]);
 
   return (
+    <div style={{ flex: 1, position: "relative", minHeight: 0, overflow: "hidden", marginTop: -20, zIndex: 2 }}>
+    <div style={{
+      position: "absolute", top: 0, left: 0, right: 0, height: 56,
+      background: "linear-gradient(to bottom, var(--bg, #0a0a0a) 40%, transparent 100%)",
+      zIndex: 9, pointerEvents: "none",
+    }} />
+    <div style={{
+      position: "absolute", bottom: 0, left: 0, right: 0, height: 48,
+      background: "linear-gradient(to top, var(--bg, #0a0a0a) 30%, transparent 100%)",
+      zIndex: 9, pointerEvents: "none",
+    }} />
     <div
       ref={scrollRef}
       className="no-scrollbar"
       style={{
-        flex: 1, overflowY: "auto", overflowX: "hidden",
+        height: "100%", overflowY: "auto", overflowX: "hidden",
         WebkitOverflowScrolling: "touch" as any,
         position: "relative", minHeight: 0,
       }}
     >
       <div style={{
         position: "relative",
-        height: TOTAL_HOURS * HOUR_H + TOP_PAD + HOUR_H,
+        height: TOTAL_HOURS * HOUR_H + TOP_PAD + 24,
       }}>
         {/* Glass time pills */}
         {Array.from({ length: TOTAL_HOURS }, (_, hi) => {
@@ -332,7 +364,7 @@ const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
               <div key={i} style={{
                 width: colW, flexShrink: 0,
                 position: "relative",
-                height: TOTAL_HOURS * HOUR_H + TOP_PAD + HOUR_H,
+                height: TOTAL_HOURS * HOUR_H + TOP_PAD + 24,
                 opacity,
                 overflow: "visible",
                 transition: "all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1)",
@@ -430,6 +462,7 @@ const WeekTimeline = forwardRef<{ scrollToNow: () => void }, WeekTimelineProps>(
         </div>
         </div>
       </div>
+    </div>
     </div>
   );
 });

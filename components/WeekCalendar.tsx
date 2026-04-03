@@ -153,7 +153,7 @@ const WeekCalendar = forwardRef<{ scrollToToday: () => void }, WeekCalendarProps
     activeCenter += colWidths[center] / 2;
 
     return (
-      <div style={{ overflow: "hidden", padding: "6px 0 8px", position: "relative" }}>
+      <div style={{ overflow: "hidden", padding: "6px 0 0", position: "relative", zIndex: 5 }}>
         {/* View switcher pill */}
         {calView && onCalViewChange && (
           <div
